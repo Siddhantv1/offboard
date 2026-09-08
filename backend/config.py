@@ -26,7 +26,7 @@ class PortkeySettings:
     base_url: str = os.getenv(
         "PORTKEY_BASE_URL", "https://portkeygateway.perficient.com/v1"
     )
-    api_key: str = os.getenv("PORTKEY_API_KEY", "LkrzTI6X/DKZzjBwyn39deXtjssJ")
+    api_key: str = os.getenv("PORTKEY_API_KEY")
     provider: str = os.getenv("PORTKEY_PROVIDER", "@aws-bedrock-use2")
     model: str = os.getenv("PORTKEY_MODEL", "us.anthropic.claude-sonnet-5")
 
