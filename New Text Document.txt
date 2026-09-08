@@ -1,0 +1,20 @@
+Exit Checklist Generator Agent: Build an AI agent that takes employee role/department and auto-generates a personalized exit checklist (assets to return, access to revoke, KT topics)
+Email Drafting Agent: Create an agent that drafts stage-specific notification emails (KT reminder, overdue warning, completion) using LLM prompts with structured templates
+FAQ Chatbot for Exit Process:	Build a conversational agent that answers employee questions about exit process (timelines, steps, documents needed) using RAG over process docs
+Exit Interview Summarizer:	Agent that reads exit interview submissions and produces structured summary with sentiment analysis, key themes, and actionable recommendations
+SLA Escalation Agent: Create an agent that monitors overdue clearances (>5 days) and autonomously composes escalation messages with context (who is blocking, how long, impact)
+KT Document Reviewer Agent: Agent that reviews Knowledge Transfer documents for completeness - checks if critical topics are covered, identifies gaps, suggests additions based on role
+Smart Routing Agent: Build an agent that determines optimal approver for each clearance stage based on availability, workload, and delegation rules (handles out-of-office)
+Exit Risk Assessment Agent: Agent that analyzes exiting employee profile (tenure, role criticality, project dependencies) and assigns a risk score with recommended mitigation actions
+Compliance Verification Agent: Multi-step agent that verifies all compliance requirements before final clearance - checks asset return, NDA acknowledgment, access revocation confirmation
+Dashboard Insights Agent: Agent that analyzes HR dashboard data (trends, bottlenecks, department patterns) and generates weekly narrative reports with recommendations
+Multi-System Clearance Agent: Build an agent with tool-use capabilities that calls APIs (IT asset management, HRMS, finance) to verify clearances across systems and consolidate status
+Document Collection Agent: Agent that identifies required documents for exit case, checks which are submitted, sends reminders for missing ones, validates uploads using vision/OCR
+Exit Workflow Optimizer Agent: Agent that analyzes historical exit data, identifies bottlenecks (which stages take longest, which departments delay), proposes workflow reconfigurations
+Automated IT Deprovisioning Agent: Build an agent that generates and executes IT deprovisioning plans - list accounts to disable, access to revoke, data to archive - with human-in-the-loop approval
+Exit Interview Trend Analyst Agent: Multi-turn agent that conducts longitudinal analysis of exit interviews, identifies emerging patterns (rising complaints in a department), generates alerts
+Exit Process Orchestrator (Multi-Agent):	Design multi-agent system where separate agents handle each clearance stage (IT Agent, Finance Agent, HR Agent) coordinated by supervisor agent managing handoffs
+Intelligent Rehire Assessment Agent: Agent system that evaluates whether exiting employee should be flagged as eligible for rehire based on performance, exit interview sentiment, manager feedback
+Policy Compliance Auditor Agent: Build autonomous agent that periodically audits all active exit cases against company policy (SLA breaches, missing approvals, skipped steps) and generates reports
+Predictive Attrition Agent: Multi-agent pipeline: Data Collector gathers signals -> Analyzer identifies at-risk employees -> Recommendation Agent suggests retention interventions on scheduled triggers
+End-to-End Exit Automation Agent: Capstone: Build fully autonomous agent that initiates exit process, coordinates all stages, handles exceptions (rejections, escalations, re-routing), communicates with stakeholders

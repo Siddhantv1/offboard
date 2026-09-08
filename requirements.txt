@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+portkey-ai
+python-dotenv
+pydantic
+python-frontmatter
+
+# RAG pipeline (FAQ chatbot): local embeddings + persistent vector DB + lexical
+chromadb
+model2vec
+bm25s
