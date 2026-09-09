@@ -1,36 +1,37 @@
-"""Local embeddings via Model2Vec static embeddings.
+"""Embeddings via Portkey's Azure OpenAI integration.
 
-Static embeddings = precomputed token vectors averaged per text: no PyTorch, no
-transformer inference, tiny footprint (~30 MB model). The model downloads from
-Hugging Face on first use and is cached; set MODEL2VEC_PATH to a local dir if HF
-is unreachable. Generation still happens on the Portkey gateway — only this step
-is local.
+The AWS Bedrock integration used for chat generation can't do embeddings
+("embed is not supported by bedrock"), but Portkey also has an Azure OpenAI
+integration registered, which can. So embeddings go through the same gateway
+as generation now, just routed to a different Portkey provider by prefixing
+the model id with its integration slug (`@azure-openai/...`) -- no local
+embedding model, no separate client configuration needed.
 """
 from __future__ import annotations
 
 from functools import lru_cache
 
-from ..config import RAG
+from portkey_ai import Portkey
+
+from ..config import PORTKEY, RAG
 
 
 @lru_cache(maxsize=1)
-def _model():
-    from model2vec import StaticModel  # imported lazily so app import stays cheap
-
-    return StaticModel.from_pretrained(RAG.embed_model)
+def _client() -> Portkey:
+    # No `provider=` here (unlike the chat client in llm.py) -- the model id's
+    # `@azure-openai/...` prefix already tells Portkey which integration to use.
+    return Portkey(base_url=PORTKEY.base_url, api_key=PORTKEY.api_key)
 
 
 def embed(texts: list[str]) -> list[list[float]]:
     """Embed a batch of texts into unit-comparable float vectors."""
     if not texts:
         return []
-    vectors = _model().encode(texts)
-    return [v.tolist() for v in vectors]
+    resp = _client().embeddings.create(
+        input=texts, model=RAG.embed_model, encoding_format="float"
+    )
+    return [d.embedding for d in sorted(resp.data, key=lambda d: d.index)]
 
 
 def embed_one(text: str) -> list[float]:
     return embed([text])[0]
-
-
-def dimension() -> int:
-    return int(_model().dim)

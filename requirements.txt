@@ -5,9 +5,8 @@ python-dotenv
 pydantic
 python-frontmatter
 
-# RAG pipeline (FAQ chatbot): local embeddings + persistent vector DB + lexical
+# RAG pipeline (FAQ chatbot): Portkey-hosted embeddings + persistent vector DB + lexical
 chromadb
-model2vec
 bm25s
 
 # Multi-agent orchestration (agents 11+): graph-shaped fan-out/join + retry cycles

@@ -38,7 +38,7 @@ backend/             FastAPI app
     <agent>.py       The 10 agents
   rag/               FAQ chatbot retrieval pipeline
     chunker.py       Heading-aware, overlapping Markdown chunker
-    embedder.py      Local Model2Vec static embeddings (no PyTorch)
+    embedder.py      Embeddings via Portkey -> Azure OpenAI integration
     store.py         Persistent ChromaDB vector store wrapper
     index.py         Ingestion: chunk -> embed -> persist  (python -m backend.rag.index)
     retriever.py     Hybrid semantic + BM25 retrieval, fused with RRF
@@ -77,27 +77,27 @@ The FAQ chatbot is a real retrieval-augmented pipeline, not keyword matching:
 
 ```
 chunk (heading-aware, overlapping)
-  -> embed  (Model2Vec static embeddings, local, ~30MB, no PyTorch)
+  -> embed  (Portkey -> Azure OpenAI text-embedding-3-small)
   -> persist (ChromaDB vector DB on disk under data/.chroma)
   -> retrieve (hybrid: semantic vector search + BM25, fused with RRF)
-  -> generate (Portkey gateway) with cited sources
+  -> generate (Portkey -> Bedrock Claude Sonnet 5) with cited sources
 ```
 
-Why local embeddings: the Portkey `@aws-bedrock-use2` integration **cannot do
-embeddings** (`embed is not supported by bedrock`), so only the retrieval/embedding
-step runs locally — generation still goes through the gateway. Hybrid retrieval
+Embeddings and generation both go through the Portkey gateway now, just via
+different registered integrations: the `@aws-bedrock-use2` integration used for
+chat **cannot do embeddings** (`embed is not supported by bedrock`), but
+Portkey also has an `@azure-openai` integration, which can. `backend/rag/embedder.py`
+routes to it by prefixing the model id (`@azure-openai/text-embedding-3-small`)
+rather than setting a different `provider` on the client. Hybrid retrieval
 (semantic + BM25 via Reciprocal Rank Fusion) catches both paraphrases
 ("when do I get my money" -> Full-and-Final Settlement) and exact terms.
 
 The index builds automatically on first server startup. To rebuild it manually
-(e.g. after editing docs):
+(e.g. after editing docs, or after changing `EMBED_MODEL`):
 
 ```bash
 python -m backend.rag.index
 ```
-
-If Hugging Face is unreachable, pre-download the embedding model and set
-`MODEL2VEC_PATH` to its local directory (see `.env.example`).
 
 ## Multi-agent orchestration (LangGraph)
 
@@ -123,10 +123,18 @@ checklist, risk assessment, and approver routing run in parallel, then
 compliance verification gates the result. If blocked, it escalates and
 re-verifies up to twice before settling on `cleared` / `blocked` / `error`.
 
+The frontend's **Exit Process Orchestrator** page draws this graph live. It
+subscribes to `GET /api/orchestrate/{case_id}/stream` (Server-Sent Events fed by
+LangGraph's `debug` stream, one `node_start` / `node_end` per node), so each
+agent's circle gets its own spinner ring while it runs and settles to a check or
+cross when it finishes -- parallel branches independently. When the graph
+reaches END the `done` event carries the final state, rendered under the chain
+as a verdict plus one collapsible section per agent. Deep link: `/#orchestrator`.
+
 Agents 11-20 (multi-system tool use, human-in-the-loop deprovisioning, the
 Exit Process Orchestrator, End-to-End Automation, etc. — see `New Text
 Document.txt`) are unbuilt; this graph is the first concrete instance of the
-pattern they'll need and isn't yet wired into the frontend.
+pattern they'll need.
 
 ## Run it
 
@@ -146,6 +154,8 @@ uvicorn backend.main:app --reload
 - `POST /api/employees` — add a new employee (writes a Markdown file under
   `data/employees/`, refreshes the in-memory cache immediately — no restart)
 - `POST /api/orchestrate/{case_id}` — run the LangGraph exit-clearance orchestrator
+- `GET  /api/orchestrate/{case_id}/stream` — the same run as Server-Sent Events
+  (`node_start`, `node_end`, `done`, `error`) for the live diagram
 
 ## Sample data
 

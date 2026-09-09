@@ -1,4 +1,4 @@
-"""Hybrid retriever: semantic (Model2Vec + Chroma) + lexical (BM25), fused
+"""Hybrid retriever: semantic (Portkey embeddings + Chroma) + lexical (BM25), fused
 with Reciprocal Rank Fusion.
 
 Semantic search catches paraphrases ("when do I get my money" -> final

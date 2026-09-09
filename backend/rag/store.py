@@ -1,8 +1,8 @@
 """Persistent vector store backed by ChromaDB.
 
 A thin wrapper over a Chroma PersistentClient collection. We always supply our own
-Model2Vec embeddings (add/query with explicit vectors), so Chroma's built-in ONNX
-embedder is never loaded. Cosine space; persisted on disk under CHROMA_DIR.
+Portkey-generated embeddings (add/query with explicit vectors), so Chroma's built-in
+ONNX embedder is never loaded. Cosine space; persisted on disk under CHROMA_DIR.
 """
 from __future__ import annotations
 
