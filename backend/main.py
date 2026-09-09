@@ -4,6 +4,9 @@ Serves the unified frontend (static) and a small JSON API:
   GET  /api/agents            -> agent catalog, with select options auto-filled
   POST /api/agents/{id}/run   -> run one agent with a JSON body of inputs
   GET  /api/health            -> gateway/config sanity
+  GET  /api/cases             -> exit case options (orchestrator picker)
+  POST /api/employees         -> add a new employee record
+  POST /api/orchestrate/{case_id} -> run the LangGraph exit-clearance orchestrator
 
 Run:  uvicorn backend.main:app --reload   (from the project root)
 """
@@ -20,6 +23,7 @@ from .agents import REGISTRY
 from .config import FRONTEND_DIR, PORTKEY
 from .data_store import store
 from .llm import LLMError
+from .orchestration import run_orchestration
 from .rag import retriever as rag
 
 app = FastAPI(title="Exit Automation Platform", version="1.0")
@@ -104,6 +108,23 @@ def list_agents() -> dict[str, Any]:
     return {"agents": [_serialize_agent(a) for a in REGISTRY.values()]}
 
 
+@app.get("/api/cases")
+def list_cases() -> dict[str, Any]:
+    """Exit case options for the orchestrator picker (frontend-only helper)."""
+    return {"cases": _case_options()}
+
+
+@app.post("/api/employees")
+def create_employee(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Add a new employee record (writes a Markdown file, refreshes the cache).
+    If marked "exiting", also creates a starter exit case for the orchestrator."""
+    try:
+        emp_doc, case_doc = store.add_employee(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"employee": emp_doc.meta, "case": case_doc.meta if case_doc else None}
+
+
 @app.post("/api/agents/{agent_id}/run")
 def run_agent(agent_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     agent = REGISTRY.get(agent_id)
@@ -116,6 +137,22 @@ def run_agent(agent_id: str, payload: dict[str, Any] | None = None) -> dict[str,
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"agent": agent_id, "result": result}
+
+
+@app.post("/api/orchestrate/{case_id}")
+def orchestrate_case(case_id: str) -> dict[str, Any]:
+    """Run the multi-agent LangGraph orchestrator for one exit case: fans out to
+    checklist/risk/routing, verifies compliance, and escalates + re-verifies
+    (bounded retries) if the case is blocked."""
+    if not store.exit_case(case_id):
+        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
+    try:
+        result = run_orchestration(case_id)
+    except LLMError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"case_id": case_id, "orchestration": result}
 
 
 # -- static frontend (mounted last so it doesn't shadow /api) --------------

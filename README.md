@@ -42,6 +42,8 @@ backend/             FastAPI app
     store.py         Persistent ChromaDB vector store wrapper
     index.py         Ingestion: chunk -> embed -> persist  (python -m backend.rag.index)
     retriever.py     Hybrid semantic + BM25 retrieval, fused with RRF
+  orchestration/     LangGraph multi-agent orchestration (see below)
+    graph.py         Exit Process Orchestrator: fan-out/join + retry cycle
 
 data/                Sample corpus (Markdown): employees, exit-cases, policies,
                      process-docs, kt-docs, interviews
@@ -97,6 +99,35 @@ python -m backend.rag.index
 If Hugging Face is unreachable, pre-download the embedding model and set
 `MODEL2VEC_PATH` to its local directory (see `.env.example`).
 
+## Multi-agent orchestration (LangGraph)
+
+Agents 1-10 are single-shot: one form submit, one LLM call, one JSON result via
+`POST /api/agents/{id}/run`. That's fine until a task is graph-shaped instead of
+linear — needs to fan out to independent sub-agents, join their results, and
+cycle (retry/reroute) based on an outcome. `backend/orchestration/graph.py`
+adds that as a second execution mode, built with **LangGraph**, calling the
+existing agents through `REGISTRY` unchanged:
+
+```
+                 ┌─ checklist ───────┐
+load_case ───────┼─ risk_assessment ─┼──> compliance ──cleared──> END
+(exit case)      └─ smart_routing ───┘        │
+                                          blocked (retries < 2)
+                                               │
+                                               v
+                                            escalate ────> back to compliance
+```
+
+`POST /api/orchestrate/{case_id}` runs this end-to-end for one exit case:
+checklist, risk assessment, and approver routing run in parallel, then
+compliance verification gates the result. If blocked, it escalates and
+re-verifies up to twice before settling on `cleared` / `blocked` / `error`.
+
+Agents 11-20 (multi-system tool use, human-in-the-loop deprovisioning, the
+Exit Process Orchestrator, End-to-End Automation, etc. — see `New Text
+Document.txt`) are unbuilt; this graph is the first concrete instance of the
+pattern they'll need and isn't yet wired into the frontend.
+
 ## Run it
 
 ```bash
@@ -111,6 +142,10 @@ uvicorn backend.main:app --reload
 - `GET  /api/health` — gateway/config + data counts
 - `GET  /api/agents` — agent catalog with auto-filled select options
 - `POST /api/agents/{id}/run` — run an agent; body is a JSON object of inputs
+- `GET  /api/cases` — exit case options (used by the orchestrator picker)
+- `POST /api/employees` — add a new employee (writes a Markdown file under
+  `data/employees/`, refreshes the in-memory cache immediately — no restart)
+- `POST /api/orchestrate/{case_id}` — run the LangGraph exit-clearance orchestrator
 
 ## Sample data
 

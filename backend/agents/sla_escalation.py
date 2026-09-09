@@ -21,6 +21,33 @@ delay. Professional, firm, action-oriented.
 Return JSON: {"to": str, "cc": str, "subject": str, "body": str, "severity": "high|critical"}"""
 
 
+def draft_escalation(case_meta: dict[str, Any], stage: dict[str, Any], *, threshold: int = 5) -> dict[str, Any]:
+    """Compose one escalation for one overdue stage of one case.
+
+    Split out from `SLAEscalationAgent.run` so the orchestrator can escalate a
+    single case's own stages without scanning (and depending on the LLM output
+    of) every other case in the dataset.
+    """
+    emp = case_meta.get("employee_name") or case_meta.get("employee_id") or case_meta.get("case_id")
+    days = parse_days_open(stage)
+    ctx = (
+        f"Employee: {emp}\nCase: {case_meta.get('case_id')}\n"
+        f"Last working day: {case_meta.get('last_working_day', 'unknown')}\n"
+        f"Overdue stage: {stage.get('name')}\n"
+        f"Stage owner: {stage.get('owner', 'unassigned')}\n"
+        f"Status: {stage.get('status')}\nDays open: {days} (SLA {threshold})"
+    )
+    message = llm.complete_json(SYSTEM, f"Compose the escalation.\n\n{ctx}", temperature=0.4)
+    return {
+        "case_id": case_meta.get("case_id"),
+        "employee": emp,
+        "stage": stage.get("name"),
+        "days_open": days,
+        "owner": stage.get("owner"),
+        "message": message,
+    }
+
+
 @register
 class SLAEscalationAgent(BaseAgent):
     meta = AgentMeta(
@@ -47,35 +74,13 @@ class SLAEscalationAgent(BaseAgent):
 
         escalations: list[dict[str, Any]] = []
         for case in store.exit_cases():
-            meta = case.meta
-            emp = meta.get("employee_name") or meta.get("employee_id") or case.title
-            lwd = meta.get("last_working_day", "unknown")
-            stages = meta.get("stages") or []
-            for stage in stages:
+            for stage in case.meta.get("stages") or []:
                 if not isinstance(stage, dict):
                     continue
                 status = str(stage.get("status", "")).lower()
-                days = parse_days_open(stage)
-                if status == "completed" or days <= threshold:
+                if status == "completed" or parse_days_open(stage) <= threshold:
                     continue
-                ctx = (
-                    f"Employee: {emp}\nCase: {meta.get('case_id', case.title)}\n"
-                    f"Last working day: {lwd}\n"
-                    f"Overdue stage: {stage.get('name')}\n"
-                    f"Stage owner: {stage.get('owner', 'unassigned')}\n"
-                    f"Status: {status}\nDays open: {days} (SLA {threshold})"
-                )
-                draft = llm.complete_json(
-                    SYSTEM, f"Compose the escalation.\n\n{ctx}", temperature=0.4
-                )
-                escalations.append({
-                    "case_id": meta.get("case_id", case.title),
-                    "employee": emp,
-                    "stage": stage.get("name"),
-                    "days_open": days,
-                    "owner": stage.get("owner"),
-                    "message": draft,
-                })
+                escalations.append(draft_escalation(case.meta, stage, threshold=threshold))
 
         return {
             "threshold_days": threshold,

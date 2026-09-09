@@ -9,3 +9,6 @@ python-frontmatter
 chromadb
 model2vec
 bm25s
+
+# Multi-agent orchestration (agents 11+): graph-shaped fan-out/join + retry cycles
+langgraph

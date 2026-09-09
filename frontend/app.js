@@ -57,6 +57,18 @@ function renderNav() {
   home.onclick = () => { setActive(home); renderHome(); };
   nav.appendChild(home);
 
+  const orch = el("div", "nav-item");
+  orch.dataset.id = "__orchestrator__";
+  orch.innerHTML = `<span class="ni-icon">⛓</span><span class="ni-name">Exit Process Orchestrator</span>`;
+  orch.onclick = () => { setActive(orch); openOrchestrator(); };
+  nav.appendChild(orch);
+
+  const addEmp = el("div", "nav-item");
+  addEmp.dataset.id = "__add_employee__";
+  addEmp.innerHTML = `<span class="ni-icon">＋</span><span class="ni-name">Add Employee</span>`;
+  addEmp.onclick = () => { setActive(addEmp); openAddEmployee(); };
+  nav.appendChild(addEmp);
+
   const groups = {};
   state.agents.forEach((a) => (groups[a.category] ||= []).push(a));
 
@@ -92,6 +104,26 @@ function renderHome() {
   c.appendChild(head);
 
   const grid = el("div", "grid");
+
+  const orchCard = el("div", "card");
+  orchCard.innerHTML = `
+    <div class="card-top">
+      <div class="card-icon">⛓</div>
+      <div>
+        <div class="card-title">Exit Process Orchestrator</div>
+        <div class="card-tag">LangGraph · multi-agent</div>
+      </div>
+    </div>
+    <div class="card-desc">Runs checklist, risk assessment, and approver routing in
+    parallel for a case, then verifies compliance — escalating and re-checking
+    (bounded retries) if it's blocked, until cleared.</div>`;
+  orchCard.onclick = () => {
+    const item = document.querySelector('.nav-item[data-id="__orchestrator__"]');
+    if (item) setActive(item);
+    openOrchestrator();
+  };
+  grid.appendChild(orchCard);
+
   state.agents.forEach((a) => {
     const card = el("div", "card");
     card.innerHTML = `
@@ -193,6 +225,192 @@ function renderField(f) {
   wrap.appendChild(input);
   if (f.help) wrap.appendChild(el("div", "hint", f.help));
   return wrap;
+}
+
+/* ---------- orchestrator view (LangGraph, agents 1-10 as nodes) ---------- */
+async function openOrchestrator() {
+  state.current = null;
+  $("#crumb").innerHTML = "All agents › <b>Exit Process Orchestrator</b>";
+
+  const c = $("#content");
+  c.innerHTML = "";
+
+  const view = el("div", "agent-view");
+
+  const head = el("div", "av-head");
+  const back = el("div", "back", "‹ All agents");
+  back.onclick = renderHome;
+  head.appendChild(back);
+  const title = el("div", "av-title");
+  title.innerHTML = `<div class="card-icon">⛓</div><h2>Exit Process Orchestrator</h2>`;
+  head.appendChild(title);
+  head.appendChild(el("p", "av-desc",
+    "Runs checklist, risk assessment, and approver routing in parallel for a case, "
+    + "then verifies compliance. If blocked, it drafts escalations and re-verifies "
+    + "(up to 2 retries) before settling on a final status — a LangGraph state "
+    + "machine over the same agents above, not a new agent."));
+  view.appendChild(head);
+
+  const form = el("form", "panel");
+  form.appendChild(el("h3", null, "Case"));
+
+  let cases = [];
+  try {
+    cases = (await fetchJSON("/api/cases")).cases || [];
+  } catch (e) {
+    form.appendChild(el("div", "err", `Could not load cases: ${e.message}`));
+  }
+  form.appendChild(renderField({
+    name: "case_id", label: "Exit case", type: "select", required: true, options: cases,
+  }));
+
+  const row = el("div", "btn-row");
+  const btn = el("button", "btn btn-primary", "Run orchestration");
+  btn.type = "submit";
+  row.appendChild(btn);
+  form.appendChild(row);
+
+  const result = el("div", "panel result-panel");
+  result.style.display = "none";
+
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const caseId = new FormData(form).get("case_id");
+    if (!caseId) return;
+
+    btn.disabled = true;
+    result.style.display = "";
+    result.innerHTML = `<div class="loading"><span class="spinner"></span>`
+      + `Running checklist, risk assessment, and routing in parallel, then verifying compliance…</div>`;
+
+    try {
+      const data = await fetchJSON(`/api/orchestrate/${encodeURIComponent(caseId)}`, { method: "POST" });
+      result.innerHTML = "";
+      result.appendChild(el("h3", null, "Result"));
+      result.appendChild(renderResult(data.orchestration));
+    } catch (e) {
+      result.innerHTML = "";
+      result.appendChild(el("h3", null, "Result"));
+      result.appendChild(el("div", "err", e.message));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  view.appendChild(form);
+  view.appendChild(result);
+  c.appendChild(view);
+}
+
+/* ---------- add employee view ---------- */
+const EMPLOYEE_FIELDS = [
+  { name: "name", label: "Full name", required: true, placeholder: "e.g. Priya Sharma" },
+  { name: "role", label: "Role", required: true, placeholder: "e.g. Backend Engineer" },
+  { name: "department", label: "Department", required: true, placeholder: "e.g. Engineering" },
+  { name: "email", label: "Email", required: false, placeholder: "auto-generated if left blank" },
+  { name: "manager", label: "Manager", required: false },
+  { name: "manager_email", label: "Manager email", required: false },
+  { name: "location", label: "Location", required: false, placeholder: "e.g. Bengaluru, IN" },
+  { name: "employment_type", label: "Employment type", required: false, placeholder: "Full-time" },
+  { name: "join_date", label: "Join date", required: false, placeholder: "YYYY-MM-DD" },
+  { name: "tenure_years", label: "Tenure (years)", type: "number", required: false },
+  { name: "performance_rating", label: "Performance rating (1-5)", type: "number", required: false },
+  {
+    name: "criticality", label: "Role criticality", type: "select", required: false,
+    options: [{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }],
+  },
+  {
+    name: "status", label: "Status", type: "select", required: false,
+    options: [{ value: "active", label: "Active" }, { value: "exiting", label: "Exiting" }],
+    help: "\"Exiting\" also creates a starter exit case, so they show up in the Orchestrator.",
+  },
+  { name: "last_working_day", label: "Last working day", required: false, placeholder: "YYYY-MM-DD",
+    help: "Only used if status is \"Exiting\"." },
+  { name: "project_assignments", label: "Project assignments", type: "textarea", required: false, help: "One per line, or comma-separated." },
+  { name: "access_systems", label: "Access systems", type: "textarea", required: false, help: "One per line, or comma-separated." },
+  { name: "assets_assigned", label: "Assets assigned", type: "textarea", required: false, help: "One per line, or comma-separated." },
+  { name: "notes", label: "Notes", type: "textarea", required: false },
+];
+
+function openAddEmployee() {
+  state.current = null;
+  $("#crumb").innerHTML = "All agents › <b>Add Employee</b>";
+
+  const c = $("#content");
+  c.innerHTML = "";
+
+  const view = el("div", "agent-view");
+
+  const head = el("div", "av-head");
+  const back = el("div", "back", "‹ All agents");
+  back.onclick = renderHome;
+  head.appendChild(back);
+  const title = el("div", "av-title");
+  title.innerHTML = `<div class="card-icon">＋</div><h2>Add Employee</h2>`;
+  head.appendChild(title);
+  head.appendChild(el("p", "av-desc",
+    "Writes a new employee record into the data store. It shows up immediately in "
+    + "every agent's employee picker — no restart needed."));
+  view.appendChild(head);
+
+  const form = el("form", "panel");
+  form.appendChild(el("h3", null, "Employee details"));
+  EMPLOYEE_FIELDS.forEach((f) => form.appendChild(renderField(f)));
+
+  const row = el("div", "btn-row");
+  const btn = el("button", "btn btn-primary", "Add employee");
+  btn.type = "submit";
+  row.appendChild(btn);
+  form.appendChild(row);
+
+  const result = el("div", "panel result-panel");
+  result.style.display = "none";
+
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const payload = {};
+    new FormData(form).forEach((v, k) => { if (v !== "") payload[k] = v; });
+
+    btn.disabled = true;
+    result.style.display = "";
+    result.innerHTML = `<div class="loading"><span class="spinner"></span>Saving employee…</div>`;
+
+    try {
+      const data = await fetchJSON("/api/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const emp = data.employee || {};
+      const caseDoc = data.case;
+      result.innerHTML = "";
+      result.appendChild(el("h3", null, "Added"));
+      const ok = el("div", "email");
+      const caseLine = caseDoc
+        ? `Also created exit case <b>${escapeHtml(caseDoc.case_id || "")}</b> — now available in the Exit Process Orchestrator.`
+        : `Now available in every agent's employee picker.`;
+      ok.innerHTML = `<div class="subj">${escapeHtml(emp.name || "")} — ${escapeHtml(emp.id || "")}</div>
+        <div class="to">${escapeHtml(emp.role || "")} · ${escapeHtml(emp.department || "")}</div>
+        <div class="body">${caseLine}</div>`;
+      result.appendChild(ok);
+      form.reset();
+      // Refresh the cached agent catalog so employee dropdowns include the new hire.
+      try {
+        const agentData = await fetchJSON("/api/agents");
+        state.agents = agentData.agents || [];
+      } catch { /* dropdowns just won't refresh until next reload */ }
+    } catch (e) {
+      result.innerHTML = "";
+      result.appendChild(el("h3", null, "Result"));
+      result.appendChild(el("div", "err", e.message));
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  view.appendChild(form);
+  view.appendChild(result);
+  c.appendChild(view);
 }
 
 async function runAgent(a, form, btn, result) {
