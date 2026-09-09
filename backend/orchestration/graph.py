@@ -14,6 +14,7 @@ risk_assessment, smart_routing, compliance, sla_escalation) via their normal
 from __future__ import annotations
 
 import operator
+from collections.abc import Iterator
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -197,11 +198,66 @@ def get_graph():
     return _graph
 
 
-def run_orchestration(case_id: str) -> ExitOrchestrationState:
-    final_state = get_graph().invoke({"case_id": case_id, "retries": 0, "log": [], "errors": []})
-    if final_state.get("errors"):
-        final_state["status"] = "error"
+def _initial_state(case_id: str) -> dict[str, Any]:
+    return {"case_id": case_id, "retries": 0, "log": [], "errors": []}
+
+
+def _finalize(state: ExitOrchestrationState) -> ExitOrchestrationState:
+    """Stamp the final `status` (error / cleared / blocked) onto a finished state."""
+    if state.get("errors"):
+        state["status"] = "error"
     else:
-        verdict = (final_state.get("compliance", {}).get("verification") or {}).get("final_verdict")
-        final_state["status"] = "cleared" if verdict == "cleared" else "blocked"
-    return final_state
+        verdict = (state.get("compliance", {}).get("verification") or {}).get("final_verdict")
+        state["status"] = "cleared" if verdict == "cleared" else "blocked"
+    return state
+
+
+def run_orchestration(case_id: str) -> ExitOrchestrationState:
+    return _finalize(get_graph().invoke(_initial_state(case_id)))
+
+
+def stream_orchestration(case_id: str) -> Iterator[dict[str, Any]]:
+    """Run the graph and yield one event per node start/finish, then the final state.
+
+    Uses LangGraph's `debug` stream (task / task_result per node, so the UI can
+    show each parallel branch spinning independently) alongside `values`
+    (full state after each superstep, so the last one is the finished run).
+
+    Events:
+      {"event": "node_start", "node": <name>, "step": <int>}
+      {"event": "node_end",   "node": <name>, "step": <int>, "error": <str|None>,
+                              "log": [<str>], "retries": <int|None>}
+      {"event": "done",       "result": <final state incl. status>}
+    """
+    latest: dict[str, Any] = {}
+    for mode, chunk in get_graph().stream(_initial_state(case_id), stream_mode=["debug", "values"]):
+        if mode == "values":
+            latest = chunk
+            continue
+        kind = chunk.get("type")
+        payload = chunk.get("payload") or {}
+        name = payload.get("name")
+        if not name:
+            continue
+        if kind == "task":
+            yield {"event": "node_start", "node": name, "step": chunk.get("step")}
+        elif kind == "task_result":
+            result = payload.get("result") or {}
+            # `result` is the node's state update: a dict, or a list of (key, value)
+            # tuples depending on LangGraph version -- normalise to a dict.
+            if not isinstance(result, dict):
+                try:
+                    result = dict(result)
+                except (TypeError, ValueError):
+                    result = {}
+            error = payload.get("error")
+            node_errors = result.get("errors") or []
+            yield {
+                "event": "node_end",
+                "node": name,
+                "step": chunk.get("step"),
+                "error": str(error) if error else (node_errors[0] if node_errors else None),
+                "log": list(result.get("log") or []),
+                "retries": result.get("retries"),
+            }
+    yield {"event": "done", "result": _finalize(dict(latest))}

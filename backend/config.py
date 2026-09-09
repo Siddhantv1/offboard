@@ -35,18 +35,16 @@ PORTKEY = PortkeySettings()
 
 
 class RAGSettings:
-    """FAQ RAG pipeline: local embeddings + persistent Chroma vector DB.
+    """FAQ RAG pipeline: Portkey-hosted embeddings + persistent Chroma vector DB.
 
-    The gateway can't do embeddings, so embedding + retrieval run locally while
-    generation stays on Portkey. Model2Vec = static embeddings (no PyTorch).
+    The AWS Bedrock integration used for chat can't do embeddings, but Portkey's
+    Azure OpenAI integration can -- so embeddings go through the same gateway as
+    generation, just via a different Portkey-registered provider.
     """
 
     chroma_dir: Path = Path(os.getenv("CHROMA_DIR", str(DATA_DIR / ".chroma")))
     collection: str = os.getenv("RAG_COLLECTION", "exit_docs")
-    # HF id, or a local dir (set MODEL2VEC_PATH) if HF is unreachable.
-    embed_model: str = os.getenv("MODEL2VEC_PATH") or os.getenv(
-        "EMBED_MODEL", "minishlab/potion-base-8M"
-    )
+    embed_model: str = os.getenv("EMBED_MODEL", "@azure-openai/text-embedding-3-small")
     chunk_chars: int = int(os.getenv("RAG_CHUNK_CHARS", "750"))
     chunk_overlap: int = int(os.getenv("RAG_CHUNK_OVERLAP", "110"))
     top_k: int = int(os.getenv("RAG_TOP_K", "5"))

@@ -19,7 +19,12 @@ async function boot() {
     const data = await fetchJSON("/api/agents");
     state.agents = data.agents || [];
     renderNav();
-    renderHome();
+    if (location.hash === "#orchestrator") {
+      setActive(document.querySelector('.nav-item[data-id="__orchestrator__"]'));
+      openOrchestrator();
+    } else {
+      renderHome();
+    }
   } catch (e) {
     $("#content").innerHTML = `<div class="err">Could not load agents: ${e.message}</div>`;
   }
@@ -227,7 +232,107 @@ function renderField(f) {
   return wrap;
 }
 
-/* ---------- orchestrator view (LangGraph, agents 1-10 as nodes) ---------- */
+/* ---------- orchestrator view (LangGraph, agents 1-10 as nodes) ----------
+   A live state-machine diagram. The backend streams one Server-Sent Event per
+   node start/finish (GET /api/orchestrate/{case}/stream), so each circle gets
+   its own spinner ring while that agent is running and settles to a check (or
+   a cross) when it finishes -- parallel branches independently. The result
+   appears under the chain once the graph reaches END. */
+
+// Node geometry in SVG units (viewBox 0 0 880 780). Mirrors backend/orchestration/graph.py.
+const ORCH_NODES = {
+  load_case:       { cx: 440, cy: 130, r: 42, label: ["start"] },
+  checklist:       { cx: 160, cy: 372, r: 62, label: ["exit", "checklist", "agent"] },
+  risk_assessment: { cx: 440, cy: 372, r: 62, label: ["risk", "assess", "agent"] },
+  routing:         { cx: 720, cy: 372, r: 62, label: ["routing", "agent"] },
+  compliance:      { cx: 440, cy: 592, r: 62, label: ["compliance", "agent"] },
+  escalate:        { cx: 720, cy: 592, r: 54, label: ["escalation", "agent"] },
+};
+const ORCH_NAMES = {
+  load_case: "loading the case", checklist: "exit checklist", risk_assessment: "risk assessment",
+  routing: "approver routing", compliance: "compliance check", escalate: "escalation",
+};
+
+function orchDiagram() {
+  const wrap = el("div", "orch-diagram");
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 880 780");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Exit process orchestration graph");
+
+  // Edges are inert ink; only the nodes carry state.
+  svg.innerHTML = `
+    <defs>
+      <marker id="orch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M1,1 L9,5 L1,9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+    <g class="orch-edges">
+      <circle cx="440" cy="34" r="9" class="orch-start-dot"/>
+      <path d="M440,43 V88"/>
+      <path d="M440,172 V236"/>
+      <path d="M440,236 V250 Q440,262 428,262 H172 Q160,262 160,274 V302" marker-end="url(#orch-arrow)"/>
+      <path d="M440,236 V302" marker-end="url(#orch-arrow)"/>
+      <path d="M440,236 V250 Q440,262 452,262 H708 Q720,262 720,274 V302" marker-end="url(#orch-arrow)"/>
+      <path d="M160,434 V474 Q160,486 172,486 H428 Q440,486 440,498 V522" marker-end="url(#orch-arrow)"/>
+      <path d="M440,434 V522"/>
+      <path d="M720,434 V474 Q720,486 708,486 H452 Q440,486 440,498 V522"/>
+      <path d="M502,578 H660" marker-end="url(#orch-arrow)"/>
+      <path d="M666,606 H508" marker-end="url(#orch-arrow)"/>
+      <path d="M440,654 V708" marker-end="url(#orch-arrow)"/>
+      <text x="584" y="568" class="orch-edge-label">blocked</text>
+      <text x="584" y="628" class="orch-edge-label">re-verify</text>
+      <text x="424" y="686" class="orch-edge-label orch-edge-label-end">cleared</text>
+      <text x="720" y="672" class="orch-edge-label orch-retry" data-role="retry"></text>
+      <circle cx="440" cy="732" r="12" class="orch-end-outer"/>
+      <circle cx="440" cy="732" r="7" class="orch-end-inner"/>
+    </g>`;
+
+  Object.entries(ORCH_NODES).forEach(([id, n]) => {
+    const g = document.createElementNS(ns, "g");
+    g.classList.add("orch-node");
+    g.dataset.node = id;
+    const lineH = 20;
+    const y0 = n.cy - ((n.label.length - 1) * lineH) / 2;
+    const lines = n.label.map((t, i) =>
+      `<text x="${n.cx}" y="${y0 + i * lineH}" class="orch-label">${escapeHtml(t)}</text>`).join("");
+    // Badge sits on the circle's upper-right shoulder.
+    const bx = n.cx + n.r * 0.72, by = n.cy - n.r * 0.72;
+    g.innerHTML = `
+      <circle class="ring" cx="${n.cx}" cy="${n.cy}" r="${n.r + 11}"/>
+      <circle class="body" cx="${n.cx}" cy="${n.cy}" r="${n.r}"/>
+      ${lines}
+      <g class="mark" transform="translate(${bx},${by})">
+        <circle r="11"/>
+        <path class="mark-check" d="M-5,0.5 L-1.5,4 L5.5,-4"/>
+        <path class="mark-cross" d="M-4,-4 L4,4 M4,-4 L-4,4"/>
+      </g>`;
+    svg.appendChild(g);
+  });
+
+  wrap.appendChild(svg);
+  return wrap;
+}
+
+function setOrchNode(root, id, status) {
+  const g = root.querySelector(`.orch-node[data-node="${id}"]`);
+  if (!g) return;
+  g.classList.remove("is-running", "is-done", "is-error");
+  if (status) g.classList.add(`is-${status}`);
+}
+
+function resetOrchDiagram(root) {
+  Object.keys(ORCH_NODES).forEach((id) => setOrchNode(root, id, null));
+  const retry = root.querySelector('[data-role="retry"]');
+  if (retry) retry.textContent = "";
+}
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 async function openOrchestrator() {
   state.current = null;
   $("#crumb").innerHTML = "All agents › <b>Exit Process Orchestrator</b>";
@@ -235,7 +340,7 @@ async function openOrchestrator() {
   const c = $("#content");
   c.innerHTML = "";
 
-  const view = el("div", "agent-view");
+  const view = el("div", "agent-view orch-view");
 
   const head = el("div", "av-head");
   const back = el("div", "back", "‹ All agents");
@@ -245,61 +350,180 @@ async function openOrchestrator() {
   title.innerHTML = `<div class="card-icon">⛓</div><h2>Exit Process Orchestrator</h2>`;
   head.appendChild(title);
   head.appendChild(el("p", "av-desc",
-    "Runs checklist, risk assessment, and approver routing in parallel for a case, "
-    + "then verifies compliance. If blocked, it drafts escalations and re-verifies "
-    + "(up to 2 retries) before settling on a final status — a LangGraph state "
-    + "machine over the same agents above, not a new agent."));
+    "One case, five agents, one graph. Checklist, risk assessment, and approver routing "
+    + "run side by side, then compliance decides. If the case is blocked, escalation "
+    + "drafts the nudges and compliance looks again, up to two rounds."));
   view.appendChild(head);
 
-  const form = el("form", "panel");
-  form.appendChild(el("h3", null, "Case"));
-
+  // Controls: a single row, not a form panel -- the diagram is the page.
+  const form = el("form", "orch-controls");
   let cases = [];
   try {
     cases = (await fetchJSON("/api/cases")).cases || [];
   } catch (e) {
     form.appendChild(el("div", "err", `Could not load cases: ${e.message}`));
   }
-  form.appendChild(renderField({
-    name: "case_id", label: "Exit case", type: "select", required: true, options: cases,
-  }));
-
-  const row = el("div", "btn-row");
+  const select = el("select");
+  select.name = "case_id";
+  select.setAttribute("aria-label", "Exit case");
+  const blank = el("option", null, cases.length ? "Choose an exit case" : "No exit cases yet");
+  blank.value = "";
+  select.appendChild(blank);
+  cases.forEach((o) => {
+    const opt = el("option", null, o.label);
+    opt.value = o.value;
+    select.appendChild(opt);
+  });
+  form.appendChild(select);
   const btn = el("button", "btn btn-primary", "Run orchestration");
   btn.type = "submit";
-  row.appendChild(btn);
-  form.appendChild(row);
-
-  const result = el("div", "panel result-panel");
-  result.style.display = "none";
-
-  form.onsubmit = async (ev) => {
-    ev.preventDefault();
-    const caseId = new FormData(form).get("case_id");
-    if (!caseId) return;
-
-    btn.disabled = true;
-    result.style.display = "";
-    result.innerHTML = `<div class="loading"><span class="spinner"></span>`
-      + `Running checklist, risk assessment, and routing in parallel, then verifying compliance…</div>`;
-
-    try {
-      const data = await fetchJSON(`/api/orchestrate/${encodeURIComponent(caseId)}`, { method: "POST" });
-      result.innerHTML = "";
-      result.appendChild(el("h3", null, "Result"));
-      result.appendChild(renderResult(data.orchestration));
-    } catch (e) {
-      result.innerHTML = "";
-      result.appendChild(el("h3", null, "Result"));
-      result.appendChild(el("div", "err", e.message));
-    } finally {
-      btn.disabled = false;
-    }
-  };
-
+  form.appendChild(btn);
   view.appendChild(form);
+
+  const diagram = orchDiagram();
+  view.appendChild(diagram);
+
+  const status = el("div", "orch-status", "Choose a case to watch the agents run.");
+  view.appendChild(status);
+
+  const result = el("div", "panel result-panel orch-result");
+  result.style.display = "none";
   view.appendChild(result);
   c.appendChild(view);
+
+  let source = null;
+  let timer = null;
+
+  form.onsubmit = (ev) => {
+    ev.preventDefault();
+    const caseId = select.value;
+    if (!caseId) { select.focus(); return; }
+    if (source) source.close();
+    if (timer) clearInterval(timer);
+
+    btn.disabled = true;
+    select.disabled = true;
+    result.style.display = "none";
+    result.innerHTML = "";
+    resetOrchDiagram(diagram);
+    diagram.classList.add("is-live");
+
+    const running = new Set();
+    const started = Date.now();
+    let finished = false;
+    let retries = 0;
+
+    const describe = () => {
+      const names = [...running].map((n) => ORCH_NAMES[n] || n);
+      const what = names.length
+        ? (names.length === 1 ? `Running ${names[0]}`
+           : `Running ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]} in parallel`)
+        : "Waiting for the next step";
+      status.textContent = `${what} · ${fmtElapsed(Date.now() - started)}`;
+    };
+    describe();
+    timer = setInterval(describe, 1000);
+
+    const settle = () => {
+      finished = true;
+      clearInterval(timer);
+      timer = null;
+      if (source) { source.close(); source = null; }
+      diagram.classList.remove("is-live");
+      btn.disabled = false;
+      select.disabled = false;
+    };
+
+    source = new EventSource(`/api/orchestrate/${encodeURIComponent(caseId)}/stream`);
+
+    source.addEventListener("node_start", (e) => {
+      const d = JSON.parse(e.data);
+      running.add(d.node);
+      setOrchNode(diagram, d.node, "running");
+      describe();
+    });
+
+    source.addEventListener("node_end", (e) => {
+      const d = JSON.parse(e.data);
+      running.delete(d.node);
+      setOrchNode(diagram, d.node, d.error ? "error" : "done");
+      if (d.node === "escalate" && d.retries) {
+        retries = d.retries;
+        diagram.querySelector('[data-role="retry"]').textContent = `retry ${retries} of 2`;
+      }
+      describe();
+    });
+
+    source.addEventListener("done", (e) => {
+      const d = JSON.parse(e.data);
+      const elapsed = fmtElapsed(Date.now() - started);
+      settle();
+      const r = d.result || {};
+      status.textContent = `Finished in ${elapsed}${r.retries ? ` after ${r.retries} escalation round${r.retries === 1 ? "" : "s"}` : ""}.`;
+      result.style.display = "";
+      result.appendChild(renderOrchestration(r));
+      result.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    source.addEventListener("error", (e) => {
+      if (finished) return;
+      let message = "Lost the connection to the orchestrator before it finished.";
+      if (e.data) {
+        try { message = JSON.parse(e.data).message || message; } catch {}
+      }
+      settle();
+      status.textContent = "The run stopped early.";
+      result.style.display = "";
+      result.appendChild(el("div", "err", message));
+    });
+  };
+}
+
+/* Presents the finished orchestration: the verdict first, then each agent's
+   output in its own section, then the escalations and the step-by-step log. */
+function renderOrchestration(r) {
+  const frag = document.createDocumentFragment();
+  const meta = r.case_meta || {};
+
+  const verdict = el("div", "orch-verdict");
+  verdict.appendChild(el("span", "badge " + badgeClass(r.status || ""), String(r.status || "unknown")));
+  const who = [meta.case_id || r.case_id, meta.employee_name, meta.exit_type].filter(Boolean).join(" · ");
+  verdict.appendChild(el("div", "orch-verdict-who", who));
+  frag.appendChild(verdict);
+
+  if (r.errors && r.errors.length) {
+    const box = el("div", "err");
+    box.textContent = r.errors.join("\n");
+    frag.appendChild(box);
+  }
+
+  const section = (label, value, open = false) => {
+    if (value == null || (typeof value === "object" && !Object.keys(value).length)) return;
+    const d = el("details", "orch-section");
+    if (open) d.open = true;
+    d.appendChild(el("summary", null, label));
+    const body = el("div", "orch-section-body");
+    body.appendChild(renderResult(value));
+    d.appendChild(body);
+    frag.appendChild(d);
+  };
+
+  section("Compliance verification", r.compliance, true);
+  section("Exit checklist", r.checklist);
+  section("Risk assessment", r.risk);
+  section("Approver routing", r.routing);
+  if (r.escalations && r.escalations.length) {
+    section(`Escalations drafted (${r.escalations.length})`, r.escalations);
+  }
+  if (r.log && r.log.length) {
+    const d = el("details", "orch-section");
+    d.appendChild(el("summary", null, "Run log"));
+    const ol = el("ol", "orch-log");
+    r.log.forEach((line) => ol.appendChild(el("li", null, line)));
+    d.appendChild(ol);
+    frag.appendChild(d);
+  }
+  return frag;
 }
 
 /* ---------- add employee view ---------- */

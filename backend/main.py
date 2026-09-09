@@ -7,23 +7,26 @@ Serves the unified frontend (static) and a small JSON API:
   GET  /api/cases             -> exit case options (orchestrator picker)
   POST /api/employees         -> add a new employee record
   POST /api/orchestrate/{case_id} -> run the LangGraph exit-clearance orchestrator
+  GET  /api/orchestrate/{case_id}/stream -> same run, as Server-Sent Events
+                                            (one event per node start/finish)
 
-Run:  uvicorn backend.main:app --reload   (from the project root)
 """
 from __future__ import annotations
 
 import dataclasses
+import json
+from collections.abc import Iterator
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .agents import REGISTRY
 from .config import FRONTEND_DIR, PORTKEY
 from .data_store import store
 from .llm import LLMError
-from .orchestration import run_orchestration
+from .orchestration import run_orchestration, stream_orchestration
 from .rag import retriever as rag
 
 app = FastAPI(title="Exit Automation Platform", version="1.0")
@@ -153,6 +156,36 @@ def orchestrate_case(case_id: str) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"case_id": case_id, "orchestration": result}
+
+
+def _sse(event: str, data: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+
+
+@app.get("/api/orchestrate/{case_id}/stream")
+def orchestrate_case_stream(case_id: str) -> StreamingResponse:
+    """Same run as POST /api/orchestrate/{case_id}, streamed as Server-Sent Events
+    so the UI can light up each node the moment it starts and finishes:
+      node_start {node, step}        node_end {node, step, error, log, retries}
+      done       {result}            error    {message}
+    """
+    if not store.exit_case(case_id):
+        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
+
+    def events() -> Iterator[str]:
+        try:
+            for ev in stream_orchestration(case_id):
+                yield _sse(ev.pop("event"), ev)
+        except LLMError as exc:
+            yield _sse("error", {"message": f"LLM gateway error: {exc}"})
+        except Exception as exc:  # noqa: BLE001
+            yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # -- static frontend (mounted last so it doesn't shadow /api) --------------
