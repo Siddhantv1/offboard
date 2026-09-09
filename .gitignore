@@ -1,0 +1,15 @@
+# Python build artifacts
+__pycache__/
+*.py[cod]
+
+# Local secrets and machine-specific config (copy .env.example -> .env)
+.env
+
+# Generated vector index; rebuilt on first server start or via `python -m backend.rag.index`
+data/.chroma/
+
+# Logs and scratch
+*.log
+
+# Claude Code worktrees live inside the repo directory
+.claude/worktrees/
