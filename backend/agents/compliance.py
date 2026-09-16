@@ -16,7 +16,7 @@ from ..data_store import store
 SYSTEM = """You are a compliance officer performing the final pre-clearance \
 check for an employee exit. For each requirement, decide PASS / FAIL / \
 UNVERIFIED strictly from the evidence provided. Do not assume compliance where \
-evidence is missing.
+evidence is missing. Keep each "evidence" string to one or two sentences.
 
 Return JSON:
 {
@@ -64,6 +64,12 @@ class ComplianceAgent(BaseAgent):
                     "EMPLOYEE RECORD (expected assets & access):\n"
                     + doc_to_context(emp, include_body=False)
                 )
+        # Optional: upstream agents (system clearance, document collection,
+        # deprovisioning execution) hand in what they found. The orchestrator
+        # uses this so compliance isn't limited to what the case file says.
+        extra = (inputs.get("extra_evidence") or "").strip()
+        if extra:
+            evidence.append("ADDITIONAL EVIDENCE FROM OTHER AGENTS:\n" + extra)
         evidence_block = "\n\n".join(evidence)
 
         # Step 2+3 — verify each requirement and produce the verdict.

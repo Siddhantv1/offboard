@@ -28,6 +28,11 @@ stages:
     owner: Karan Malhotra
     status: pending
     days_open: 0
+documents_submitted:
+  - Resignation letter
+  - Notice acknowledgement
+  - Personal contact details
+  - Exit interview form
 ---
 
 # Exit Case case-002 — Rahul Verma (emp-004)

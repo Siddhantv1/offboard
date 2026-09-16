@@ -103,9 +103,9 @@ function renderHome() {
 
   const head = el("div", "home-head");
   head.innerHTML = `<h1>Exit Automation, agent by agent</h1>
-    <p>Ten focused AI agents for employee offboarding — checklists, communications,
-    compliance, and analytics — each grounded in your process docs and case data,
-    routed through the Portkey LLM gateway.</p>`;
+    <p>Fifteen focused AI agents for employee offboarding — checklists, communications,
+    compliance, tool-calling system checks, and analytics — each grounded in your
+    process docs and case data, routed through the Portkey LLM gateway.</p>`;
   c.appendChild(head);
 
   const grid = el("div", "grid");
@@ -119,9 +119,9 @@ function renderHome() {
         <div class="card-tag">LangGraph · multi-agent</div>
       </div>
     </div>
-    <div class="card-desc">Runs checklist, risk assessment, and approver routing in
-    parallel for a case, then verifies compliance — escalating and re-checking
-    (bounded retries) if it's blocked, until cleared.</div>`;
+    <div class="card-desc">Runs six agents in parallel for a case — checklist, risk,
+    routing, live system clearance, documents, deprovisioning plan — pauses for your
+    approval, executes, then verifies compliance with bounded escalation retries.</div>`;
   orchCard.onclick = () => {
     const item = document.querySelector('.nav-item[data-id="__orchestrator__"]');
     if (item) setActive(item);
@@ -160,8 +160,8 @@ function openAgent(id) {
   const c = $("#content");
   c.innerHTML = "";
 
-  // The FAQ agent gets a purpose-built conversational UI.
-  if (a.id === "faq_chatbot") { renderChat(a, c); return; }
+  // Conversational agents get the chat UI instead of a form.
+  if (CHAT_PRESETS[a.id]) { renderChat(a, c); return; }
 
   const view = el("div", "agent-view");
 
@@ -221,6 +221,10 @@ function renderField(f) {
       opt.value = o.value;
       input.appendChild(opt);
     });
+  } else if (f.type === "file") {
+    input = el("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/webp";
   } else {
     input = el("input");
     input.type = f.type === "number" ? "number" : "text";
@@ -239,27 +243,43 @@ function renderField(f) {
    a cross) when it finishes -- parallel branches independently. The result
    appears under the chain once the graph reaches END. */
 
-// Node geometry in SVG units (viewBox 0 0 880 780). Mirrors backend/orchestration/graph.py.
+// Node geometry in SVG units (viewBox 0 0 1000 1010). Mirrors backend/orchestration/graph.py:
+// start -> six parallel agents -> human approval gate -> execute -> compliance (+ escalate loop).
+const ORCH_PARALLEL_X = [110, 266, 422, 578, 734, 890];
 const ORCH_NODES = {
-  load_case:       { cx: 440, cy: 130, r: 42, label: ["start"] },
-  checklist:       { cx: 160, cy: 372, r: 62, label: ["exit", "checklist", "agent"] },
-  risk_assessment: { cx: 440, cy: 372, r: 62, label: ["risk", "assess", "agent"] },
-  routing:         { cx: 720, cy: 372, r: 62, label: ["routing", "agent"] },
-  compliance:      { cx: 440, cy: 592, r: 62, label: ["compliance", "agent"] },
-  escalate:        { cx: 720, cy: 592, r: 54, label: ["escalation", "agent"] },
+  load_case:       { cx: 500, cy: 120, r: 40, label: ["start"] },
+  checklist:       { cx: 110, cy: 330, r: 58, label: ["exit", "checklist"], small: true },
+  risk_assessment: { cx: 266, cy: 330, r: 58, label: ["risk", "assess"], small: true },
+  routing:         { cx: 422, cy: 330, r: 58, label: ["routing"], small: true },
+  clearance:       { cx: 578, cy: 330, r: 58, label: ["system", "clearance"], small: true },
+  documents:       { cx: 734, cy: 330, r: 58, label: ["document", "collection"], small: true },
+  deprov_plan:     { cx: 890, cy: 330, r: 58, label: ["deprov", "plan"], small: true },
+  approval_gate:   { cx: 500, cy: 540, r: 52, label: ["human", "approval"], gate: true },
+  deprov_execute:  { cx: 500, cy: 700, r: 52, label: ["execute", "deprov"] },
+  compliance:      { cx: 500, cy: 862, r: 58, label: ["compliance", "agent"] },
+  escalate:        { cx: 800, cy: 862, r: 52, label: ["escalation", "agent"] },
 };
 const ORCH_NAMES = {
   load_case: "loading the case", checklist: "exit checklist", risk_assessment: "risk assessment",
-  routing: "approver routing", compliance: "compliance check", escalate: "escalation",
+  routing: "approver routing", clearance: "system clearance", documents: "document collection",
+  deprov_plan: "deprovisioning plan", approval_gate: "human approval", deprov_execute: "deprovisioning",
+  compliance: "compliance check", escalate: "escalation",
 };
 
 function orchDiagram() {
   const wrap = el("div", "orch-diagram");
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 880 780");
+  svg.setAttribute("viewBox", "0 0 1000 1010");
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", "Exit process orchestration graph");
+
+  // Fan-out / fan-in are drawn as a bus: one horizontal rail with a drop per node.
+  const xs = ORCH_PARALLEL_X;
+  const fanOut = [`<path d="M500,160 V228"/>`, `<path d="M${xs[0]},228 H${xs[xs.length - 1]}"/>`]
+    .concat(xs.map((x) => `<path d="M${x},228 V270" marker-end="url(#orch-arrow)"/>`)).join("");
+  const fanIn = xs.map((x) => `<path d="M${x},390 V450"/>`)
+    .concat([`<path d="M${xs[0]},450 H${xs[xs.length - 1]}"/>`, `<path d="M500,450 V486" marker-end="url(#orch-arrow)"/>`]).join("");
 
   // Edges are inert ink; only the nodes carry state.
   svg.innerHTML = `
@@ -269,31 +289,32 @@ function orchDiagram() {
       </marker>
     </defs>
     <g class="orch-edges">
-      <circle cx="440" cy="34" r="9" class="orch-start-dot"/>
-      <path d="M440,43 V88"/>
-      <path d="M440,172 V236"/>
-      <path d="M440,236 V250 Q440,262 428,262 H172 Q160,262 160,274 V302" marker-end="url(#orch-arrow)"/>
-      <path d="M440,236 V302" marker-end="url(#orch-arrow)"/>
-      <path d="M440,236 V250 Q440,262 452,262 H708 Q720,262 720,274 V302" marker-end="url(#orch-arrow)"/>
-      <path d="M160,434 V474 Q160,486 172,486 H428 Q440,486 440,498 V522" marker-end="url(#orch-arrow)"/>
-      <path d="M440,434 V522"/>
-      <path d="M720,434 V474 Q720,486 708,486 H452 Q440,486 440,498 V522"/>
-      <path d="M502,578 H660" marker-end="url(#orch-arrow)"/>
-      <path d="M666,606 H508" marker-end="url(#orch-arrow)"/>
-      <path d="M440,654 V708" marker-end="url(#orch-arrow)"/>
-      <text x="584" y="568" class="orch-edge-label">blocked</text>
-      <text x="584" y="628" class="orch-edge-label">re-verify</text>
-      <text x="424" y="686" class="orch-edge-label orch-edge-label-end">cleared</text>
-      <text x="720" y="672" class="orch-edge-label orch-retry" data-role="retry"></text>
-      <circle cx="440" cy="732" r="12" class="orch-end-outer"/>
-      <circle cx="440" cy="732" r="7" class="orch-end-inner"/>
+      <circle cx="500" cy="34" r="9" class="orch-start-dot"/>
+      <path d="M500,43 V78"/>
+      ${fanOut}
+      <text x="516" y="215" class="orch-edge-label orch-edge-label-start">in parallel</text>
+      ${fanIn}
+      <path d="M500,594 V646" marker-end="url(#orch-arrow)"/>
+      <text x="516" y="626" class="orch-edge-label orch-edge-label-start">approve → run · reject → skip</text>
+      <path d="M500,754 V802" marker-end="url(#orch-arrow)"/>
+      <path d="M560,848 H746" marker-end="url(#orch-arrow)"/>
+      <path d="M746,876 H562" marker-end="url(#orch-arrow)"/>
+      <path d="M500,922 V958" marker-end="url(#orch-arrow)"/>
+      <text x="653" y="838" class="orch-edge-label">blocked</text>
+      <text x="653" y="898" class="orch-edge-label">re-verify</text>
+      <text x="486" y="946" class="orch-edge-label orch-edge-label-end">cleared</text>
+      <text x="800" y="940" class="orch-edge-label orch-retry" data-role="retry"></text>
+      <circle cx="500" cy="980" r="12" class="orch-end-outer"/>
+      <circle cx="500" cy="980" r="7" class="orch-end-inner"/>
     </g>`;
 
   Object.entries(ORCH_NODES).forEach(([id, n]) => {
     const g = document.createElementNS(ns, "g");
     g.classList.add("orch-node");
+    if (n.gate) g.classList.add("orch-gate");
+    if (n.small) g.classList.add("orch-small");
     g.dataset.node = id;
-    const lineH = 20;
+    const lineH = n.small ? 18 : 20;
     const y0 = n.cy - ((n.label.length - 1) * lineH) / 2;
     const lines = n.label.map((t, i) =>
       `<text x="${n.cx}" y="${y0 + i * lineH}" class="orch-label">${escapeHtml(t)}</text>`).join("");
@@ -318,7 +339,7 @@ function orchDiagram() {
 function setOrchNode(root, id, status) {
   const g = root.querySelector(`.orch-node[data-node="${id}"]`);
   if (!g) return;
-  g.classList.remove("is-running", "is-done", "is-error");
+  g.classList.remove("is-running", "is-done", "is-error", "is-waiting");
   if (status) g.classList.add(`is-${status}`);
 }
 
@@ -350,9 +371,11 @@ async function openOrchestrator() {
   title.innerHTML = `<div class="card-icon">⛓</div><h2>Exit Process Orchestrator</h2>`;
   head.appendChild(title);
   head.appendChild(el("p", "av-desc",
-    "One case, five agents, one graph. Checklist, risk assessment, and approver routing "
-    + "run side by side, then compliance decides. If the case is blocked, escalation "
-    + "drafts the nudges and compliance looks again, up to two rounds."));
+    "One case, eight agents, one graph. Six agents run side by side: checklist, risk, "
+    + "approver routing, live system clearance, document collection, and the IT "
+    + "deprovisioning plan. The run then pauses for you to approve or reject that plan, "
+    + "executes it if approved, and compliance decides with everything the other agents "
+    + "found. If blocked, escalation drafts the nudges and compliance looks again, up to two rounds."));
   view.appendChild(head);
 
   // Controls: a single row, not a form panel -- the diagram is the page.
@@ -386,6 +409,11 @@ async function openOrchestrator() {
   const status = el("div", "orch-status", "Choose a case to watch the agents run.");
   view.appendChild(status);
 
+  // Human-in-the-loop: appears while the graph is paused at the approval gate.
+  const approval = el("div", "panel orch-approval");
+  approval.style.display = "none";
+  view.appendChild(approval);
+
   const result = el("div", "panel result-panel orch-result");
   result.style.display = "none";
   view.appendChild(result);
@@ -405,15 +433,23 @@ async function openOrchestrator() {
     select.disabled = true;
     result.style.display = "none";
     result.innerHTML = "";
+    approval.style.display = "none";
+    approval.innerHTML = "";
     resetOrchDiagram(diagram);
     diagram.classList.add("is-live");
 
     const running = new Set();
     const started = Date.now();
     let finished = false;
+    let paused = false;
     let retries = 0;
+    let threadId = null;
 
     const describe = () => {
+      if (paused) {
+        status.textContent = `Paused for your approval · ${fmtElapsed(Date.now() - started)}`;
+        return;
+      }
       const names = [...running].map((n) => ORCH_NAMES[n] || n);
       const what = names.length
         ? (names.length === 1 ? `Running ${names[0]}`
@@ -434,49 +470,150 @@ async function openOrchestrator() {
       select.disabled = false;
     };
 
-    source = new EventSource(`/api/orchestrate/${encodeURIComponent(caseId)}/stream`);
-
-    source.addEventListener("node_start", (e) => {
-      const d = JSON.parse(e.data);
-      running.add(d.node);
-      setOrchNode(diagram, d.node, "running");
-      describe();
-    });
-
-    source.addEventListener("node_end", (e) => {
-      const d = JSON.parse(e.data);
-      running.delete(d.node);
-      setOrchNode(diagram, d.node, d.error ? "error" : "done");
-      if (d.node === "escalate" && d.retries) {
-        retries = d.retries;
-        diagram.querySelector('[data-role="retry"]').textContent = `retry ${retries} of 2`;
-      }
-      describe();
-    });
-
-    source.addEventListener("done", (e) => {
-      const d = JSON.parse(e.data);
-      const elapsed = fmtElapsed(Date.now() - started);
-      settle();
-      const r = d.result || {};
-      status.textContent = `Finished in ${elapsed}${r.retries ? ` after ${r.retries} escalation round${r.retries === 1 ? "" : "s"}` : ""}.`;
-      result.style.display = "";
-      result.appendChild(renderOrchestration(r));
-      result.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    source.addEventListener("error", (e) => {
-      if (finished) return;
-      let message = "Lost the connection to the orchestrator before it finished.";
-      if (e.data) {
-        try { message = JSON.parse(e.data).message || message; } catch {}
-      }
+    const fail = (message) => {
       settle();
       status.textContent = "The run stopped early.";
       result.style.display = "";
       result.appendChild(el("div", "err", message));
-    });
+    };
+
+    // One connection per phase: the first run pauses at the gate; the decision
+    // re-connects to the same route with thread_id + decision to resume it.
+    const connect = (url) => {
+      if (source) source.close();
+      source = new EventSource(url);
+
+      source.addEventListener("run_start", (e) => {
+        const d = JSON.parse(e.data);
+        threadId = d.thread_id || threadId;
+      });
+
+      source.addEventListener("node_start", (e) => {
+        const d = JSON.parse(e.data);
+        running.add(d.node);
+        setOrchNode(diagram, d.node, "running");
+        describe();
+      });
+
+      source.addEventListener("node_end", (e) => {
+        const d = JSON.parse(e.data);
+        running.delete(d.node);
+        setOrchNode(diagram, d.node, d.error ? "error" : "done");
+        if (d.node === "escalate" && d.retries) {
+          retries = d.retries;
+          diagram.querySelector('[data-role="retry"]').textContent = `retry ${retries} of 2`;
+        }
+        describe();
+      });
+
+      source.addEventListener("awaiting_approval", (e) => {
+        const d = JSON.parse(e.data);
+        threadId = d.thread_id || threadId;
+        running.delete(d.node);
+        paused = true;
+        setOrchNode(diagram, d.node, "waiting");
+        // The server closes the stream here; that's expected, not an error.
+        if (source) { source.close(); source = null; }
+        describe();
+        approval.innerHTML = "";
+        approval.appendChild(renderApprovalPanel(d, (decision, note) => {
+          paused = false;
+          approval.style.display = "none";
+          approval.innerHTML = "";
+          setOrchNode(diagram, "approval_gate", "running");
+          describe();
+          const q = new URLSearchParams({ thread_id: threadId, decision, note });
+          connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream?${q}`);
+        }));
+        approval.style.display = "";
+        approval.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+
+      source.addEventListener("done", (e) => {
+        const d = JSON.parse(e.data);
+        const elapsed = fmtElapsed(Date.now() - started);
+        settle();
+        const r = d.result || {};
+        status.textContent = `Finished in ${elapsed}${r.retries ? ` after ${r.retries} escalation round${r.retries === 1 ? "" : "s"}` : ""}.`;
+        result.style.display = "";
+        result.appendChild(renderOrchestration(r));
+        result.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      source.addEventListener("error", (e) => {
+        if (finished || paused) return;
+        let message = "Lost the connection to the orchestrator before it finished.";
+        if (e.data) {
+          try { message = JSON.parse(e.data).message || message; } catch {}
+        }
+        fail(message);
+      });
+    };
+
+    connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream`);
   };
+}
+
+/* The approval gate's panel: what the deprovisioning agent wants to do, and
+   the two buttons that resume the graph. Nothing runs until one is clicked. */
+function renderApprovalPanel(d, onDecide) {
+  const frag = document.createDocumentFragment();
+  const plan = d.plan || {};
+  const actions = Array.isArray(plan.actions) ? plan.actions : [];
+
+  const head = el("div", "orch-approval-head");
+  head.appendChild(el("span", "badge b-warn", "awaiting approval"));
+  head.appendChild(el("h3", null, `Approve IT deprovisioning for ${d.employee || plan.employee || "this employee"}?`));
+  frag.appendChild(head);
+  if (plan.summary) frag.appendChild(el("p", "orch-approval-summary", plan.summary));
+  const meta = [plan.urgency ? `urgency: ${String(plan.urgency).replace(/_/g, " ")}` : null,
+                `${actions.length} action${actions.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+  frag.appendChild(el("div", "orch-approval-meta", meta));
+
+  if (actions.length) {
+    const table = el("table", "orch-plan");
+    table.innerHTML = `<thead><tr><th>#</th><th>Action</th><th>Target</th><th>When</th><th>Owner</th></tr></thead>`;
+    const tbody = el("tbody");
+    actions.forEach((a, i) => {
+      const tr = el("tr");
+      if (a.privileged) tr.classList.add("is-privileged");
+      tr.innerHTML = `<td>${escapeHtml(a.step ?? i + 1)}</td>
+        <td>${escapeHtml(String(a.type || "").replace(/_/g, " "))}${a.privileged ? ' <span class="badge b-danger">privileged</span>' : ""}
+            ${a.detail ? `<div class="orch-plan-detail">${escapeHtml(a.detail)}</div>` : ""}</td>
+        <td>${escapeHtml(a.target || "")}</td><td>${escapeHtml(a.when || "")}</td><td>${escapeHtml(a.owner || "")}</td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    frag.appendChild(table);
+  }
+  if (Array.isArray(plan.risks_if_delayed) && plan.risks_if_delayed.length) {
+    frag.appendChild(el("div", "section-label", "Risks if delayed"));
+    const ul = el("ul", "orch-approval-list");
+    plan.risks_if_delayed.forEach((r) => ul.appendChild(el("li", null, String(r))));
+    frag.appendChild(ul);
+  }
+
+  const note = el("textarea", "orch-approval-note");
+  note.placeholder = "Optional note for the audit log (e.g. \"hold GitHub removal until KT review closes\")";
+  note.rows = 2;
+  frag.appendChild(note);
+
+  const row = el("div", "btn-row orch-approval-actions");
+  const approve = el("button", "btn btn-primary", "Approve and execute");
+  approve.type = "button";
+  const reject = el("button", "btn btn-ghost", "Reject (skip execution)");
+  reject.type = "button";
+  const decide = (decision) => {
+    approve.disabled = reject.disabled = true;
+    onDecide(decision, note.value.trim());
+  };
+  approve.onclick = () => decide("approve");
+  reject.onclick = () => decide("reject");
+  row.appendChild(approve);
+  row.appendChild(reject);
+  row.appendChild(el("span", "orch-approval-hint", "Nothing is executed until you decide."));
+  frag.appendChild(row);
+  return frag;
 }
 
 /* Presents the finished orchestration: the verdict first, then each agent's
@@ -509,6 +646,19 @@ function renderOrchestration(r) {
   };
 
   section("Compliance verification", r.compliance, true);
+  if (r.approval) {
+    const decision = r.approval.decision || "";
+    const exec = r.deprov_execution || {};
+    const label = decision === "approve"
+      ? `IT deprovisioning · approved, ${exec.executed ?? 0} action${exec.executed === 1 ? "" : "s"} executed`
+      : decision === "reject" ? "IT deprovisioning · rejected, execution skipped"
+      : "IT deprovisioning · approval skipped";
+    section(label, { approval: r.approval, execution: r.deprov_execution, plan: r.deprov_plan }, true);
+  } else if (r.deprov_plan) {
+    section("IT deprovisioning plan", r.deprov_plan);
+  }
+  section("System clearance (tool calls)", r.clearance);
+  section("Document collection", r.documents);
   section("Exit checklist", r.checklist);
   section("Risk assessment", r.risk);
   section("Approver routing", r.routing);
@@ -638,22 +788,30 @@ function openAddEmployee() {
 }
 
 async function runAgent(a, form, btn, result) {
+  const fd = new FormData(form);
+  // A chosen file means multipart; otherwise the usual JSON body.
+  const hasFile = [...fd.values()].some((v) => v instanceof File && v.size > 0);
   const payload = {};
-  new FormData(form).forEach((v, k) => { if (v !== "") payload[k] = v; });
+  fd.forEach((v, k) => { if (!(v instanceof File) && v !== "") payload[k] = v; });
 
   btn.disabled = true;
   result.style.display = "";
-  result.innerHTML = `<div class="loading"><span class="spinner"></span>Running ${escapeHtml(a.name)} through the gateway…</div>`;
+  result.innerHTML = `<div class="loading"><span class="spinner"></span>Running ${escapeHtml(a.name)}${hasFile ? " (local OCR, then the gateway)" : " through the gateway"}…</div>`;
 
   try {
-    const data = await fetchJSON(`/api/agents/${a.id}/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const data = hasFile
+      ? await fetchJSON(`/api/agents/${a.id}/upload`, { method: "POST", body: fd })
+      : await fetchJSON(`/api/agents/${a.id}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
     result.innerHTML = "";
     result.appendChild(el("h3", null, "Result"));
     result.appendChild(renderResult(data.result));
+    if (a.id === "it_deprovisioning" && data.result && data.result.plan && !data.result.error) {
+      result.appendChild(renderExecuteControls(data.result.plan));
+    }
   } catch (e) {
     result.innerHTML = "";
     result.appendChild(el("h3", null, "Result"));
@@ -663,8 +821,75 @@ async function runAgent(a, form, btn, result) {
   }
 }
 
-/* ---------- FAQ chat view ---------- */
+/* Standalone IT Deprovisioning page: the plan is only a plan until the operator
+   approves it here; execution then runs the approved actions and shows the audit log. */
+function renderExecuteControls(plan) {
+  const box = el("div", "exec-box");
+  box.appendChild(el("div", "section-label", "Human approval required"));
+  const note = el("textarea");
+  note.placeholder = "Optional approval note for the audit log";
+  note.rows = 2;
+  box.appendChild(note);
+  const row = el("div", "btn-row");
+  const go = el("button", "btn btn-primary", "Approve and execute plan");
+  go.type = "button";
+  row.appendChild(go);
+  row.appendChild(el("span", "orch-approval-hint", `${(plan.actions || []).length} actions will run through the system connectors.`));
+  box.appendChild(row);
+  const out = el("div");
+  box.appendChild(out);
+  go.onclick = async () => {
+    go.disabled = true;
+    out.innerHTML = `<div class="loading"><span class="spinner"></span>Executing approved actions…</div>`;
+    try {
+      const data = await fetchJSON(`/api/agents/it_deprovisioning/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, approved_by: "hr-operator (ui)", note: note.value.trim() }),
+      });
+      out.innerHTML = "";
+      out.appendChild(el("div", "section-label", "Execution audit log"));
+      out.appendChild(renderResult(data.execution));
+    } catch (e) {
+      out.innerHTML = "";
+      out.appendChild(el("div", "err", e.message));
+      go.disabled = false;
+    }
+  };
+  return box;
+}
+
+/* ---------- chat view (FAQ chatbot, Interview Trend Analyst) ---------- */
+const CHAT_PRESETS = {
+  faq_chatbot: {
+    field: "question",
+    greeting: "Hi — I'm here to help with the exit process. Ask me about timelines, steps, "
+      + "documents, or final settlement, and I'll answer from the company policies.",
+    starters: [
+      "How long does each clearance stage take?",
+      "What documents do I need to submit?",
+      "When will I get my final settlement?",
+      "What happens if a stage is overdue?",
+    ],
+    placeholder: "Ask a question about the exit process…",
+    auto: false,
+  },
+  interview_trends: {
+    field: "question",
+    greeting: "Reading every exit interview by department and quarter…",
+    starters: [
+      "What is changing in Sales?",
+      "Which manager appears most often in negative interviews?",
+      "Compare Engineering and Sales sentiment.",
+      "What should HR do first?",
+    ],
+    placeholder: "Ask a follow-up about the trends…",
+    auto: true, // first turn runs the full trend analysis without a question
+  },
+};
+
 function renderChat(a, c) {
+  const preset = CHAT_PRESETS[a.id] || CHAT_PRESETS.faq_chatbot;
   const messages = []; // {role: 'user'|'assistant', content, sources?}
 
   const view = el("div", "chat-view");
@@ -685,29 +910,20 @@ function renderChat(a, c) {
 
   // suggestion chips shown until the first message
   const starters = el("div", "chat-starters");
-  [
-    "How long does each clearance stage take?",
-    "What documents do I need to submit?",
-    "When will I get my final settlement?",
-    "What happens if a stage is overdue?",
-  ].forEach((q) => {
+  preset.starters.forEach((q) => {
     const chip = el("button", "starter", q);
     chip.type = "button";
     chip.onclick = () => { input.value = q; send(); };
     starters.appendChild(chip);
   });
-  thread.appendChild(makeAssistantBubble(
-    "Hi — I'm here to help with the exit process. Ask me about timelines, steps, "
-    + "documents, or final settlement, and I'll answer from the company policies.",
-    []
-  ));
+  if (!preset.auto) thread.appendChild(makeAssistantBubble(preset.greeting, []));
   thread.appendChild(starters);
 
   // composer
   const composer = el("form", "composer");
   const input = el("textarea", "composer-input");
   input.rows = 1;
-  input.placeholder = "Ask a question about the exit process…";
+  input.placeholder = preset.placeholder;
   input.addEventListener("input", () => autogrow(input));
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
@@ -722,18 +938,25 @@ function renderChat(a, c) {
   view.appendChild(chat);
   c.appendChild(view);
   input.focus();
+  if (preset.auto) ask("");  // opening analysis, no question needed
 
   function scrollDown() { thread.scrollTop = thread.scrollHeight; }
 
   async function send() {
     const q = input.value.trim();
     if (!q || sendBtn.disabled) return;
-    starters.remove();
+    await ask(q);
+  }
 
-    messages.push({ role: "user", content: q });
-    thread.appendChild(makeUserBubble(q));
-    input.value = "";
-    autogrow(input);
+  async function ask(q) {
+    if (sendBtn.disabled) return;
+    if (q) {
+      starters.remove();
+      messages.push({ role: "user", content: q });
+      thread.appendChild(makeUserBubble(q));
+      input.value = "";
+      autogrow(input);
+    }
     scrollDown();
 
     const typing = makeTyping();
@@ -742,13 +965,13 @@ function renderChat(a, c) {
     sendBtn.disabled = true;
 
     try {
+      const prior = q ? messages.slice(0, -1) : messages.slice(); // turns before this one
+      const body = { history: prior.slice(-6) };
+      if (q) body[preset.field] = q;
       const data = await fetchJSON(`/api/agents/${a.id}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: q,
-          history: messages.slice(0, -1), // prior turns only
-        }),
+        body: JSON.stringify(body),
       });
       const r = data.result || {};
       typing.remove();
@@ -756,7 +979,8 @@ function renderChat(a, c) {
         thread.appendChild(makeErrorBubble(r.error));
       } else {
         messages.push({ role: "assistant", content: r.answer });
-        thread.appendChild(makeAssistantBubble(r.answer, r.sources || []));
+        thread.appendChild(makeAssistantBubble(r.answer, r.sources || [], r.alerts || []));
+        if (!q && starters.parentNode) thread.appendChild(starters); // keep chips under the opening analysis
       }
     } catch (e) {
       typing.remove();
@@ -782,13 +1006,28 @@ function makeUserBubble(text) {
   return row;
 }
 
-function makeAssistantBubble(markdown, sources) {
+function makeAssistantBubble(markdown, sources, alerts) {
   const row = el("div", "msg msg-bot");
   const av = el("div", "msg-avatar", "◗");
   const col = el("div", "msg-col");
   const b = el("div", "bubble");
   b.innerHTML = renderMarkdown(markdown);
   col.appendChild(b);
+  if (alerts && alerts.length) {
+    const list = el("div", "chat-alerts");
+    alerts.forEach((al) => {
+      const item = el("div", "chat-alert");
+      item.appendChild(el("span", "badge " + badgeClass(al.severity || ""), String(al.severity || "alert")));
+      const text = el("span", "chat-alert-text");
+      text.textContent = `${al.department ? al.department + ": " : ""}${al.signal || ""}`;
+      item.appendChild(text);
+      if (Array.isArray(al.evidence) && al.evidence.length) {
+        item.appendChild(el("span", "chat-alert-ev", al.evidence.join(", ")));
+      }
+      list.appendChild(item);
+    });
+    col.appendChild(list);
+  }
   if (sources && sources.length) {
     const chips = el("div", "chips");
     chips.appendChild(el("span", "chips-label", "Sources"));

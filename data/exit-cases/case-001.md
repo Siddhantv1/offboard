@@ -28,6 +28,11 @@ stages:
     owner: Vikram Sharma
     status: pending
     days_open: 0
+documents_submitted:
+  - Resignation letter
+  - Notice acknowledgement
+  - Personal contact details
+  - KT document
 ---
 
 # Exit Case case-001 — Aarav Mehta (emp-001)

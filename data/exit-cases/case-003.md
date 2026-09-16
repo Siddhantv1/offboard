@@ -28,6 +28,10 @@ stages:
     owner: Vikram Sharma
     status: pending
     days_open: 0
+documents_submitted:
+  - Personal contact details
+  - No-dues declaration
+  - KT document
 ---
 
 # Exit Case case-003 — Dev Patel (emp-006)

@@ -1,46 +1,71 @@
-"""Exit Process Orchestrator: a LangGraph state machine over agents 1-10.
+"""Exit Process Orchestrator: a LangGraph state machine over the platform's agents.
 
 Why this needs a graph and not a straight-line list of API calls:
-  - checklist / risk_assessment / smart_routing don't depend on each other, so
-    they fan out from `load_case` and join at `compliance`.
+  - checklist / risk_assessment / smart_routing / multi-system clearance /
+    document collection / deprovisioning *planning* don't depend on each other,
+    so they fan out from `load_case` and join at the approval gate.
+  - the deprovisioning plan must be approved by a human before anything is
+    executed: `approval_gate` calls LangGraph's `interrupt()`, which pauses the
+    run (state is checkpointed per thread) until the UI resumes it with a
+    decision. Approve -> `deprov_execute` runs the plan through the (mock)
+    connectors; reject -> execution is skipped and compliance is told so.
   - if compliance comes back blocked, the case must be escalated and
-    re-verified -- a cycle (escalate -> compliance -> escalate -> ...) bounded
-    by MAX_RETRIES, not a one-shot pipeline.
+    re-verified -- a cycle (escalate -> compliance -> ...) bounded by MAX_RETRIES.
 
-Every node calls straight into the existing `REGISTRY` agents (checklist,
-risk_assessment, smart_routing, compliance, sla_escalation) via their normal
-`run(inputs) -> dict` -- none of them needed to change for this.
+Every node calls straight into the existing `REGISTRY` agents via their normal
+`run(inputs) -> dict`, or into the small helper functions those agents expose.
+
+    START -> load_case
+          -> checklist | risk_assessment | routing | clearance | documents | deprov_plan
+          -> approval_gate  (interrupt: waits for approve / reject)
+          -> deprov_execute
+          -> compliance -> END (cleared) | escalate -> compliance ... (MAX_RETRIES)
 """
 from __future__ import annotations
 
+import json
 import operator
 from collections.abc import Iterator
+from datetime import datetime, timezone
 from typing import Annotated, Any, TypedDict
+from uuid import uuid4
 
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
 
 from ..agents import REGISTRY
 from ..agents._context import parse_days_open
+from ..agents.it_deprovisioning import execute_plan, plan_deprovisioning
 from ..agents.sla_escalation import draft_escalation
 from ..data_store import store
 from ..llm import LLMError
+from ..systems import access_status
 
 MAX_RETRIES = 2
+APPROVAL_NODE = "approval_gate"
+PARALLEL_NODES = ("checklist", "risk_assessment", "routing", "clearance", "documents", "deprov_plan")
 
 
 class ExitOrchestrationState(TypedDict, total=False):
     case_id: str
     employee_id: str
     case_meta: dict[str, Any]
+    case_notes: str
     checklist: dict[str, Any]
     risk: dict[str, Any]
     routing: dict[str, Any]
+    clearance: dict[str, Any]        # agent 11: cross-system status
+    documents: dict[str, Any]        # agent 12: required vs submitted + reminder
+    deprov_plan: dict[str, Any]      # agent 14, phase 1
+    approval: dict[str, Any]         # human decision from the gate
+    deprov_execution: dict[str, Any] # agent 14, phase 2 (or skipped)
     compliance: dict[str, Any]
     escalations: list[dict[str, Any]]
     retries: int
     status: str
-    # checklist/risk_assessment/routing run in the same parallel step and each
-    # appends to these, so they need a reducer instead of last-write-wins.
+    # The parallel branch nodes run in the same step and each append to
+    # these, so they need a reducer instead of last-write-wins.
     log: Annotated[list[str], operator.add]
     errors: Annotated[list[str], operator.add]
 
@@ -56,11 +81,19 @@ def _run_safe(agent_id: str, inputs: dict[str, Any]) -> tuple[dict[str, Any], st
     """Run a registered agent, turning a gateway failure into an error string
     instead of an exception that would abort the whole graph run."""
     try:
-        return _agent(agent_id).run(inputs), None
+        result = _agent(agent_id).run(inputs)
     except LLMError as exc:
         return {}, f"{agent_id}: {exc}"
+    if isinstance(result, dict) and result.get("error"):
+        return result, f"{agent_id}: {result['error']}"
+    return result, None
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+# -- nodes ---------------------------------------------------------------------
 def load_case(state: ExitOrchestrationState) -> dict[str, Any]:
     case = store.exit_case(state["case_id"])
     if not case:
@@ -71,29 +104,29 @@ def load_case(state: ExitOrchestrationState) -> dict[str, Any]:
     employee_id = str(case.meta.get("employee_id", "")).strip()
     return {
         "case_meta": case.meta,
+        "case_notes": case.body.strip(),
         "employee_id": employee_id,
         "log": [f"load_case: {state['case_id']} -> employee {employee_id}"],
     }
 
 
-def run_checklist(state: ExitOrchestrationState) -> dict[str, Any]:
-    if state.get("errors"):
-        return {}
-    result, error = _run_safe("checklist", {"employee_id": state["employee_id"]})
-    update: dict[str, Any] = {"checklist": result, "log": ["checklist: done"]}
-    if error:
-        update["errors"] = [error]
-    return update
+def _simple_agent_node(agent_id: str, state_key: str, input_key: str, label: str):
+    def node(state: ExitOrchestrationState) -> dict[str, Any]:
+        if state.get("errors"):
+            return {}
+        result, error = _run_safe(agent_id, {input_key: state[input_key]})
+        update: dict[str, Any] = {state_key: result, "log": [f"{label}: done"]}
+        if error:
+            update["errors"] = [error]
+        return update
+    node.__name__ = f"run_{state_key}"
+    return node
 
 
-def run_risk_assessment(state: ExitOrchestrationState) -> dict[str, Any]:
-    if state.get("errors"):
-        return {}
-    result, error = _run_safe("risk_assessment", {"employee_id": state["employee_id"]})
-    update: dict[str, Any] = {"risk": result, "log": ["risk_assessment: done"]}
-    if error:
-        update["errors"] = [error]
-    return update
+run_checklist = _simple_agent_node("checklist", "checklist", "employee_id", "checklist")
+run_risk_assessment = _simple_agent_node("risk_assessment", "risk", "employee_id", "risk_assessment")
+run_clearance = _simple_agent_node("multi_system_clearance", "clearance", "case_id", "multi_system_clearance")
+run_documents = _simple_agent_node("document_collection", "documents", "case_id", "document_collection")
 
 
 def run_routing(state: ExitOrchestrationState) -> dict[str, Any]:
@@ -110,15 +143,123 @@ def run_routing(state: ExitOrchestrationState) -> dict[str, Any]:
             continue
         result, error = _run_safe("smart_routing", {"stage": name})
         routing[name] = result
-        if error:
+        if error and not result.get("error"):
             return {"routing": routing, "errors": [error], "log": [f"smart_routing: failed on '{name}'"]}
     return {"routing": routing, "log": [f"smart_routing: {len(routing)} open stage(s)"]}
+
+
+def run_deprov_plan(state: ExitOrchestrationState) -> dict[str, Any]:
+    if state.get("errors"):
+        return {}
+    meta = state.get("case_meta", {})
+    try:
+        plan = plan_deprovisioning(
+            state["employee_id"],
+            exit_type=str(meta.get("exit_type", "")),
+            last_working_day=str(meta.get("last_working_day", "")),
+            case_notes=state.get("case_notes", ""),
+        )
+    except LLMError as exc:
+        return {"deprov_plan": {}, "errors": [f"it_deprovisioning: {exc}"], "log": ["deprov_plan: failed"]}
+    if not isinstance(plan, dict) or plan.get("error"):
+        err = (plan or {}).get("error", "no plan returned") if isinstance(plan, dict) else "no plan returned"
+        return {"deprov_plan": {}, "errors": [f"it_deprovisioning: {err}"], "log": ["deprov_plan: failed"]}
+    n = len(plan.get("actions") or [])
+    return {"deprov_plan": plan, "log": [f"deprov_plan: {n} action(s) drafted, awaiting approval"]}
+
+
+def approval_gate(state: ExitOrchestrationState) -> dict[str, Any]:
+    """Human-in-the-loop: pause here until someone approves or rejects the
+    deprovisioning plan. `interrupt()` raises on the first pass (the run is
+    checkpointed and the stream ends with `awaiting_approval`); when the UI
+    resumes with `Command(resume=decision)` this node re-runs and `interrupt()`
+    returns that decision instead."""
+    if state.get("errors"):
+        return {}
+    plan = state.get("deprov_plan") or {}
+    if not plan:
+        return {"approval": {"decision": "skipped", "reason": "no plan to approve"},
+                "log": ["approval_gate: skipped (no plan)"]}
+
+    decision = interrupt({
+        "case_id": state.get("case_id"),
+        "employee": plan.get("employee") or state.get("case_meta", {}).get("employee_name"),
+        "plan": plan,
+    })
+    if not isinstance(decision, dict):
+        decision = {"decision": str(decision)}
+    verdict = str(decision.get("decision", "")).lower()
+    if verdict not in ("approve", "reject"):
+        verdict = "reject"
+    approval = {
+        "decision": verdict,
+        "by": str(decision.get("by") or "hr-operator"),
+        "note": str(decision.get("note") or ""),
+        "decided_at": _now(),
+        "actions_reviewed": len(plan.get("actions") or []),
+    }
+    past = {"approve": "approved", "reject": "rejected"}[verdict]
+    return {"approval": approval, "log": [f"approval_gate: {past} by {approval['by']}"]}
+
+
+def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
+    if state.get("errors"):
+        return {}
+    approval = state.get("approval") or {}
+    plan = state.get("deprov_plan") or {}
+    if approval.get("decision") != "approve":
+        why = f"rejected by {approval['by']}" if approval.get("decision") == "reject" else approval.get("reason") or "not approved"
+        if approval.get("note"):
+            why += f": {approval['note']}"
+        return {
+            "deprov_execution": {"status": "skipped", "reason": why, "executed": 0},
+            "log": [f"deprov_execute: skipped ({why})"],
+        }
+    result = execute_plan(plan, approved_by=approval.get("by", "hr-operator"), note=approval.get("note", ""))
+    return {"deprov_execution": result, "log": [f"deprov_execute: {result['executed']} action(s) executed"]}
+
+
+def _extra_evidence(state: ExitOrchestrationState) -> str:
+    """What the other agents found, handed to compliance as evidence."""
+    parts: list[str] = []
+    consolidated = (state.get("clearance") or {}).get("consolidated")
+    if consolidated:
+        parts.append("Cross-system clearance status (live tool calls to IT assets, IAM, HRMS, finance):\n"
+                     + json.dumps(consolidated, indent=1, default=str))
+    doc_status = (state.get("documents") or {}).get("status")
+    if doc_status:
+        parts.append("Document collection: "
+                     f"{doc_status.get('submitted_count')} of {doc_status.get('required_now_count')} "
+                     f"currently-due documents submitted. Missing: "
+                     + (json.dumps(doc_status.get("missing_by_stage"), default=str) or "none"))
+    execution = state.get("deprov_execution")
+    if execution:
+        if execution.get("status") == "executed":
+            parts.append(f"IT deprovisioning: {execution.get('executed')} approved action(s) executed at "
+                         f"{execution.get('audit_log', [{}])[0].get('executed_at', 'n/a')} "
+                         f"(approved by {execution.get('approved_by')}). Targets: "
+                         + ", ".join(str(r.get("target")) for r in execution.get("audit_log") or []))
+            # The clearance snapshot above was taken *before* execution; give
+            # compliance a fresh identity check so it can see what changed.
+            try:
+                post = access_status(state["case_id"])
+                parts.append("POST-EXECUTION identity check (live, after the approved actions ran): "
+                             f"still active = {post.get('still_active') or 'none'}; "
+                             f"privileged still active = {post.get('privileged_still_active') or 'none'}. "
+                             "Treat this as superseding the earlier clearance snapshot for access revocation.")
+            except LookupError:
+                pass
+        else:
+            parts.append(f"IT deprovisioning: NOT performed ({execution.get('reason')}). "
+                         "Treat access revocation as unverified/failed.")
+    return "\n\n".join(parts)
 
 
 def verify_compliance(state: ExitOrchestrationState) -> dict[str, Any]:
     if state.get("errors"):
         return {}
-    result, error = _run_safe("compliance", {"case_id": state["case_id"]})
+    result, error = _run_safe("compliance", {"case_id": state["case_id"],
+                                             "extra_evidence": _extra_evidence(state)})
     update: dict[str, Any] = {"compliance": result, "log": ["compliance: checked"]}
     if error:
         update["errors"] = [error]
@@ -166,26 +307,33 @@ def _after_compliance(state: ExitOrchestrationState) -> str:
     return "escalate"
 
 
+# -- graph ---------------------------------------------------------------------
 def build_graph():
     graph = StateGraph(ExitOrchestrationState)
     graph.add_node("load_case", load_case)
     graph.add_node("checklist", run_checklist)
     graph.add_node("risk_assessment", run_risk_assessment)
     graph.add_node("routing", run_routing)
+    graph.add_node("clearance", run_clearance)
+    graph.add_node("documents", run_documents)
+    graph.add_node("deprov_plan", run_deprov_plan)
+    graph.add_node(APPROVAL_NODE, approval_gate)
+    graph.add_node("deprov_execute", deprov_execute)
     graph.add_node("compliance", verify_compliance)
     graph.add_node("escalate", escalate)
 
     graph.add_edge(START, "load_case")
-    graph.add_edge("load_case", "checklist")
-    graph.add_edge("load_case", "risk_assessment")
-    graph.add_edge("load_case", "routing")
-    graph.add_edge("checklist", "compliance")
-    graph.add_edge("risk_assessment", "compliance")
-    graph.add_edge("routing", "compliance")
+    for node in PARALLEL_NODES:
+        graph.add_edge("load_case", node)
+        graph.add_edge(node, APPROVAL_NODE)
+    graph.add_edge(APPROVAL_NODE, "deprov_execute")
+    graph.add_edge("deprov_execute", "compliance")
     graph.add_conditional_edges("compliance", _after_compliance, {"end": END, "escalate": "escalate"})
     graph.add_edge("escalate", "compliance")
 
-    return graph.compile()
+    # The checkpointer is what lets interrupt() pause a run and resume it later
+    # on the same thread_id. In-memory is fine for a single-process demo.
+    return graph.compile(checkpointer=MemorySaver())
 
 
 _graph = None
@@ -198,12 +346,17 @@ def get_graph():
     return _graph
 
 
+def _config(thread_id: str) -> dict[str, Any]:
+    return {"configurable": {"thread_id": thread_id}}
+
+
 def _initial_state(case_id: str) -> dict[str, Any]:
     return {"case_id": case_id, "retries": 0, "log": [], "errors": []}
 
 
 def _finalize(state: ExitOrchestrationState) -> ExitOrchestrationState:
     """Stamp the final `status` (error / cleared / blocked) onto a finished state."""
+    state.pop("__interrupt__", None)
     if state.get("errors"):
         state["status"] = "error"
     else:
@@ -212,25 +365,57 @@ def _finalize(state: ExitOrchestrationState) -> ExitOrchestrationState:
     return state
 
 
-def run_orchestration(case_id: str) -> ExitOrchestrationState:
-    return _finalize(get_graph().invoke(_initial_state(case_id)))
+def pending_approval(thread_id: str) -> dict[str, Any] | None:
+    """If this thread is paused at the approval gate, return the interrupt
+    payload (case_id, employee, plan); otherwise None."""
+    snapshot = get_graph().get_state(_config(thread_id))
+    if APPROVAL_NODE not in (snapshot.next or ()):
+        return None
+    for task in snapshot.tasks:
+        if task.name == APPROVAL_NODE and task.interrupts:
+            return dict(task.interrupts[0].value)
+    return None
 
 
-def stream_orchestration(case_id: str) -> Iterator[dict[str, Any]]:
-    """Run the graph and yield one event per node start/finish, then the final state.
+def run_orchestration(case_id: str, *, decision: str = "approve", note: str = "") -> ExitOrchestrationState:
+    """Blocking, non-interactive run (POST endpoint). The approval gate is
+    answered automatically with `decision` so the call can complete."""
+    graph = get_graph()
+    config = _config(uuid4().hex)
+    state = graph.invoke(_initial_state(case_id), config=config)
+    if graph.get_state(config).next:
+        state = graph.invoke(
+            Command(resume={"decision": decision, "by": "api (auto)", "note": note or f"auto-{decision}"}),
+            config=config,
+        )
+    return _finalize(dict(state))
+
+
+def stream_orchestration(case_id: str, *, thread_id: str | None = None,
+                         resume: dict[str, Any] | None = None) -> Iterator[dict[str, Any]]:
+    """Run (or resume) the graph, yielding one event per node start/finish.
 
     Uses LangGraph's `debug` stream (task / task_result per node, so the UI can
     show each parallel branch spinning independently) alongside `values`
     (full state after each superstep, so the last one is the finished run).
 
     Events:
-      {"event": "node_start", "node": <name>, "step": <int>}
-      {"event": "node_end",   "node": <name>, "step": <int>, "error": <str|None>,
-                              "log": [<str>], "retries": <int|None>}
-      {"event": "done",       "result": <final state incl. status>}
+      {"event": "run_start", "thread_id", "resumed": bool}
+      {"event": "node_start", "node", "step"}
+      {"event": "node_end",   "node", "step", "error", "log", "retries"}
+      {"event": "awaiting_approval", "node", "thread_id", "case_id", "employee", "plan"}
+                              -- the run is paused; call again with thread_id + resume
+      {"event": "done", "result": <final state incl. status>}
     """
+    graph = get_graph()
+    thread_id = thread_id or uuid4().hex
+    config = _config(thread_id)
+    yield {"event": "run_start", "thread_id": thread_id, "case_id": case_id, "resumed": resume is not None}
+
+    graph_input: Any = Command(resume=resume) if resume is not None else _initial_state(case_id)
     latest: dict[str, Any] = {}
-    for mode, chunk in get_graph().stream(_initial_state(case_id), stream_mode=["debug", "values"]):
+    paused = False
+    for mode, chunk in graph.stream(graph_input, config=config, stream_mode=["debug", "values"]):
         if mode == "values":
             latest = chunk
             continue
@@ -242,6 +427,13 @@ def stream_orchestration(case_id: str) -> Iterator[dict[str, Any]]:
         if kind == "task":
             yield {"event": "node_start", "node": name, "step": chunk.get("step")}
         elif kind == "task_result":
+            interrupts = payload.get("interrupts") or []
+            if interrupts:
+                # The node didn't finish -- it paused. Leave it "running" in the UI.
+                value = interrupts[0].get("value") if isinstance(interrupts[0], dict) else getattr(interrupts[0], "value", {})
+                paused = True
+                yield {"event": "awaiting_approval", "node": name, "thread_id": thread_id, **(value or {})}
+                continue
             result = payload.get("result") or {}
             # `result` is the node's state update: a dict, or a list of (key, value)
             # tuples depending on LangGraph version -- normalise to a dict.
@@ -260,4 +452,6 @@ def stream_orchestration(case_id: str) -> Iterator[dict[str, Any]]:
                 "log": list(result.get("log") or []),
                 "retries": result.get("retries"),
             }
+    if paused or graph.get_state(config).next:
+        return
     yield {"event": "done", "result": _finalize(dict(latest))}

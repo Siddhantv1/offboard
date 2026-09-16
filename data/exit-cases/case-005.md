@@ -28,6 +28,10 @@ stages:
     owner: Vikram Sharma
     status: pending
     days_open: 0
+documents_submitted:
+  - Resignation letter
+  - Notice acknowledgement
+  - KT document
 ---
 
 # Exit Case case-005 — Karthik Nair (emp-008)

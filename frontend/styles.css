@@ -362,7 +362,7 @@ input:focus, textarea:focus, select:focus {
 .orch-controls select { width: auto; flex: 1 1 280px; max-width: 460px; }
 .orch-controls .err { flex-basis: 100%; }
 
-.orch-diagram { max-width: 720px; margin: 12px auto 0; color: var(--ink); }
+.orch-diagram { max-width: 860px; margin: 12px auto 0; color: var(--ink); }
 .orch-diagram svg { display: block; width: 100%; height: auto; overflow: visible; }
 
 .orch-edges path {
@@ -377,7 +377,11 @@ input:focus, textarea:focus, select:focus {
   fill: var(--muted); text-anchor: middle;
 }
 .orch-edge-label-end { text-anchor: end; }
+.orch-edge-label-start { text-anchor: start; }
 .orch-retry { fill: var(--clay); font-style: normal; font-weight: 500; }
+.orch-node.orch-small .orch-label { font-size: 15px; }
+/* the human gate is drawn dashed: it's a decision, not an agent */
+.orch-node.orch-gate .body { stroke-dasharray: 6 5; }
 
 .orch-node .body {
   fill: var(--surface); stroke: var(--ink); stroke-width: 2;
@@ -411,11 +415,65 @@ input:focus, textarea:focus, select:focus {
 .orch-node.is-error .mark-check { display: none; }
 .orch-node.is-error .mark-cross { display: block; }
 
+/* paused at the human gate: amber, breathing, not spinning -- it's waiting on you */
+.orch-node.is-waiting .ring {
+  opacity: 1; stroke: var(--warn); stroke-dasharray: none;
+  animation: orch-breathe 1.8s ease-in-out infinite;
+}
+.orch-node.is-waiting .body { stroke: var(--warn); }
+
 @keyframes orch-orbit { to { transform: rotate(360deg); } }
+@keyframes orch-breathe { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .orch-node.is-running .ring { animation: orch-breathe 1.6s ease-in-out infinite; }
-  @keyframes orch-breathe { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 }
+
+/* approval panel (shown while the graph is paused) */
+.orch-approval { border-color: #e7d5a8; background: var(--surface); }
+.orch-approval-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.orch-approval-head h3 { margin: 0; font-size: 17px; }
+.orch-approval-summary { margin: 12px 0 4px; line-height: 1.55; }
+.orch-approval-meta { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+.orch-plan { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 4px 0 8px; }
+.orch-plan th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line);
+}
+.orch-plan td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.orch-plan tr.is-privileged td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.orch-plan-detail { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.orch-approval-list { margin: 0 0 8px; padding-left: 20px; font-size: 13.5px; }
+.orch-approval-note { margin: 10px 0 12px; }
+.orch-approval-actions { flex-wrap: wrap; }
+.orch-approval-hint { font-size: 12.5px; color: var(--muted); }
+.btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-ghost:disabled { opacity: .6; cursor: default; }
+
+/* standalone deprovisioning page: approve -> execute */
+.exec-box { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.exec-box textarea { margin-bottom: 10px; min-height: 56px; }
+
+/* file inputs (document upload) */
+input[type="file"] {
+  width: 100%; font-family: var(--sans); font-size: 13.5px; color: var(--muted);
+  background: var(--paper); border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+input[type="file"]::file-selector-button {
+  font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: 6px; padding: 5px 11px; margin-right: 10px; cursor: pointer;
+}
+
+/* trend-analyst alerts under a chat bubble */
+.chat-alerts { display: flex; flex-direction: column; gap: 6px; }
+.chat-alert {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 13px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 7px 10px;
+}
+.chat-alert-ev { font-size: 11.5px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
 
 .orch-status {
   text-align: center; color: var(--muted); font-size: 14px;

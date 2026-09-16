@@ -28,6 +28,17 @@ stages:
     owner: Karan Malhotra
     status: pending
     days_open: 0
+documents_submitted:
+  - Resignation letter
+  - Notice acknowledgement
+  - Personal contact details
+  - KT document
+  - Successor acknowledgement
+  - Asset Return Checklist
+  - Device handover acknowledgement
+  - VPN/MFA deactivation confirmation
+  - No-dues declaration
+  - Exit interview form
 ---
 
 # Exit Case case-004 — Nisha Reddy (emp-007)

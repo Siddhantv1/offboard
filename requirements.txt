@@ -9,5 +9,12 @@ python-frontmatter
 chromadb
 bm25s
 
-# Multi-agent orchestration (agents 11+): graph-shaped fan-out/join + retry cycles
+# Multi-agent orchestration: graph-shaped fan-out/join, human-in-the-loop interrupt, retry cycles
 langgraph
+
+# Document Collection agent: local OCR for uploaded scans (text goes to the LLM, the image never does)
+python-multipart                     # FastAPI file uploads
+pillow
+winocr; sys_platform == "win32"      # Windows built-in OCR engine (~0.4 s/page, no model download)
+rapidocr                             # portable fallback: PP-OCR on ONNX Runtime
+onnxruntime

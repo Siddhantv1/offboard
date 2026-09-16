@@ -1,6 +1,7 @@
 ---
 case_id: case-006
 current_stage: IT Clearance
+documents_submitted: []
 employee_id: emp-013
 employee_name: Hitesh Wagh
 exit_type: resignation

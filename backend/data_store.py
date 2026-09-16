@@ -183,6 +183,8 @@ class DataStore:
                 {"name": name, "owner": "", "status": "pending", "days_open": 0}
                 for name in DEFAULT_CLEARANCE_STAGES
             ],
+            # Filled in by the Document Collection agent as forms come in.
+            "documents_submitted": [],
         }
         body = (
             f"# Exit Case {case_id} — {employee.meta.get('name')} ({employee.meta.get('id')})\n\n"
