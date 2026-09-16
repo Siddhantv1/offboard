@@ -634,13 +634,13 @@ function renderOrchestration(r) {
     frag.appendChild(box);
   }
 
-  const section = (label, value, open = false) => {
+  const section = (label, value, open = false, render = renderResult) => {
     if (value == null || (typeof value === "object" && !Object.keys(value).length)) return;
     const d = el("details", "orch-section");
     if (open) d.open = true;
     d.appendChild(el("summary", null, label));
     const body = el("div", "orch-section-body");
-    body.appendChild(renderResult(value));
+    body.appendChild(render(value));
     d.appendChild(body);
     frag.appendChild(d);
   };
@@ -658,7 +658,7 @@ function renderOrchestration(r) {
     section("IT deprovisioning plan", r.deprov_plan);
   }
   section("System clearance (tool calls)", r.clearance);
-  section("Document collection", r.documents);
+  section("Document collection", r.documents, false, renderDocumentCollection);
   section("Exit checklist", r.checklist);
   section("Risk assessment", r.risk);
   section("Approver routing", r.routing);
@@ -807,8 +807,9 @@ async function runAgent(a, form, btn, result) {
           body: JSON.stringify(payload),
         });
     result.innerHTML = "";
-    result.appendChild(el("h3", null, "Result"));
-    result.appendChild(renderResult(data.result));
+    const view = RESULT_VIEWS[a.id];
+    if (!view) result.appendChild(el("h3", null, "Result"));
+    result.appendChild(view ? view(data.result) : renderResult(data.result));
     if (a.id === "it_deprovisioning" && data.result && data.result.plan && !data.result.error) {
       result.appendChild(renderExecuteControls(data.result.plan));
     }
@@ -1111,6 +1112,477 @@ function renderMarkdown(src) {
     `<pre><code>${escapeHtml(codeBlocks[+i])}</code></pre>`);
   return out;
 }
+
+/* ============================================================
+   Purpose-built result views
+
+   Most agents read well through the generic recursive renderer below. Three
+   don't: two produce analytics whose whole point is comparison, which a column
+   of labelled numbers hides, and one produces a checklist whose point is what
+   is still outstanding, which the generic renderer buried under bookkeeping
+   fields. RESULT_VIEWS routes just those three, the same way CHAT_PRESETS
+   routes the conversational agents.
+   ============================================================ */
+
+/* Bars encode magnitude, so they all share one hue. An SLA breach is never
+   signalled by colour alone: the dashed rule, a hatched fill and the value text
+   each say it independently. Measured reason -- this palette's clay (#C15F3C)
+   and danger red (#B14638) sit ΔE 6.6 apart in normal vision, well under the
+   15 needed to tell two fills apart, so colour-coded bars would be unreadable
+   for everyone, not just colourblind readers. */
+function barChart(rows, { unit = "d", sla = null, max = null } = {}) {
+  const peak = Math.max(...rows.map((r) => r.value), sla ?? 0, 1);
+  // Headroom when an SLA rule is drawn, so it never sits flush on the track edge
+  // (which is exactly the "nothing has breached yet" case worth seeing).
+  const top = max ?? (sla != null ? peak * 1.08 : peak);
+  // One decimal only when the data actually has fractions, so 4.7 and 4.0 line up.
+  const fractional = rows.some((r) => !Number.isInteger(r.value));
+  const chart = el("div", "chart");
+  rows.forEach((r) => {
+    const row = el("div", "chart-row");
+    if (r.note) row.title = r.note;
+    row.appendChild(el("div", "chart-label", r.label));
+    const track = el("div", "chart-track");
+    const bar = el("div", "chart-bar" + (r.over ? " is-over" : ""));
+    // keep a sliver visible for tiny non-zero values, nothing for a true zero
+    bar.style.width = `${r.value > 0 ? Math.max((r.value / top) * 100, 1.5) : 0}%`;
+    track.appendChild(bar);
+    if (sla != null) {
+      const rule = el("div", "chart-rule");
+      rule.style.left = `${(sla / top) * 100}%`;
+      track.appendChild(rule);
+    }
+    row.appendChild(track);
+    const shown = fractional ? r.value.toFixed(1) : String(r.value);
+    const value = el("div", "chart-value", `${shown}${unit}`);
+    const flag = r.flag || (r.over ? "over" : "");
+    if (flag) value.appendChild(el("span", "chart-flag", flag));
+    row.appendChild(value);
+    chart.appendChild(row);
+  });
+  return chart;
+}
+
+function statRow(items) {
+  const row = el("div", "stats");
+  items.filter(Boolean).forEach(({ value, label, tone }) => {
+    const tile = el("div", "stat" + (tone ? ` is-${tone}` : ""));
+    tile.appendChild(el("div", "stat-value", String(value)));
+    tile.appendChild(el("div", "stat-label", label));
+    row.appendChild(tile);
+  });
+  return row;
+}
+
+function subhead(text, note) {
+  const wrap = el("div", "subhead");
+  wrap.appendChild(el("h4", null, text));
+  if (note) wrap.appendChild(el("span", "subhead-note", note));
+  return wrap;
+}
+
+function dataTable(cols, rows) {
+  const table = el("table", "dtable");
+  const headRow = el("tr");
+  cols.forEach((c) => headRow.appendChild(el("th", c.num ? "num" : null, c.label)));
+  const head = el("thead");
+  head.appendChild(headRow);
+  table.appendChild(head);
+  const body = el("tbody");
+  rows.forEach((cells) => {
+    const tr = el("tr");
+    cells.forEach((cell, i) => {
+      const td = el("td", cols[i].num ? "num" : null);
+      if (cell instanceof Node) td.appendChild(cell);
+      else td.textContent = cell == null ? "" : String(cell);
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+  return table;
+}
+
+/* The backend salvages a cut-off model response rather than losing the run;
+   when it does, say so instead of presenting a partial report as complete. */
+function truncationNote(result) {
+  if (!result || typeof result !== "object") return null;
+  if (!JSON.stringify(result).includes('"_truncated": true')
+      && !JSON.stringify(result).includes('"_truncated":true')) return null;
+  return el("div", "note-trunc",
+    "The model's answer was cut short, so part of this report is missing.");
+}
+
+const IMPACT_ORDER = { high: 0, critical: 0, medium: 1, low: 2 };
+const byImpact = (key) => (a, b) =>
+  (IMPACT_ORDER[String(a[key] || "").toLowerCase()] ?? 9)
+  - (IMPACT_ORDER[String(b[key] || "").toLowerCase()] ?? 9);
+
+/* A list of {title, detail, chip} as readable prose blocks rather than cards. */
+function findingList(items, { title, detail, chip }) {
+  const list = el("div", "findings");
+  items.forEach((item) => {
+    const row = el("div", "finding");
+    const head = el("div", "finding-head");
+    head.appendChild(el("span", "finding-title", String(item[title] ?? "")));
+    const tag = chip && item[chip];
+    if (tag) head.appendChild(el("span", "badge " + badgeClass(tag), String(tag)));
+    row.appendChild(head);
+    if (detail && item[detail]) row.appendChild(el("p", "finding-detail", String(item[detail])));
+    list.appendChild(row);
+  });
+  return list;
+}
+
+/* ---------- Document Collection ---------- */
+function renderDocumentCollection(r) {
+  if (!r || r.error) return renderResult(r);
+  const frag = document.createDocumentFragment();
+  const note = truncationNote(r);
+  if (note) frag.appendChild(note);
+
+  const docs = Array.isArray(r.status?.documents) ? r.status.documents : [];
+  const of = (status) => docs.filter((d) => d.status === status);
+  const missing = of("missing");
+  const received = of("submitted");
+  const later = of("not_yet_due");
+  const issued = of("to_be_issued");
+  const due = received.length + missing.length;
+
+  const head = el("div", "doc-head");
+  head.appendChild(el("h3", "doc-who", [r.employee, r.case_id].filter(Boolean).join(" — ")));
+  const meter = el("div", "doc-meter");
+  const fill = el("span");
+  fill.style.width = `${due ? (received.length / due) * 100 : 0}%`;
+  meter.appendChild(fill);
+  head.appendChild(meter);
+  head.appendChild(el("p", "doc-progress", due
+    ? `${received.length} of the ${due} documents due so far are in.`
+    : "Nothing is due from this employee yet."));
+  frag.appendChild(head);
+
+  if (missing.length) {
+    frag.appendChild(subhead(`Still needed (${missing.length})`));
+    const groups = el("div", "doc-groups");
+    [...new Set(missing.map((d) => d.stage))].forEach((stage) => {
+      const group = el("div", "doc-group");
+      group.appendChild(el("div", "doc-stage", stage));
+      const list = el("ul", "doc-list");
+      missing.filter((d) => d.stage === stage).forEach((d) => {
+        const item = el("li", "doc-item");
+        item.appendChild(el("span", "doc-mark is-open", "○"));
+        item.appendChild(el("span", "doc-name", d.document));
+        if (d.conditional) item.appendChild(el("span", "doc-if", "if applicable"));
+        list.appendChild(item);
+      });
+      group.appendChild(list);
+      groups.appendChild(group);
+    });
+    frag.appendChild(groups);
+  } else {
+    frag.appendChild(el("p", "doc-allin", "Every document due so far has been received."));
+  }
+
+  if (received.length) {
+    frag.appendChild(subhead(`Received (${received.length})`));
+    const list = el("ul", "doc-list is-inline");
+    received.forEach((d) => {
+      const item = el("li", "doc-item");
+      item.appendChild(el("span", "doc-mark is-done", "✓"));
+      item.appendChild(el("span", "doc-name", d.document));
+      list.appendChild(item);
+    });
+    frag.appendChild(list);
+  }
+
+  const fold = (label, rows) => {
+    if (!rows.length) return;
+    const d = el("details", "doc-fold");
+    d.appendChild(el("summary", null, `${label} (${rows.length})`));
+    const list = el("ul", "doc-list is-inline");
+    rows.forEach((row) => {
+      const item = el("li", "doc-item");
+      item.appendChild(el("span", "doc-mark", "·"));
+      item.appendChild(el("span", "doc-name", row.document));
+      list.appendChild(item);
+    });
+    d.appendChild(list);
+    frag.appendChild(d);
+  };
+  fold("Not due yet", later);
+  fold("Issued by the company at sign-off", issued);
+
+  const upload = r.upload_validation;
+  if (upload) {
+    const v = upload.validation || {};
+    frag.appendChild(subhead("Uploaded scan"));
+    const box = el("div", "doc-upload");
+    const line = el("div", "doc-upload-head");
+    if (v.verdict) {
+      line.appendChild(el("span", "badge " + badgeClass(v.verdict),
+        String(v.verdict).replace(/_/g, " ")));
+    }
+    line.appendChild(el("span", "doc-upload-name",
+      [upload.document, upload.filename].filter(Boolean).join(" — ")));
+    box.appendChild(line);
+    if (v.reason) box.appendChild(el("p", "doc-upload-reason", v.reason));
+    const checks = el("div", "doc-checks");
+    [["Expected document", v.is_expected_document], ["Name matches", v.employee_name_matches],
+     ["Signed", v.signed], ["Dated", v.dated]].forEach(([label, ok]) => {
+      if (ok === undefined) return;
+      const chip = el("span", "doc-check" + (ok ? " is-yes" : " is-no"));
+      chip.appendChild(el("span", "doc-mark", ok ? "✓" : "○"));
+      chip.appendChild(document.createTextNode(label));
+      checks.appendChild(chip);
+    });
+    if (checks.childNodes.length) box.appendChild(checks);
+    (v.missing_elements || []).length && box.appendChild(
+      el("p", "doc-upload-reason", `Not found: ${v.missing_elements.join(", ")}`));
+    const ocr = upload.ocr || {};
+    if (ocr.text) {
+      const det = el("details", "doc-fold");
+      det.appendChild(el("summary", null,
+        `Text read on this machine — ${ocr.engine || "ocr"}, ${ocr.seconds ?? "?"}s`));
+      det.appendChild(el("pre", "doc-ocr", ocr.text));
+      box.appendChild(det);
+    }
+    frag.appendChild(box);
+  }
+
+  if (r.reminder) {
+    frag.appendChild(subhead("Reminder drafted"));
+    const mail = el("div", "email");
+    mail.appendChild(el("div", "subj", r.reminder.subject || ""));
+    mail.appendChild(el("div", "to", r.reminder.to || ""));
+    // the model writes the body in Markdown, so render it rather than showing the asterisks
+    const body = el("div", "body is-md");
+    body.innerHTML = renderMarkdown(r.reminder.body || "");
+    mail.appendChild(body);
+    frag.appendChild(mail);
+  }
+  return frag;
+}
+
+/* ---------- Dashboard Insights ---------- */
+function renderDashboardInsights(r) {
+  if (!r || r.error) return renderResult(r);
+  const frag = document.createDocumentFragment();
+  const note = truncationNote(r);
+  if (note) frag.appendChild(note);
+
+  const m = r.metrics || {};
+  const rep = r.report || {};
+  const sla = m.sla_days ?? 5;
+  const overdue = (m.overdue_stages || []).slice().sort((a, b) => (b.days || 0) - (a.days || 0));
+
+  if (rep.headline) frag.appendChild(el("h3", "report-headline", rep.headline));
+
+  const atRisk = Object.entries(m.cases_by_status || {})
+    .filter(([k]) => /risk|block|delay|overdue/i.test(k))
+    .reduce((n, [, v]) => n + (Number(v) || 0), 0);
+  const mood = m.interview_sentiment_tally || {};
+  frag.appendChild(statRow([
+    { value: m.total_active_cases ?? "—", label: "active cases" },
+    { value: atRisk, label: "at risk", tone: atRisk ? "warn" : null },
+    { value: overdue.length, label: `stages past the ${sla}-day SLA`, tone: overdue.length ? "danger" : null },
+    { value: `${mood.positive ?? 0} / ${mood.negative ?? 0}`, label: "interviews positive / negative" },
+  ]));
+
+  if (rep.narrative) {
+    const prose = el("div", "report-prose");
+    String(rep.narrative).split(/\n+/).map((p) => p.trim()).filter(Boolean)
+      .forEach((p) => prose.appendChild(el("p", null, p)));
+    frag.appendChild(prose);
+  }
+
+  const stages = m.avg_days_open_by_stage || {};
+  if (Object.keys(stages).length) {
+    frag.appendChild(subhead("Average days open, by stage",
+      `Dashed rule marks the ${sla}-day SLA.`));
+    frag.appendChild(barChart(
+      Object.entries(stages).sort((a, b) => b[1] - a[1])
+        .map(([label, value]) => ({ label, value, over: value > sla })),
+      { sla },
+    ));
+  }
+
+  if (overdue.length) {
+    frag.appendChild(subhead(`Overdue right now (${overdue.length})`));
+    frag.appendChild(dataTable(
+      [{ label: "Case" }, { label: "Stage" }, { label: "Days open", num: true }, { label: "Department" }],
+      overdue.map((o) => [o.case, o.stage, o.days, o.department]),
+    ));
+  }
+
+  if ((rep.bottlenecks || []).length) {
+    frag.appendChild(subhead("Where it is getting stuck"));
+    frag.appendChild(findingList(rep.bottlenecks, { title: "where", detail: "detail" }));
+  }
+  if ((rep.recommendations || []).length) {
+    frag.appendChild(subhead("What to do about it", "Highest impact first."));
+    frag.appendChild(findingList(
+      rep.recommendations.slice().sort(byImpact("impact")),
+      { title: "action", chip: "impact" },
+    ));
+  }
+  if ((rep.watch_list || []).length) {
+    frag.appendChild(subhead("Watch list"));
+    const chips = el("div", "chips");
+    rep.watch_list.forEach((w) => chips.appendChild(el("span", "chip", String(w))));
+    frag.appendChild(chips);
+  }
+  return frag;
+}
+
+/* ---------- Workflow Optimizer ---------- */
+/* The before/after pipeline is this agent's whole thesis -- today's stages run
+   one after another, the proposal runs most of them at once -- so it leads. */
+function pipelineDiagram(current, proposed) {
+  // Grouped by `order`, so several stages sharing a step means they run together.
+  const lanes = new Map();
+  proposed.forEach((p) => {
+    const order = Number(p.order) || 1;
+    if (!lanes.has(order)) lanes.set(order, []);
+    lanes.get(order).push(p);
+  });
+  const groups = [...lanes.keys()].sort((a, b) => a - b).map((k) => lanes.get(k));
+  const parallel = groups.some((g) => g.length > 1);
+
+  const wrap = el("div", "pipe");
+  wrap.appendChild(pipeSide("Today", "One stage after another.",
+    current.map((stage) => [{ stage }]), false));
+  wrap.appendChild(pipeSide("Proposed",
+    parallel ? "Stages sharing a step run at the same time." : "Revised order and timings.",
+    groups, true));
+  return wrap;
+}
+
+/* Numbered steps down the page: a clearance run genuinely is a sequence, and a
+   vertical list shows a step holding several stages at once far more plainly
+   than a row of arrows that wraps. */
+function pipeSide(title, note, steps, isProposal) {
+  const side = el("div", "pipe-side");
+  side.appendChild(el("h5", null, title));
+  side.appendChild(el("p", "pipe-note", note));
+  const list = el("ol", "pipe-steps");
+  steps.forEach((group) => {
+    const step = el("li", "pipe-step");
+    const lane = el("div", "pipe-lane");
+    group.forEach((p) => {
+      const chip = el("span", "pipe-chip" + (isProposal ? " is-new" : ""));
+      chip.appendChild(el("span", "pipe-chip-name", p.stage));
+      if (p.sla_days != null) chip.appendChild(el("span", "pipe-chip-sla", `${p.sla_days}d`));
+      if (p.owner) chip.title = `Owner: ${p.owner}`;
+      lane.appendChild(chip);
+    });
+    step.appendChild(lane);
+    if (group.length > 1) step.appendChild(el("span", "pipe-together", "at the same time"));
+    list.appendChild(step);
+  });
+  side.appendChild(list);
+  return side;
+}
+
+function renderWorkflowOptimizer(r) {
+  if (!r || r.error) return renderResult(r);
+  const frag = document.createDocumentFragment();
+  const note = truncationNote(r);
+  if (note) frag.appendChild(note);
+
+  const m = r.metrics || {};
+  const p = r.proposal || {};
+  const sla = m.sla_days ?? 5;
+
+  if (p.headline) frag.appendChild(el("h3", "report-headline", p.headline));
+
+  const current = m.current_workflow || [];
+  const proposed = p.proposed_workflow || [];
+  if (current.length && proposed.length) frag.appendChild(pipelineDiagram(current, proposed));
+
+  const ranked = m.stages_ranked_by_avg_days_open || [];
+  if (ranked.length) {
+    frag.appendChild(subhead("How long each stage stays open",
+      `Average across ${m.cases_analyzed ?? "all"} cases; dashed rule is the ${sla}-day SLA.`));
+    const breaches = m.sla_breaches_by_stage || {};
+    frag.appendChild(barChart(ranked.map((s) => ({
+      label: s.stage,
+      value: s.avg_days,
+      over: s.avg_days > sla,
+      note: `longest ${s.max_days}d · ${breaches[s.stage] || 0} breach(es) across ${s.n} stages`,
+    })), { sla }));
+  }
+
+  const types = m.exit_types || {};
+  const term = types.termination, resign = types.resignation;
+  if (term && resign && resign.avg_days > 0) {
+    frag.appendChild(subhead("Terminations run far longer than resignations"));
+    const ratio = (term.avg_days / resign.avg_days).toFixed(1);
+    frag.appendChild(el("p", "report-callout",
+      `A termination stage stays open ${term.avg_days} days on average against `
+      + `${resign.avg_days} for a resignation — ${ratio}× longer, on the cases where `
+      + "speed matters most."));
+  }
+
+  const load = m.owner_open_stage_load || {};
+  if (Object.keys(load).length) {
+    const late = m.owner_overdue_stages || {};
+    frag.appendChild(subhead("Open stages per owner"));
+    frag.appendChild(barChart(
+      Object.entries(load).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({
+        label, value, over: (late[label] || 0) > 0,
+        flag: late[label] ? `${late[label]} overdue` : "",
+        note: `${late[label] || 0} of ${value} stages overdue`,
+      })),
+      { unit: "" },
+    ));
+  }
+
+  if ((p.reconfigurations || []).length) {
+    frag.appendChild(subhead("Proposed changes", "Lowest effort first."));
+    const list = el("div", "findings");
+    p.reconfigurations.slice().sort((a, b) =>
+      (IMPACT_ORDER[String(b.effort || "").toLowerCase()] ?? 9)
+      - (IMPACT_ORDER[String(a.effort || "").toLowerCase()] ?? 9),
+    ).forEach((c) => {
+      const row = el("div", "finding");
+      const head = el("div", "finding-head");
+      head.appendChild(el("span", "finding-title", String(c.change || "")));
+      if (c.effort) head.appendChild(el("span", "badge " + badgeClass(c.effort), `${c.effort} effort`));
+      row.appendChild(head);
+      if (c.expected_gain) row.appendChild(el("p", "finding-gain", String(c.expected_gain)));
+      if (c.rationale) row.appendChild(el("p", "finding-detail", String(c.rationale)));
+      if (c.risk) row.appendChild(el("p", "finding-risk", `Risk: ${c.risk}`));
+      list.appendChild(row);
+    });
+    frag.appendChild(list);
+  }
+
+  if ((p.quick_wins || []).length) {
+    frag.appendChild(subhead("Start here"));
+    const ol = el("ol", "winlist");
+    p.quick_wins.forEach((w) => ol.appendChild(el("li", null, String(w))));
+    frag.appendChild(ol);
+  }
+
+  const cases = m.per_case || [];
+  if (cases.length) {
+    frag.appendChild(subhead("Every case in the analysis"));
+    frag.appendChild(dataTable(
+      [{ label: "Case" }, { label: "Department" }, { label: "Type" },
+       { label: "Overdue stages" }, { label: "Days open", num: true }],
+      cases.slice().sort((a, b) => (b.open_days_total || 0) - (a.open_days_total || 0))
+        .map((c) => [c.case, c.department, c.exit_type,
+                     (c.overdue_stages || []).join(", ") || "none", c.open_days_total]),
+    ));
+  }
+  return frag;
+}
+
+const RESULT_VIEWS = {
+  document_collection: renderDocumentCollection,
+  dashboard_insights: renderDashboardInsights,
+  workflow_optimizer: renderWorkflowOptimizer,
+};
 
 /* ---------- recursive result renderer ---------- */
 const PROSE_KEYS = /(narrative|body|summary|answer|reason|detail|why|evidence|notes|bio|impact_detail)/i;

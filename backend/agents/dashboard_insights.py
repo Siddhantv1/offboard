@@ -25,6 +25,7 @@ Return JSON:
   "recommendations": [{"action": str, "impact": "high|medium|low"}],
   "watch_list": [str]
 }"""
+SLA_DAYS = 5
 
 
 def _compute_metrics() -> dict[str, Any]:
@@ -46,7 +47,7 @@ def _compute_metrics() -> dict[str, Any]:
             name = str(stage.get("name", "?"))
             days = parse_days_open(stage)
             stage_ages.setdefault(name, []).append(days)
-            if str(stage.get("status", "")).lower() != "completed" and days > 5:
+            if str(stage.get("status", "")).lower() != "completed" and days > SLA_DAYS:
                 overdue.append({
                     "case": case.meta.get("case_id", case.title),
                     "stage": name, "days": days, "department": dept,
@@ -66,6 +67,7 @@ def _compute_metrics() -> dict[str, Any]:
 
     return {
         "total_active_cases": len(cases),
+        "sla_days": SLA_DAYS,
         "cases_by_department": dict(dept_counter),
         "cases_by_status": dict(status_counter),
         "avg_days_open_by_stage": avg_by_stage,

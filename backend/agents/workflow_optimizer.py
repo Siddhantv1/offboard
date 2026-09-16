@@ -18,6 +18,11 @@ from ..data_store import store
 
 SLA_DAYS = 5
 
+# The workflow as it stands today. Named here once so the prompt below and the
+# "before" side of the UI's before/after diagram can't drift apart.
+CURRENT_WORKFLOW = ["IT Clearance", "Finance Clearance", "HR Clearance",
+                    "Knowledge Transfer", "Manager Sign-off"]
+
 SYSTEM = """You are a process-improvement consultant redesigning an employee \
 offboarding workflow. You are given metrics computed from the company's exit \
 cases and the current workflow (five sequential-by-convention stages, each with \
@@ -97,6 +102,7 @@ def _compute_metrics() -> dict[str, Any]:
     return {
         "cases_analyzed": len(cases),
         "sla_days": SLA_DAYS,
+        "current_workflow": list(CURRENT_WORKFLOW),
         "stages_ranked_by_avg_days_open": [{"stage": k, **v} for k, v in ranked],
         "sla_breaches_by_stage": dict(stage_breaches),
         "completed_count_by_stage": dict(stage_completed),
@@ -133,9 +139,9 @@ class WorkflowOptimizerAgent(BaseAgent):
         metrics = _compute_metrics()
         focus = (inputs.get("focus") or "").strip()
         user = (
-            "Current workflow: IT Clearance -> Finance Clearance -> HR Clearance -> "
-            "Knowledge Transfer -> Manager Sign-off (each SLA 5 business days; in "
-            "practice IT deprovisioning often waits for KT to finish).\n\n"
+            f"Current workflow: {' -> '.join(CURRENT_WORKFLOW)} (each SLA {SLA_DAYS} "
+            "business days; in practice IT deprovisioning often waits for KT to "
+            "finish).\n\n"
             + (f"Optimization focus: {focus}\n\n" if focus else "")
             + "Historical metrics:\n" + json.dumps(metrics, indent=2)
         )
