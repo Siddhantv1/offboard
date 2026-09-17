@@ -12,11 +12,14 @@ never leaves the machine and the LLM call is a cheap text call.
 """
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
 from .. import ocr
 from ..data_store import store
+from ..db import session_scope
+from ..db.models import CaseDocument
 
 # Canonical required documents, mirroring data/process-docs/documents-required.md
 # (proc-002). `issued` documents are produced by the company at sign-off, not
@@ -127,9 +130,60 @@ def _group(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     return out
 
 
+def record_upload(*, case_id: str, document_name: str, filename: str,
+                  content_type: str, image_bytes: bytes,
+                  extracted: dict[str, Any], judgement: dict[str, Any],
+                  uploaded_by: str | None = None) -> int | None:
+    """Persist a validated upload against the case; return its row id.
+
+    Stored whatever the verdict. A rejected scan is evidence that someone
+    submitted something, which matters in an audit -- it just does not count
+    towards `documents_submitted` (see `ExitCase.submitted_documents`).
+
+    Returns None rather than raising if the write fails: the operator has
+    already been shown a verdict, and turning a storage error into a 500 would
+    lose that verdict too. The failure is reported in the response instead.
+    """
+    verdict = str(judgement.get("verdict") or "needs_review").strip().lower()
+    confidence = extracted.get("confidence")
+    seconds = extracted.get("seconds")
+    try:
+        with session_scope() as session:
+            row = CaseDocument(
+                case_id=case_id,
+                document_name=document_name,
+                filename=filename or "",
+                content_type=content_type or "",
+                ocr_engine=extracted.get("engine"),
+                ocr_text=extracted.get("text") or "",
+                ocr_confidence=float(confidence) if confidence is not None else None,
+                ocr_seconds=float(seconds) if seconds is not None else None,
+                verdict=verdict,
+                reason=str(judgement.get("reason") or ""),
+                validation=judgement,
+                image=image_bytes or None,
+                image_bytes=len(image_bytes) if image_bytes else None,
+                uploaded_by=uploaded_by,
+            )
+            session.add(row)
+            session.flush()
+            return row.id
+    except Exception as exc:  # noqa: BLE001 - surfaced to the caller, not raised
+        print(f"[document_collection] could not persist upload for "
+              f"{case_id}/{document_name!r}: {type(exc).__name__}: {exc}",
+              file=sys.stderr)
+        return None
+
+
 def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: bytes,
-                    filename: str = "") -> dict[str, Any]:
-    """OCR locally, then one short LLM judgement on the extracted text."""
+                    filename: str = "", content_type: str = "",
+                    uploaded_by: str | None = None) -> dict[str, Any]:
+    """OCR locally, judge the text, then persist the result against the case.
+
+    The persistence is the point: this used to return a verdict and write
+    nothing, so an accepted document never appeared in the case and the next
+    run still reported it missing.
+    """
     try:
         extracted = ocr.extract_text(image_bytes)
     except ocr.OCRUnavailable as exc:
@@ -137,23 +191,47 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
     except Exception as exc:  # noqa: BLE001 - bad image bytes etc.
         return {"error": f"Could not read the image: {exc}"}
 
+    case_id = str(case_meta.get("case_id") or "").strip()
+
     if not extracted["text"].strip():
-        return {
-            "document": document_name, "filename": filename, "ocr": extracted,
-            "validation": {"verdict": "rejected", "reason": "No readable text found in the image."},
-        }
-    user = (
-        f"Expected document: {document_name or 'unknown'}\n"
-        f"Expected employee: {case_meta.get('employee_name', '?')} ({case_meta.get('employee_id', '?')})\n"
-        f"Exit case: {case_meta.get('case_id', '?')}\n\n"
-        f"OCR text ({extracted['engine']}"
-        + (f", avg confidence {extracted['confidence']}" if extracted.get("confidence") is not None else "")
-        + f"):\n{extracted['text']}"
+        judgement = {"verdict": "rejected",
+                     "reason": "No readable text found in the image."}
+    else:
+        user = (
+            f"Expected document: {document_name or 'unknown'}\n"
+            f"Expected employee: {case_meta.get('employee_name', '?')} ({case_meta.get('employee_id', '?')})\n"
+            f"Exit case: {case_meta.get('case_id', '?')}\n\n"
+            f"OCR text ({extracted['engine']}"
+            + (f", avg confidence {extracted['confidence']}" if extracted.get("confidence") is not None else "")
+            + f"):\n{extracted['text']}"
+        )
+        judgement = llm.complete_json(VALIDATE_SYSTEM, user, max_tokens=800)
+
+    out: dict[str, Any] = {
+        "document": document_name,
+        "filename": filename,
+        "ocr": {k: extracted[k] for k in
+                ("engine", "seconds", "confidence", "image_size", "text")},
+        "validation": judgement,
+    }
+
+    # An unreadable scan is recorded too: "somebody submitted a blank page" is
+    # a fact the case should carry, not something to drop on the floor.
+    if not case_id:
+        out["persisted"] = {"error": "No case id on the record; upload not saved."}
+        return out
+
+    row_id = record_upload(
+        case_id=case_id, document_name=document_name, filename=filename,
+        content_type=content_type, image_bytes=image_bytes,
+        extracted=extracted, judgement=judgement, uploaded_by=uploaded_by,
     )
-    judgement = llm.complete_json(VALIDATE_SYSTEM, user, max_tokens=800)
-    return {"document": document_name, "filename": filename,
-            "ocr": {k: extracted[k] for k in ("engine", "seconds", "confidence", "image_size", "text")},
-            "validation": judgement}
+    out["persisted"] = (
+        {"id": row_id, "case_id": case_id} if row_id is not None
+        else {"error": "Validated, but the upload could not be saved. "
+                       "The verdict above is not recorded against the case."}
+    )
+    return out
 
 
 @register
@@ -186,27 +264,41 @@ class DocumentCollectionAgent(BaseAgent):
         if not case:
             return {"error": f"Unknown exit case '{case_id}'."}
         meta = case.meta
-        status = document_status(meta)
 
         result: dict[str, Any] = {
             "case_id": meta.get("case_id", case_id),
             "employee": meta.get("employee_name"),
-            "status": status,
         }
 
+        # Process the upload BEFORE computing status. It may have just
+        # satisfied a requirement, and reporting a document as missing in the
+        # same response that accepted it -- or emailing a reminder for it --
+        # is exactly the confusion this agent exists to prevent.
         upload = inputs.get("upload")
         if isinstance(upload, dict) and upload.get("bytes"):
             result["upload_validation"] = validate_upload(
-                meta, (inputs.get("document_name") or "").strip(),
-                upload["bytes"], filename=str(upload.get("filename", "")),
+                meta,
+                (inputs.get("document_name") or "").strip(),
+                upload["bytes"],
+                filename=str(upload.get("filename", "")),
+                content_type=str(upload.get("content_type", "")),
             )
+            refreshed = store.exit_case(case_id)
+            if refreshed:
+                meta = refreshed.meta
+
+        status = document_status(meta)
+        result["status"] = status
 
         if status["missing"]:
+            employee = store.employee(str(meta.get("employee_id", "")))
+            email = employee.meta.get("email", "") if employee else ""
             user = (
-                f"Employee: {meta.get('employee_name')} <{store.employee(str(meta.get('employee_id', ''))).meta.get('email', '') if store.employee(str(meta.get('employee_id', ''))) else ''}>\n"
+                f"Employee: {meta.get('employee_name')} <{email}>\n"
                 f"Exit case: {meta.get('case_id')} · last working day {meta.get('last_working_day')}\n"
                 f"Missing documents by stage:\n"
-                + "\n".join(f"- {stage}: {', '.join(docs)}" for stage, docs in status["missing_by_stage"].items())
+                + "\n".join(f"- {stage}: {', '.join(docs)}"
+                            for stage, docs in status["missing_by_stage"].items())
             )
             result["reminder"] = llm.complete_json(REMINDER_SYSTEM, user, temperature=0.4)
         else:
