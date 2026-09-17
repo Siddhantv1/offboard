@@ -18,3 +18,18 @@ pillow
 winocr; sys_platform == "win32"      # Windows built-in OCR engine (~0.4 s/page, no model download)
 rapidocr                             # portable fallback: PP-OCR on ONNX Runtime
 onnxruntime
+
+# Persistence: PostgreSQL is the system of record for employees, exit cases,
+# clearance stages, submitted documents, the deprovisioning audit trail, and
+# agent run history. Postgres-native types (JSONB, TEXT[]) are used directly --
+# there is no second engine to stay portable with.
+sqlalchemy>=2.0
+psycopg[binary]>=3.1                 # psycopg 3, not psycopg2
+alembic                              # schema versioning
+
+# Durable LangGraph checkpoints: a run paused at the human approval gate must
+# survive a restart, and pending approvals must be enumerable.
+langgraph-checkpoint-postgres
+
+# Tests
+pytest

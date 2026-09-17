@@ -1,9 +1,8 @@
 """Central configuration.
 
-The LLM layer talks to the Portkey AI gateway (Bedrock provider), mirroring the
-Portkey access configured in Claude's settings.json. Values are read from the
-environment (.env) so no secret is hard-coded, but sensible defaults are provided
-so the app runs out of the box in this demo.
+The LLM layer talks to the Portkey AI gateway. Persistence is PostgreSQL,
+reached via `DATABASE_URL`. Values are read from the environment (.env) so no
+secret is hard-coded.
 """
 from __future__ import annotations
 
@@ -27,8 +26,11 @@ class PortkeySettings:
         "PORTKEY_BASE_URL", "https://portkeygateway.perficient.com/v1"
     )
     api_key: str = os.getenv("PORTKEY_API_KEY")
-    provider: str = os.getenv("PORTKEY_PROVIDER", "@aws-bedrock-use2")
-    model: str = os.getenv("PORTKEY_MODEL", "us.anthropic.claude-sonnet-5")
+    # The Bedrock integration this defaulted to now returns
+    # "400 bedrock error: Operation not allowed" -- it is no longer permitted
+    # on this gateway, so the default points at a provider that works.
+    provider: str = os.getenv("PORTKEY_PROVIDER", "@dsvertex")
+    model: str = os.getenv("PORTKEY_MODEL", "gemini-2.5-flash")
 
 
 PORTKEY = PortkeySettings()
@@ -56,3 +58,41 @@ RAG = RAGSettings()
 
 HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8000"))
+
+
+# -- persistence --------------------------------------------------------------
+# PostgreSQL is the system of record. There is deliberately no SQLite fallback:
+# a silent downgrade to a single-writer engine would hide concurrency bugs
+# until production, and the schema uses JSONB and TEXT[] that SQLite cannot
+# index anyway.
+#
+# The URL carries the "+psycopg" dialect tag for SQLAlchemy. Libraries that
+# want a plain libpq URI (LangGraph's PostgresSaver) should use PG_URI below
+# rather than re-deriving it.
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://offboard:offboard@localhost:5432/offboard",
+)
+
+# Separate database for the test suite, so a run can truncate freely without
+# touching development data. Overridden by TEST_DATABASE_URL in .env.
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    DATABASE_URL.rsplit("/", 1)[0] + "/offboard_test",
+)
+
+
+def libpq_uri(url: str) -> str:
+    """SQLAlchemy dialect URL -> plain libpq URI.
+
+    psycopg and LangGraph's PostgresSaver connect with libpq directly and
+    reject the "+psycopg" dialect suffix SQLAlchemy requires.
+    """
+    return url.replace("postgresql+psycopg://", "postgresql://", 1)
+
+
+PG_URI = libpq_uri(DATABASE_URL)
+
+# Echo every statement to stderr. Off by default: the analysis agents issue
+# hundreds of queries and the noise buries everything else.
+DB_ECHO = os.getenv("DB_ECHO", "").lower() in ("1", "true", "yes")
