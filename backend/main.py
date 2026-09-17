@@ -23,16 +23,17 @@ import threading
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile  # form parts arrive as this class, not fastapi.UploadFile
 
-from . import ocr
+from . import auth, ocr
 from .agents import REGISTRY
+from .auth import CurrentUser, HRUser, OptionalUser
 from .agents.it_deprovisioning import execute_plan
-from .config import FRONTEND_DIST, PORTKEY
+from .config import COOKIE_SECURE, FRONTEND_DIST, PORTKEY
 from .data_store import store
 from .llm import LLMError
 from .orchestration import (pending_approval, pending_approvals,
@@ -103,9 +104,70 @@ def _serialize_agent(agent: Any) -> dict[str, Any]:
     return meta
 
 
+# -- auth ------------------------------------------------------------------
+#: The only agents an employee may invoke directly. The FAQ chatbot answers
+#: from published policy and reveals nothing about anyone else; every other
+#: agent reads case data across the organisation.
+EMPLOYEE_AGENTS = {"faq_chatbot"}
+
+
+def _assert_may_run(user: auth.Identity, agent_id: str) -> None:
+    if user.is_hr or agent_id in EMPLOYEE_AGENTS:
+        return
+    raise HTTPException(status_code=403, detail="This area is for HR accounts.")
+
+
+@app.post("/api/auth/login")
+def login(response: Response, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = payload or {}
+    try:
+        identity, token = auth.authenticate(
+            str(payload.get("email") or ""), str(payload.get("password") or "")
+        )
+    except auth.AuthError as exc:
+        # 401 with the module's own message: it is written to be safe to show,
+        # and never distinguishes "no such account" from "wrong password".
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    auth.set_session_cookie(response, token, secure=COOKIE_SECURE)
+    return {"user": identity.as_json()}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response) -> dict[str, str]:
+    auth.destroy_session(request.cookies.get(auth.SESSION_COOKIE))
+    auth.clear_session_cookie(response)
+    return {"status": "signed out"}
+
+
+@app.get("/api/auth/me")
+def whoami(user: OptionalUser) -> dict[str, Any]:
+    """Who the browser is, or null. Deliberately 200-with-null rather than 401
+    so the app can ask on load without treating "not signed in" as an error."""
+    return {"user": user.as_json() if user else None}
+
+
+@app.post("/api/auth/password")
+def change_password(
+    request: Request, response: Response, user: CurrentUser,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    payload = payload or {}
+    try:
+        auth.change_password(
+            user.user_id,
+            str(payload.get("current_password") or ""),
+            str(payload.get("new_password") or ""),
+        )
+    except auth.AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # change_password revoked every session, including this one.
+    auth.clear_session_cookie(response)
+    return {"status": "password changed, sign in again"}
+
+
 # -- API -------------------------------------------------------------------
 @app.get("/api/health")
-def health() -> dict[str, Any]:
+def health(user: CurrentUser) -> dict[str, Any]:
     return {
         "status": "ok",
         "gateway": PORTKEY.base_url,
@@ -119,18 +181,18 @@ def health() -> dict[str, Any]:
 
 
 @app.get("/api/agents")
-def list_agents() -> dict[str, Any]:
+def list_agents(user: HRUser) -> dict[str, Any]:
     return {"agents": [_serialize_agent(a) for a in REGISTRY.values()]}
 
 
 @app.get("/api/cases")
-def list_cases() -> dict[str, Any]:
+def list_cases(user: HRUser) -> dict[str, Any]:
     """Exit case options for the orchestrator picker (frontend-only helper)."""
     return {"cases": _case_options()}
 
 
 @app.post("/api/employees")
-def create_employee(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def create_employee(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Add a new employee record (writes a Markdown file, refreshes the cache).
     If marked "exiting", also creates a starter exit case for the orchestrator."""
     try:
@@ -141,7 +203,8 @@ def create_employee(payload: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 @app.post("/api/agents/{agent_id}/run")
-def run_agent(agent_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def run_agent(agent_id: str, user: CurrentUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    _assert_may_run(user, agent_id)
     agent = REGISTRY.get(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'.")
@@ -155,7 +218,7 @@ def run_agent(agent_id: str, payload: dict[str, Any] | None = None) -> dict[str,
 
 
 @app.post("/api/agents/{agent_id}/upload")
-async def run_agent_upload(agent_id: str, request: Request) -> dict[str, Any]:
+async def run_agent_upload(agent_id: str, user: HRUser, request: Request) -> dict[str, Any]:
     """Multipart variant of /run for agents with `file` fields (Document
     Collection's scan upload). File parts arrive in `inputs[name]` as
     {"filename", "content_type", "bytes"}; other parts as plain strings."""
@@ -181,7 +244,7 @@ async def run_agent_upload(agent_id: str, request: Request) -> dict[str, Any]:
 
 
 @app.post("/api/agents/it_deprovisioning/execute")
-def execute_deprovisioning(payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def execute_deprovisioning(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Phase 2 of the IT Deprovisioning agent: run a plan the operator has
     approved on the agent page. No LLM -- exactly the approved actions run."""
     payload = payload or {}
@@ -197,7 +260,7 @@ def execute_deprovisioning(payload: dict[str, Any] | None = None) -> dict[str, A
 
 
 @app.get("/api/approvals")
-def list_pending_approvals() -> dict[str, Any]:
+def list_pending_approvals(user: HRUser) -> dict[str, Any]:
     """Orchestration runs paused at the human approval gate, across all
     sessions and surviving restarts.
 
@@ -208,7 +271,7 @@ def list_pending_approvals() -> dict[str, Any]:
 
 
 @app.post("/api/orchestrate/{case_id}")
-def orchestrate_case(case_id: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def orchestrate_case(case_id: str, user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run the multi-agent LangGraph orchestrator for one exit case end to end.
     Non-interactive: the human approval gate is answered with `decision`
     from the body (default "approve"). Use the /stream route for a real pause."""
@@ -232,6 +295,7 @@ def _sse(event: str, data: Any) -> str:
 
 @app.get("/api/orchestrate/{case_id}/stream")
 def orchestrate_case_stream(
+    user: HRUser,
     case_id: str, thread_id: str | None = None, decision: str | None = None, note: str = "",
 ) -> StreamingResponse:
     """The orchestrator as Server-Sent Events so the UI can light up each node

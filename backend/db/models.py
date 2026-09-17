@@ -21,9 +21,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import (BigInteger, Boolean, Date, DateTime, Float, ForeignKey,
-                        Index, Integer, LargeBinary, String, Text,
-                        UniqueConstraint, func)
+from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime,
+                        Float, ForeignKey, Index, Integer, LargeBinary, String,
+                        Text, UniqueConstraint, func)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
@@ -299,6 +299,13 @@ class CaseDocument(Base):
     image: Mapped[bytes | None] = mapped_column(LargeBinary)
     image_bytes: Mapped[int | None] = mapped_column(Integer)
     uploaded_by: Mapped[str | None] = mapped_column(Text)
+    # A human decision overrides the model's. Recording who and when is the
+    # point: "the system accepted it" is not an answer an auditor accepts.
+    reviewed_by: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # server_default as well as default: the Python-side default only applies
+    # to new ORM objects, and this column was added to a populated table.
+    review_note: Mapped[str] = mapped_column(Text, default="", server_default="")
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True)
 
@@ -432,3 +439,97 @@ class Interview(Base):
             "submitted_date": self.submitted_date,
             **(self.extra or {}),
         })
+
+
+# -- identity -----------------------------------------------------------------
+#: The only two roles. An employee sees their own offboarding and nothing else;
+#: HR manages everyone's. Kept as a plain string with a CHECK rather than a
+#: Postgres ENUM, because altering an ENUM in a migration is far more painful
+#: than altering a constraint.
+ROLES = ("hr", "employee")
+
+
+class User(Base):
+    """A person who can log in.
+
+    `employee_id` is set for employee accounts and links them to the record
+    they are allowed to see. It is NULL for HR, who are scoped by role instead.
+    """
+
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role in ('hr','employee')", name="ck_user_role"),
+        # An employee account without a linked record could not be scoped to
+        # anything, so it must not exist.
+        CheckConstraint(
+            "role <> 'employee' or employee_id is not null", name="ck_employee_has_record"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Normalised to lowercase on write; the unique index is what makes
+    # "Alice@x.com" and "alice@x.com" the same account rather than two.
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    employee_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("employees.id", ondelete="RESTRICT"), index=True
+    )
+    full_name: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Throttling state. Counting failures in the row rather than in memory
+    # means a restart does not hand an attacker a fresh budget.
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    employee: Mapped["Employee | None"] = relationship()
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def is_hr(self) -> bool:
+        return self.role == "hr"
+
+    def to_identity(self) -> dict[str, Any]:
+        """What the browser is told about itself. Deliberately minimal — no
+        hash, no lockout state, nothing about other people."""
+        return {
+            "email": self.email,
+            "role": self.role,
+            "employee_id": self.employee_id,
+            "full_name": self.full_name,
+            "must_change_password": self.must_change_password,
+        }
+
+
+class UserSession(Base):
+    """A logged-in browser.
+
+    The primary key is a SHA-256 of the session token, never the token itself.
+    A database leak then yields no usable cookies, and the lookup is still a
+    single indexed equality check.
+
+    Server-side rather than a signed cookie so that logout, password change and
+    deactivation can revoke access immediately instead of waiting for expiry.
+    """
+
+    __tablename__ = "sessions"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    user_agent: Mapped[str | None] = mapped_column(Text)
+
+    user: Mapped["User"] = relationship(back_populates="sessions")

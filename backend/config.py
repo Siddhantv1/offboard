@@ -100,3 +100,9 @@ PG_URI = libpq_uri(DATABASE_URL)
 # Echo every statement to stderr. Off by default: the analysis agents issue
 # hundreds of queries and the noise buries everything else.
 DB_ECHO = os.getenv("DB_ECHO", "").lower() in ("1", "true", "yes")
+
+# -- auth ---------------------------------------------------------------------
+# Session cookies are marked Secure (HTTPS-only) unless explicitly disabled for
+# local development over plain http. Defaulting to insecure would be the wrong
+# way round: a forgotten flag should fail closed in production, not open.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "").lower() not in ("0", "false", "no")

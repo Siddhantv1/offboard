@@ -38,6 +38,26 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Tables created and owned by langgraph-checkpoint-postgres via
+# PostgresSaver.setup(), not by our models. Autogenerate cannot see them in
+# Base.metadata and therefore proposes DROPping them -- which would delete
+# every paused human-approval run. Filtered out so it never offers again.
+LANGGRAPH_TABLES = {
+    "checkpoints",
+    "checkpoint_blobs",
+    "checkpoint_writes",
+    "checkpoint_migrations",
+}
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    if type_ == "table" and name in LANGGRAPH_TABLES:
+        return False
+    if type_ == "index" and getattr(obj, "table", None) is not None:
+        return obj.table.name not in LANGGRAPH_TABLES
+    return True
+
+
 
 def run_migrations_offline() -> None:
     """Emit SQL to stdout without connecting. `alembic upgrade head --sql`."""
@@ -67,6 +87,7 @@ def run_migrations_online() -> None:
             compare_type=True,
             compare_server_default=True,
             render_item=render_item,
+            include_object=include_object,
         )
         with context.begin_transaction():
             context.run_migrations()
