@@ -17,6 +17,10 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 DATA_DIR = PROJECT_ROOT / "data"
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
+# Vite build output. The React app is served from here; `npm run build` in
+# frontend/ produces it, and the server reports a clear 503 if it is missing
+# rather than 404ing every page.
+FRONTEND_DIST = FRONTEND_DIR / "dist"
 
 
 class PortkeySettings:

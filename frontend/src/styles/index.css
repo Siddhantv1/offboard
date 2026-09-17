@@ -1,48 +1,55 @@
 /* ============================================================
    Offboard — design system
-   Teal on white: hairline borders, flat surfaces, no gradients.
 
-   The brand palette is four values and nothing else:
+   Palette (four values, nothing else):
      Deep Teal #004B49 · Primary Teal #007A78
      Pale Mint #E6F2F2 · Pure White #FFFFFF
-   Every neutral below is derived from them — the greys carry a
-   teal cast rather than being neutral grey, so nothing on the
-   page reads as belonging to a different system.
 
-   Status hues are the one deliberate exception, and they are
-   reserved: amber and crimson appear ONLY where something needs
-   a human. A screen with nothing wrong is entirely teal, mint
-   and white, so an off-palette colour anywhere is information.
+   PROPORTION IS THE RULE, not just the palette. An earlier pass spent the
+   four colours evenly and the result read loud: mint was the whole canvas
+   and teal repeated as 16 card tiles, 16 taglines and 18 nav icons.
+
+     White is the canvas.  Teal is for things you can act on.
+     Mint means STATE.
+
+   Target: white ~85%, ink and hairlines ~10%, teal ~5%, mint ~1%. If mint
+   appears, something is selected or hovered — which makes it informative
+   rather than decorative, the same logic the status hues already follow.
+
+   Status hues (amber, crimson) are reserved for exceptions only, so any
+   off-palette colour anywhere on screen is information.
    ============================================================ */
 :root {
-  /* -- brand: the four given values ------------------------- */
-  --deep:       #004B49;   /* Deep Teal — headings, solid fills */
+  /* -- brand ------------------------------------------------ */
+  --deep:       #004B49;   /* Deep Teal — headings, solid fills, positive state */
   --teal:       #007A78;   /* Primary Teal — interactive, chart marks */
-  --mint:       #E6F2F2;   /* Pale Mint — app background */
-  --surface:    #FFFFFF;   /* Pure White — cards / panels */
+  --mint:       #E6F2F2;   /* Pale Mint — STATE ONLY: active, hover, focus */
+  --surface:    #FFFFFF;   /* Pure White — the canvas and the cards */
 
   /* -- derived neutrals (teal-cast, not grey) --------------- */
-  --surface-2:  #D8EAE9;   /* insets: deeper than the card, calmer than mint */
+  --inset:      #F4F7F7;   /* quiet fill: ~2/3 the strength of mint against white */
   --ink:        #0F2E2D;   /* primary text — 14.5:1 on white */
-  --ink-soft:   #0F2E2D40; /* borders via ink alpha -- also the SLA rule,
-                              which disappears against mint below ~25% */
+  --ink-soft:   #0F2E2D40; /* borders via ink alpha; also the SLA rule, which
+                              disappears against a pale track below ~25% */
   --muted:      #4A6866;   /* secondary text — 6.1:1 on white */
-  --line:       #CFE3E2;   /* hairline border */
-  --line-strong:#B6D4D2;
+  --line:       #CDDCDB;   /* decorative hairline; must read against white now
+                              that mint no longer sits behind the cards */
+  --line-strong:#B6D4D2;   /* emphasis hairline: table headers, ghost buttons */
+  --control-border: #6E9D9B; /* form field boundaries. 3.02:1 on white — the
+                              lightest value that meets WCAG 1.4.11, which the
+                              old #B6D4D2 (1.57:1) never did; the mint fill used
+                              to hide that. */
   --teal-soft:  #9FCFCD;   /* accent borders */
-  --teal-wash:  #D6EBEA;   /* accent fills, a step off the page background */
 
   /* -- status: reserved, exception-only --------------------- */
-  /* Positive is the brand colour: "cleared" needs no special hue,
-     and spending one on the common case would make the exceptions
-     quieter by comparison. */
+  /* Positive is the brand colour: spending a hue on the common case would
+     make the genuine exceptions quieter by comparison. */
   --ok:         #004B49;
   --ok-wash:    #E6F2F2;
-  /* Amber and crimson were re-stepped against the colour-vision
-     validator, not chosen by eye. The obvious pairing — dark amber
-     #8A5300 with red #B3261E — measures ΔE 1.4 apart in deuteranopia:
-     the same colour to ~5% of men. These sit 10.4 apart, and the
-     crimson is pushed off orange-red towards magenta to get there. */
+  /* Amber and crimson were stepped against the colour-vision validator, not
+     chosen by eye. The obvious pairing — dark amber #8A5300 with red #B3261E —
+     measures ΔE 1.4 in deuteranopia: the same colour to ~5% of men. These sit
+     10.4 apart, with the crimson pushed off orange-red towards magenta. */
   --warn:       #946A00;
   --warn-wash:  #FFF8EA;
   --danger:     #A3123C;
@@ -59,7 +66,7 @@
 html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--sans);
-  background: var(--mint);
+  background: var(--surface);
   color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
@@ -96,10 +103,12 @@ a { color: inherit; }
   cursor: pointer; color: var(--ink); border: 1px solid transparent;
   transition: background .12s ease, border-color .12s ease;
 }
-.nav-item:hover { background: var(--surface-2); }
-.nav-item.active { background: var(--teal-wash); border-color: var(--teal-soft); }
+.nav-item:hover { background: var(--inset); }
+.nav-item.active { background: var(--mint); border-color: var(--teal-soft); }
+.nav-item.active .ni-icon { color: var(--teal); }
+.nav-item.active .ni-name { font-weight: 550; }
 .nav-item .ni-icon {
-  width: 22px; text-align: center; color: var(--teal); font-size: 14px;
+  width: 22px; text-align: center; color: var(--muted); font-size: 14px;
   /* Icons are text glyphs, not emoji, so they take the teal like any other
      text. A colour-emoji fallback would drag its own palette onto the page. */
   font-variant-emoji: text;
@@ -123,7 +132,7 @@ a { color: inherit; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 34px; border-bottom: 1px solid var(--line);
-  background: var(--mint);
+  background: var(--surface);
 }
 .crumb { font-size: 13px; color: var(--muted); }
 .crumb b { color: var(--ink); font-weight: 550; }
@@ -150,12 +159,19 @@ a { color: inherit; }
 .card-top { display: flex; align-items: center; gap: 12px; }
 .card-icon {
   width: 38px; height: 38px; border-radius: 9px; flex: none;
-  background: var(--teal-wash); color: var(--teal);
+  background: var(--inset); color: var(--muted);
+  transition: background .14s ease, color .14s ease;
   display: grid; place-items: center; font-size: 17px;
   font-variant-emoji: text;
 }
 .card-title { font-family: var(--serif); font-size: 16.5px; font-weight: 550; letter-spacing: -.01em; }
-.card-tag { font-size: 12px; color: var(--teal); font-weight: 500; }
+.card-tag { font-size: 12px; color: var(--muted); font-weight: 500; transition: color .14s ease; }
+/* Teal arrives on contact rather than sitting on all sixteen cards at once. */
+.card:hover .card-icon { background: var(--mint); color: var(--teal); }
+.card:hover .card-tag { color: var(--teal); }
+/* The agent-detail header reuses .card-icon but appears once, so it keeps the
+   branded treatment. */
+.av-title .card-icon { background: var(--mint); color: var(--teal); }
 .card-desc { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
 
 /* ---- agent view ---- */
@@ -187,13 +203,13 @@ a { color: inherit; }
 
 input[type="text"], input[type="number"], textarea, select {
   width: 100%; font-family: var(--sans); font-size: 14px; color: var(--ink);
-  background: var(--mint); border: 1px solid var(--line-strong);
+  background: var(--inset); border: 1px solid var(--control-border);
   border-radius: var(--radius-sm); padding: 10px 12px; outline: none;
   transition: border-color .12s ease, box-shadow .12s ease;
 }
 textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
 input:focus, textarea:focus, select:focus {
-  border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash);
+  border-color: var(--teal); box-shadow: 0 0 0 3px var(--mint);
 }
 
 .btn {
@@ -226,7 +242,7 @@ input:focus, textarea:focus, select:focus {
 .kv .k { color: var(--muted); font-size: 13px; padding-top: 1px; }
 .kv .v { font-size: 14px; }
 .obj-card {
-  background: var(--surface-2); border: 1px solid var(--line);
+  background: var(--inset); border: 1px solid var(--line);
   border-radius: var(--radius-sm); padding: 14px 16px; margin: 8px 0;
 }
 .list { display: flex; flex-direction: column; gap: 8px; }
@@ -244,27 +260,29 @@ input:focus, textarea:focus, select:focus {
   padding: 3px 9px; border-radius: 999px; border: 1px solid transparent;
   text-transform: capitalize;
 }
-.badge.b-ok { background: var(--ok-wash); color: var(--ok); border-color: var(--teal-soft); }
+/* Outline, not a filled pill: badgeClass() routes the entire happy path here,
+   so a mint fill made every result view a field of mint. */
+.badge.b-ok { background: transparent; color: var(--deep); border-color: var(--teal-soft); }
 .badge.b-warn { background: var(--warn-wash); color: var(--warn); border-color: #E4CE96; }
 .badge.b-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
-.badge.b-neutral { background: var(--surface-2); color: var(--muted); border-color: var(--line-strong); }
-.badge.b-accent { background: var(--teal-wash); color: var(--teal); border-color: var(--teal-soft); }
+.badge.b-neutral { background: var(--inset); color: var(--muted); border-color: var(--line-strong); }
+.badge.b-accent { background: var(--inset); color: var(--teal); border-color: var(--teal-soft); }
 
 /* score meter */
-.meter { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; max-width: 320px; }
+.meter { height: 8px; border-radius: 999px; background: var(--inset); overflow: hidden; margin-top: 6px; max-width: 320px; }
 .meter > span { display: block; height: 100%; background: var(--teal); }
 .score-big { font-family: var(--serif); font-size: 30px; font-weight: 500; }
 
 /* sources chips */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .chip {
-  font-size: 12px; color: var(--muted); background: var(--surface-2);
+  font-size: 12px; color: var(--muted); background: var(--inset);
   border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
 }
 
 /* email preview */
 .email {
-  background: var(--mint); border: 1px solid var(--line-strong);
+  background: var(--inset); border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm); padding: 18px 20px;
 }
 .email .subj { font-weight: 600; margin-bottom: 4px; }
@@ -295,7 +313,7 @@ input:focus, textarea:focus, select:focus {
 .msg-bot { justify-content: flex-start; }
 .msg-avatar {
   width: 28px; height: 28px; border-radius: 8px; flex: none;
-  background: var(--teal-wash); color: var(--teal);
+  background: var(--inset); color: var(--muted);
   display: grid; place-items: center; font-size: 15px; margin-top: 2px;
 }
 .msg-col { display: flex; flex-direction: column; gap: 8px; max-width: 78%; }
@@ -309,7 +327,7 @@ input:focus, textarea:focus, select:focus {
   border-bottom-right-radius: 5px; max-width: 78%; white-space: pre-wrap;
 }
 .msg-bot .bubble {
-  background: var(--surface-2); color: var(--ink);
+  background: var(--inset); color: var(--ink);
   border-bottom-left-radius: 5px;
 }
 
@@ -325,11 +343,11 @@ input:focus, textarea:focus, select:focus {
 .bubble h3 { font-size: 16px; } .bubble h4 { font-size: 15px; }
 .bubble code {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12.5px; background: var(--mint); border: 1px solid var(--line);
+  font-size: 12.5px; background: var(--inset); border: 1px solid var(--line);
   border-radius: 5px; padding: 1px 5px;
 }
 .bubble pre {
-  background: var(--mint); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--inset); border: 1px solid var(--line); border-radius: 8px;
   padding: 12px 14px; overflow-x: auto; margin: 8px 0;
 }
 .bubble pre code { background: none; border: none; padding: 0; font-size: 12.5px; }
@@ -361,7 +379,7 @@ input:focus, textarea:focus, select:focus {
   border-radius: 999px; padding: 7px 13px; cursor: pointer;
   transition: border-color .12s ease, background .12s ease;
 }
-.starter:hover { border-color: var(--teal-soft); background: var(--teal-wash); }
+.starter:hover { border-color: var(--teal-soft); background: var(--mint); }
 
 /* composer */
 .composer {
@@ -480,7 +498,7 @@ input:focus, textarea:focus, select:focus {
 .orch-approval-actions { flex-wrap: wrap; }
 .orch-approval-hint { font-size: 12.5px; color: var(--muted); }
 .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
-.btn-ghost:hover { background: var(--surface-2); }
+.btn-ghost:hover { background: var(--inset); }
 .btn-ghost:disabled { opacity: .6; cursor: default; }
 
 /* standalone deprovisioning page: approve -> execute */
@@ -490,7 +508,7 @@ input:focus, textarea:focus, select:focus {
 /* file inputs (document upload) */
 input[type="file"] {
   width: 100%; font-family: var(--sans); font-size: 13.5px; color: var(--muted);
-  background: var(--mint); border: 1px dashed var(--line-strong);
+  background: var(--inset); border: 1px dashed var(--control-border);
   border-radius: var(--radius-sm); padding: 10px 12px;
 }
 input[type="file"]::file-selector-button {
@@ -535,7 +553,7 @@ input[type="file"]::file-selector-button {
   transition: transform .15s ease;
 }
 .orch-section[open] summary::before { transform: rotate(90deg); }
-.orch-section summary:hover { background: var(--surface-2); }
+.orch-section summary:hover { background: var(--inset); }
 .orch-section summary:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
 .orch-section-body { padding: 4px 24px 20px; }
 .orch-log {
@@ -572,7 +590,7 @@ input[type="file"]::file-selector-button {
 .report-prose p { margin: 0 0 11px; line-height: 1.65; }
 .report-callout {
   margin: 0; padding: 14px 16px; max-width: 62ch; line-height: 1.6;
-  background: var(--surface-2); border-left: 2px solid var(--teal);
+  background: var(--inset); border-left: 2px solid var(--teal);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .note-trunc {
@@ -617,7 +635,7 @@ input[type="file"]::file-selector-button {
   font-size: 13.5px; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.chart-track { position: relative; height: 11px; background: var(--surface-2); border-radius: 3px; }
+.chart-track { position: relative; height: 11px; background: var(--inset); border-radius: 3px; }
 .chart-bar {
   height: 100%; background: var(--teal);
   border-radius: 0 4px 4px 0;              /* anchored left, rounded data-end */
@@ -668,7 +686,7 @@ input[type="file"]::file-selector-button {
   overflow: hidden; margin: 6px 0 4px;
 }
 .pipe-side { padding: 18px 20px; }
-.pipe-side + .pipe-side { border-left: 1px solid var(--line); background: var(--surface-2); }
+.pipe-side + .pipe-side { border-left: 1px solid var(--line); background: var(--inset); }
 .pipe-side h5 {
   font-family: var(--serif); font-size: 14px; font-weight: 600; margin: 0 0 3px;
 }
@@ -679,7 +697,7 @@ input[type="file"]::file-selector-button {
   background: var(--surface); border: 1px solid var(--line-strong); color: var(--muted);
 }
 .pipe-chip.is-new {
-  background: var(--teal-wash); border-color: var(--teal-soft); color: var(--ink);
+  background: var(--mint); border-color: var(--teal-soft); color: var(--ink);
 }
 .pipe-chip-sla { font-size: 11px; color: var(--teal); font-variant-numeric: tabular-nums; }
 
@@ -687,7 +705,7 @@ input[type="file"]::file-selector-button {
 .doc-head { margin-bottom: 8px; }
 .doc-who { font-family: var(--serif); font-size: 19px; font-weight: 550; margin: 0 0 12px; }
 .doc-meter {
-  height: 8px; border-radius: 999px; background: var(--surface-2);
+  height: 8px; border-radius: 999px; background: var(--inset);
   overflow: hidden; max-width: 420px;
 }
 .doc-meter > span { display: block; height: 100%; background: var(--ok); }
@@ -725,7 +743,7 @@ input[type="file"]::file-selector-button {
 .doc-check.is-yes .doc-mark { color: var(--ok); }
 .doc-check.is-no .doc-mark { color: var(--danger); }
 .doc-ocr {
-  margin: 8px 0 0; padding: 11px 13px; background: var(--mint);
+  margin: 8px 0 0; padding: 11px 13px; background: var(--inset);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px; line-height: 1.6; white-space: pre-wrap; color: var(--muted);
@@ -778,4 +796,27 @@ input[type="file"]::file-selector-button {
 .pipe-together {
   display: inline-block; margin-top: 5px;
   font-size: 11.5px; font-style: italic; color: var(--muted);
+}
+
+/* ============================================================
+   React Router integration
+
+   Nav items, cards and the back link are now real anchors rather than divs
+   with click handlers, which is what makes middle-click, ctrl-click and
+   "copy link" behave. They need the default link styling removed, and the
+   nav needs a wrapper per category group.
+   ============================================================ */
+a.nav-item, a.card, a.back { text-decoration: none; color: inherit; }
+a.card { display: flex; }
+
+.nav-section { display: flex; flex-direction: column; gap: 2px; }
+
+/* Keyboard users must be able to see where they are. */
+a.nav-item:focus-visible,
+a.card:focus-visible,
+a.back:focus-visible,
+.starter:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
 }

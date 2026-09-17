@@ -33,10 +33,16 @@ the whole dataset rather than one case, so they stay standalone.
 ## Architecture
 
 ```
-frontend/            Vanilla HTML/CSS/JS SPA (no build step), served static
-  index.html         Sidebar + main layout
-  styles.css         Design system (warm paper, clay accent, serif display)
-  app.js             Data-driven UI + recursive result renderer
+frontend/            React SPA (Vite), built to frontend/dist and served by FastAPI
+  index.html         Vite entry
+  src/main.jsx       Root render + BrowserRouter
+  src/App.jsx        Layout, routes, breadcrumb derived from the URL
+  src/pages/         Home · AgentPage · Orchestrator · AddEmployee · NotFound
+  src/components/    Sidebar, Field, Chat, viz (bars/tables/pipeline),
+                     orchestrator (live SVG graph, approval gate),
+                     results (three purpose-built views + recursive fallback)
+  src/lib/           api, agent catalog context, markdown, formatting, constants
+  src/styles/        Design system (teal on white; proportion rules at the top)
 
 backend/             FastAPI app
   main.py            API + serves the frontend
@@ -192,7 +198,7 @@ load_case ───────┼─ smart_routing ─────────�
 
 Six agents fan out from `load_case` and join at the **approval gate**, where the
 graph calls LangGraph's `interrupt()` with the deprovisioning plan and stops. The
-run is checkpointed (`MemorySaver`, one `thread_id` per run) until a human
+run is checkpointed (`PostgresSaver`, one `thread_id` per run) until a human
 resumes it with approve or reject; approve executes the plan through the
 connectors, reject skips execution and compliance is told so. Compliance then
 verifies with **extra evidence** handed over by the other agents: live
@@ -209,7 +215,7 @@ stream sends `awaiting_approval` and closes; the page shows the plan with
 Approve / Reject, then re-opens the same route with `?thread_id=&decision=` to
 resume and stream the rest. `done` carries the final state, rendered under the
 chain as a verdict plus one collapsible section per agent. Deep link:
-`/#orchestrator`. `POST /api/orchestrate/{case_id}` is the non-interactive
+`/orchestrator` (a real route, so it survives a reload). `POST /api/orchestrate/{case_id}` is the non-interactive
 variant (the gate is answered with `decision` from the body, default approve).
 
 Agents 16-20 (supervisor-coordinated stage agents, rehire assessment, policy
@@ -218,8 +224,8 @@ Document.txt`) are unbuilt; this graph is the pattern they'll extend.
 
 ## Run it
 
-Prerequisites: Python 3.11+ and PostgreSQL 17. To install the database on
-Windows (elevated prompt — it registers a service):
+Prerequisites: Python 3.11+, Node 18+, and PostgreSQL 17. To install the
+database on Windows (elevated prompt — it registers a service):
 
 ```
 winget install --id PostgreSQL.PostgreSQL.17 --exact ^
@@ -235,8 +241,17 @@ cp .env.example .env          # set PORTKEY_API_KEY and the DATABASE_URL passwor
 python -m scripts.init_database   # creates the offboard role and databases
 alembic upgrade head              # builds the schema
 python -m backend.db.seed         # imports data/ into PostgreSQL
+cd frontend && npm install && npm run build && cd ..   # builds the React app
 uvicorn backend.main:app --reload
 # open http://127.0.0.1:8000  (first boot builds the FAQ index via the gateway and warms the OCR engine)
+```
+
+The frontend must be built before the server can serve it; without
+`frontend/dist` every page returns a 503 saying exactly that. For UI work run
+Vite instead and let it proxy the API, which gives hot reload:
+
+```bash
+cd frontend && npm run dev     # http://127.0.0.1:5173, /api proxied to :8000
 ```
 
 `python -m pytest tests/` runs the suite. See

@@ -32,7 +32,7 @@ from starlette.datastructures import UploadFile  # form parts arrive as this cla
 from . import ocr
 from .agents import REGISTRY
 from .agents.it_deprovisioning import execute_plan
-from .config import FRONTEND_DIR, PORTKEY
+from .config import FRONTEND_DIST, PORTKEY
 from .data_store import store
 from .llm import LLMError
 from .orchestration import (pending_approval, pending_approvals,
@@ -279,10 +279,33 @@ def orchestrate_case_stream(
     )
 
 
-# -- static frontend (mounted last so it doesn't shadow /api) --------------
-@app.get("/")
-def index() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "index.html")
+# -- static frontend (declared last so it doesn't shadow /api) --------------
+# The React bundle is built by Vite into frontend/dist. Hashed assets are
+# served straight from disk; everything else falls through to index.html so a
+# client-side route survives a reload or a shared link.
+if (FRONTEND_DIST / "assets").is_dir():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
 
-app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
+@app.get("/{full_path:path}", include_in_schema=False)
+def spa(full_path: str) -> FileResponse:
+    # Declared last, so every real API route has already matched. An unknown
+    # /api path must still 404 as JSON rather than silently returning the app
+    # shell, which would surface as a JSON parse error in the client.
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail=f"No such endpoint: /{full_path}")
+
+    index = FRONTEND_DIST / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Frontend is not built. Run: cd frontend && npm install && npm run build",
+        )
+    if full_path:
+        candidate = (FRONTEND_DIST / full_path).resolve()
+        # Serve a real file only when it is genuinely inside the build
+        # directory -- otherwise "../.." would walk out of it.
+        root = FRONTEND_DIST.resolve()
+        if candidate.is_file() and candidate.is_relative_to(root):
+            return FileResponse(candidate)
+    return FileResponse(index)

@@ -9,38 +9,9 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;450;500;600&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="app">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="brand">
-        <span class="brand-mark">◗</span>
-        <div>
-          <div class="brand-name">Offboard</div>
-          <div class="brand-sub">Exit Automation</div>
-        </div>
-      </div>
-      <nav id="nav" class="nav"></nav>
-      <div class="sidebar-foot">
-        <div id="health" class="health">connecting…</div>
-      </div>
-    </aside>
-
-    <!-- Main -->
-    <main class="main">
-      <header class="topbar">
-        <div id="crumb" class="crumb">All agents</div>
-        <div class="topbar-note">LLM layer · Portkey gateway</div>
-      </header>
-
-      <section id="content" class="content">
-        <!-- home grid or agent view injected here -->
-      </section>
-    </main>
-  </div>
-
-  <script src="/app.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
