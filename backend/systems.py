@@ -14,6 +14,12 @@ Two kinds of function live here:
 
 Replace this module with real API clients to go to production; the agents
 only depend on the return shapes.
+
+One thing here is not a mock: the records written by
+`execute_deprovisioning_action` go to the `deprovisioning_actions` table. They
+state which privileged accounts were revoked, when, and on whose approval, so
+they have to outlive the process -- while they were an in-memory dict, a
+restart silently resurrected every revoked account.
 """
 from __future__ import annotations
 
@@ -22,27 +28,44 @@ from typing import Any
 
 # (no import from .agents here: agents import this module, so that would be circular)
 from .data_store import store
+from .db import session_scope
+from .db.models import DeprovisioningAction
 
 # Systems whose access is privileged per the IT deprovisioning policy (2.3).
 PRIVILEGED = {"aws", "github", "ci/cd", "pagerduty", "database", "okta", "sap"}
 
-# What the deprovisioning agent has *executed* (after human approval), per
-# employee. The read-only connectors consult this so a post-execution check
-# actually reflects the revocation -- otherwise compliance would keep seeing
-# "account active" no matter what was approved. In-memory: resets with the
-# process, like every other mock here.
-_EXECUTED: dict[str, list[dict[str, Any]]] = {}
-
-
 def executed_actions(employee_id: str) -> list[dict[str, Any]]:
-    return list(_EXECUTED.get(str(employee_id), []))
+    """Post-approval deprovisioning records for an employee, oldest first.
+
+    Persisted, unlike the rest of this module's mocked state. These records
+    state which privileged accounts were revoked, when, and on whose approval;
+    they are compliance evidence and must survive a restart. They previously
+    lived in a module-level dict, so a restart silently resurrected every
+    revoked account in `access_status`.
+    """
+    with session_scope() as session:
+        rows = (session.query(DeprovisioningAction)
+                .filter(DeprovisioningAction.employee_id == str(employee_id))
+                .order_by(DeprovisioningAction.executed_at,
+                          DeprovisioningAction.id)
+                .all())
+        return [r.to_record() for r in rows]
 
 
-def _revoked(employee_id: str, system: str) -> dict[str, Any] | None:
-    """The executed action that covers `system`, if any (loose name match:
-    'AWS' matches target 'AWS (IAM user + keys)'; 'Okta/SSO' matches 'Okta')."""
+def _revoked(employee_id: str, system: str,
+             records: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    """The executed action covering `system`, if any (loose name match:
+    'AWS' matches target 'AWS (IAM user + keys)'; 'Okta/SSO' matches 'Okta').
+
+    Pass `records` when checking several systems for one employee -- otherwise
+    each call is its own query, and `access_status` checks every account.
+    """
+    if records is None:
+        records = executed_actions(employee_id)
     s = system.lower()
-    for rec in _EXECUTED.get(str(employee_id), []):
+    for rec in records:
+        # Returning a laptop is not the same as killing an account; conflating
+        # them would report access revoked while it is still live.
         if rec.get("type") == "recover_asset":
             continue
         t = str(rec.get("target", "")).lower()
@@ -118,10 +141,13 @@ def access_status(case_id: str) -> dict[str, Any]:
     systems = [str(s) for s in emp.get("access_systems") or []]
     stage = _stage(case_meta, "IT Clearance")
     stage_done = str(stage.get("status", "")).lower() == "completed"
+    # Fetched once for the whole loop: per-account lookups would be one query
+    # each, and this runs inside the orchestrator's compliance re-check.
+    executed = executed_actions(emp_id)
     accounts = []
     for s in systems:
         priv = s.lower() in PRIVILEGED
-        rec = _revoked(emp_id, s)
+        rec = _revoked(emp_id, s, records=executed)
         active = not (stage_done or rec)
         entry: dict[str, Any] = {"system": s, "active": active, "privileged": priv}
         if rec:
@@ -138,7 +164,7 @@ def access_status(case_id: str) -> dict[str, Any]:
         "still_active": [a["system"] for a in accounts if a["active"]],
         "privileged_still_active": [a["system"] for a in accounts if a["active"] and a["privileged"]],
         "policy_breaches": breaches,
-        "deprovisioning_actions_executed": len(executed_actions(emp_id)),
+        "deprovisioning_actions_executed": len(executed),
         "days_open": _days_open(stage),
     }
 
@@ -219,24 +245,41 @@ CLEARANCE_HANDLERS = {
 
 
 # -- write connector (agent 14, post-approval only) ---------------------------
-def execute_deprovisioning_action(action: dict[str, Any], employee_id: str = "") -> dict[str, Any]:
+def execute_deprovisioning_action(action: dict[str, Any], employee_id: str = "",
+                                  case_id: str = "", approved_by: str = "",
+                                  note: str = "") -> dict[str, Any]:
     """'Perform' one approved deprovisioning step and return an audit record.
 
     In production this would call the identity provider / cloud / SaaS admin
     APIs. Here it stamps the action as done and records it against the employee
     so `access_status` reflects the revocation afterwards. Deterministic and
-    LLM-free so that what was approved is exactly what gets executed."""
+    LLM-free so that what was approved is exactly what gets executed.
+
+    `approved_by` and `note` are persisted: an audit trail that records what
+    was revoked but not who authorised it answers only half the question.
+    """
     kind = str(action.get("type") or action.get("kind") or "action")
     target = str(action.get("target") or action.get("system") or action.get("item") or "?")
+    connector = _connector_for(target)
     record = {
         "type": kind,
         "target": target,
         "result": "done",
         "executed_at": _now(),
-        "connector": _connector_for(target),
+        "connector": connector,
     }
     if employee_id:
-        _EXECUTED.setdefault(str(employee_id), []).append(record)
+        with session_scope() as session:
+            session.add(DeprovisioningAction(
+                employee_id=str(employee_id),
+                case_id=case_id or None,
+                action_type=kind,
+                target=target,
+                result="done",
+                connector=connector,
+                approved_by=approved_by or None,
+                note=note or "",
+            ))
     return record
 
 

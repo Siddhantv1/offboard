@@ -76,10 +76,19 @@ def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_d
 
 def execute_plan(plan: dict[str, Any], *, approved_by: str = "hr-operator",
                  note: str = "") -> dict[str, Any]:
-    """Phase 2: run each approved action through the connectors (no LLM)."""
+    """Phase 2: run each approved action through the connectors (no LLM).
+
+    `approved_by` and `note` are carried down to each action so the persisted
+    audit trail records the authorisation, not just the revocation.
+    """
     actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
     emp_id = str(plan.get("employee_id") or "")
-    records = [execute_deprovisioning_action(a, employee_id=emp_id) for a in actions]
+    case_id = str(plan.get("case_id") or "")
+    records = [
+        execute_deprovisioning_action(a, employee_id=emp_id, case_id=case_id,
+                                      approved_by=approved_by, note=note)
+        for a in actions
+    ]
     return {
         "employee_id": plan.get("employee_id"),
         "approved_by": approved_by,
