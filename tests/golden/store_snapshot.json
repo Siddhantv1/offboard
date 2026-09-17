@@ -1,0 +1,1067 @@
+{
+  "employees": [
+    {
+      "slug": "emp-001",
+      "title": "Aarav Mehta",
+      "meta": {
+        "id": "emp-001",
+        "name": "Aarav Mehta",
+        "email": "aarav.mehta@perficient.com",
+        "role": "Senior Software Engineer",
+        "department": "Engineering",
+        "manager": "Vikram Sharma",
+        "manager_email": "vikram.sharma@perficient.com",
+        "tenure_years": 5.2,
+        "join_date": {
+          "__date__": "2021-06-14"
+        },
+        "location": "Bengaluru, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Client Portal Revamp (Acme Retail)",
+          "Payments Microservices Platform"
+        ],
+        "access_systems": [
+          "GitHub",
+          "AWS",
+          "Jira",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 16\"",
+          "iPhone 14",
+          "YubiKey",
+          "Dell 27\" Monitor"
+        ],
+        "performance_rating": 4,
+        "criticality": "high",
+        "status": "exiting"
+      },
+      "body": "# Aarav Mehta\n\nAarav is a Senior Software Engineer on the Payments platform team. He owns the\ncore payment orchestration service and has been the primary maintainer of the\nAcme Retail client portal since its inception.\n\n## Notable Projects\n- **Payments Microservices Platform** — Led the migration from a monolith to a\n  set of Spring Boot microservices, cutting checkout latency by 38%.\n- **Client Portal Revamp** — Architected the React front end and the BFF layer\n  used by Acme Retail's 2,000+ store operators.\n\n## Exit Note\nAarav submitted his resignation and is serving notice. He is a high-criticality\nresource; knowledge transfer for the payment orchestration service is required\nbefore his last working day."
+    },
+    {
+      "slug": "emp-002",
+      "title": "Ishaan Gupta",
+      "meta": {
+        "id": "emp-002",
+        "name": "Ishaan Gupta",
+        "email": "ishaan.gupta@perficient.com",
+        "role": "Financial Analyst",
+        "department": "Finance",
+        "manager": "Anjali Desai",
+        "manager_email": "anjali.desai@perficient.com",
+        "tenure_years": 2.8,
+        "join_date": {
+          "__date__": "2023-11-02"
+        },
+        "location": "Pune, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Monthly Revenue Forecasting",
+          "Client Billing Reconciliation"
+        ],
+        "access_systems": [
+          "SAP",
+          "Jira",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Air 13\"",
+          "iPhone 13",
+          "Dell 24\" Monitor"
+        ],
+        "performance_rating": 3,
+        "criticality": "medium",
+        "status": "active"
+      },
+      "body": "# Ishaan Gupta\n\nIshaan is a Financial Analyst supporting revenue forecasting and client billing\nreconciliation across the consulting portfolio.\n\n## Notable Projects\n- **Monthly Revenue Forecasting** — Owns the rolling 12-month revenue model.\n- **Client Billing Reconciliation** — Reconciles SAP billing exports against\n  project time sheets for the top 20 accounts.\n\n## Notes\nActively employed. No exit in progress."
+    },
+    {
+      "slug": "emp-003",
+      "title": "Meera Krishnan",
+      "meta": {
+        "id": "emp-003",
+        "name": "Meera Krishnan",
+        "email": "meera.krishnan@perficient.com",
+        "role": "HR Business Partner",
+        "department": "HR",
+        "manager": "Neha Iyer",
+        "manager_email": "neha.iyer@perficient.com",
+        "tenure_years": 6.5,
+        "join_date": {
+          "__date__": "2020-02-10"
+        },
+        "location": "Chennai, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Offboarding Program Ownership",
+          "Employee Engagement Surveys"
+        ],
+        "access_systems": [
+          "Workday",
+          "Confluence",
+          "Jira",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Air 13\"",
+          "iPhone 13",
+          "Dell 24\" Monitor"
+        ],
+        "performance_rating": 5,
+        "criticality": "high",
+        "status": "active"
+      },
+      "body": "# Meera Krishnan\n\nMeera is an HR Business Partner and the process owner for the employee\noffboarding program. She is the HR sign-off owner on most active exit cases.\n\n## Notable Projects\n- **Offboarding Program Ownership** — Defined the 5-stage offboarding workflow\n  and its SLA policy.\n- **Employee Engagement Surveys** — Runs quarterly engagement and exit\n  interview analysis.\n\n## Notes\nActively employed. Acts as HR Clearance owner across exit cases."
+    },
+    {
+      "slug": "emp-004",
+      "title": "Rahul Verma",
+      "meta": {
+        "id": "emp-004",
+        "name": "Rahul Verma",
+        "email": "rahul.verma@perficient.com",
+        "role": "Account Executive",
+        "department": "Sales",
+        "manager": "Karan Malhotra",
+        "manager_email": "karan.malhotra@perficient.com",
+        "tenure_years": 3.1,
+        "join_date": {
+          "__date__": "2023-08-21"
+        },
+        "location": "Mumbai, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Enterprise West Region Accounts",
+          "Renewals Pipeline Q3-Q4"
+        ],
+        "access_systems": [
+          "Salesforce",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 14\"",
+          "iPhone 14",
+          "YubiKey"
+        ],
+        "performance_rating": 3,
+        "criticality": "medium",
+        "status": "exiting"
+      },
+      "body": "# Rahul Verma\n\nRahul is an Account Executive covering enterprise accounts in the West region.\nHe manages a book of 14 active accounts and the Q3-Q4 renewals pipeline.\n\n## Notable Projects\n- **Enterprise West Region Accounts** — INR 4.2 Cr book of business.\n- **Renewals Pipeline Q3-Q4** — 9 renewals in flight at time of exit.\n\n## Exit Note\nRahul has resigned. Account handover to Tara Menon (emp-012) is a priority.\nSalesforce access must be transitioned carefully to avoid pipeline data loss."
+    },
+    {
+      "slug": "emp-005",
+      "title": "Sanya Kapoor",
+      "meta": {
+        "id": "emp-005",
+        "name": "Sanya Kapoor",
+        "email": "sanya.kapoor@perficient.com",
+        "role": "IT Systems Administrator",
+        "department": "IT",
+        "manager": "Sunil Rao",
+        "manager_email": "sunil.rao@perficient.com",
+        "tenure_years": 4.0,
+        "join_date": {
+          "__date__": "2022-09-05"
+        },
+        "location": "Hyderabad, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Identity & Access Management",
+          "Endpoint Fleet Management"
+        ],
+        "access_systems": [
+          "Okta Admin",
+          "AWS",
+          "Jira",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 14\"",
+          "iPhone 14",
+          "YubiKey",
+          "Dell 27\" Monitor"
+        ],
+        "performance_rating": 4,
+        "criticality": "high",
+        "status": "active"
+      },
+      "body": "# Sanya Kapoor\n\nSanya is an IT Systems Administrator responsible for identity and access\nmanagement and the endpoint fleet. She is the IT Clearance owner on exit cases\nand executes account deprovisioning.\n\n## Notable Projects\n- **Identity & Access Management** — Owns Okta lifecycle policies and SSO.\n- **Endpoint Fleet Management** — Manages MDM enrollment and asset recovery.\n\n## Notes\nActively employed. Acts as IT Clearance / deprovisioning owner."
+    },
+    {
+      "slug": "emp-006",
+      "title": "Dev Patel",
+      "meta": {
+        "id": "emp-006",
+        "name": "Dev Patel",
+        "email": "dev.patel@perficient.com",
+        "role": "DevOps Engineer",
+        "department": "Engineering",
+        "manager": "Vikram Sharma",
+        "manager_email": "vikram.sharma@perficient.com",
+        "tenure_years": 3.7,
+        "join_date": {
+          "__date__": "2023-01-16"
+        },
+        "location": "Ahmedabad, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Cloud Infrastructure (AWS)",
+          "CI/CD Platform"
+        ],
+        "access_systems": [
+          "GitHub",
+          "AWS",
+          "Jira",
+          "Confluence",
+          "VPN",
+          "PagerDuty"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 16\"",
+          "iPhone 14",
+          "YubiKey",
+          "Dell 27\" Monitor"
+        ],
+        "performance_rating": 2,
+        "criticality": "high",
+        "status": "exiting"
+      },
+      "body": "# Dev Patel\n\nDev is a DevOps Engineer who owns the AWS landing zone and the shared CI/CD\nplatform used by all engineering teams. He holds broad production access.\n\n## Notable Projects\n- **Cloud Infrastructure (AWS)** — Terraform-managed multi-account landing zone.\n- **CI/CD Platform** — GitHub Actions runners and deployment pipelines.\n\n## Exit Note\nDev is exiting via termination. Given his broad production access (AWS root\npaths, PagerDuty, CI/CD secrets), immediate and complete deprovisioning is\ncritical. Knowledge transfer of the landing zone is high-priority."
+    },
+    {
+      "slug": "emp-007",
+      "title": "Nisha Reddy",
+      "meta": {
+        "id": "emp-007",
+        "name": "Nisha Reddy",
+        "email": "nisha.reddy@perficient.com",
+        "role": "Sales Development Representative",
+        "department": "Sales",
+        "manager": "Karan Malhotra",
+        "manager_email": "karan.malhotra@perficient.com",
+        "tenure_years": 1.4,
+        "join_date": {
+          "__date__": "2025-04-07"
+        },
+        "location": "Bengaluru, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Outbound Prospecting (SMB)",
+          "Lead Qualification Pod"
+        ],
+        "access_systems": [
+          "Salesforce",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Air 13\"",
+          "iPhone 13"
+        ],
+        "performance_rating": 2,
+        "criticality": "low",
+        "status": "exiting"
+      },
+      "body": "# Nisha Reddy\n\nNisha is a Sales Development Representative focused on outbound prospecting for\nthe SMB segment and lead qualification.\n\n## Notable Projects\n- **Outbound Prospecting (SMB)** — Sourced ~120 qualified leads per quarter.\n- **Lead Qualification Pod** — Part of the shared qualification rotation.\n\n## Exit Note\nNisha has resigned after a short tenure. Low criticality; standard offboarding.\nHer exit interview cites concerns similar to other Sales departures."
+    },
+    {
+      "slug": "emp-008",
+      "title": "Karthik Nair",
+      "meta": {
+        "id": "emp-008",
+        "name": "Karthik Nair",
+        "email": "karthik.nair@perficient.com",
+        "role": "Backend Engineer",
+        "department": "Engineering",
+        "manager": "Vikram Sharma",
+        "manager_email": "vikram.sharma@perficient.com",
+        "tenure_years": 2.3,
+        "join_date": {
+          "__date__": "2024-05-20"
+        },
+        "location": "Kochi, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Notifications Service",
+          "Data Ingestion Pipeline"
+        ],
+        "access_systems": [
+          "GitHub",
+          "AWS",
+          "Jira",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 14\"",
+          "iPhone 13",
+          "YubiKey",
+          "Dell 24\" Monitor"
+        ],
+        "performance_rating": 4,
+        "criticality": "medium",
+        "status": "exiting"
+      },
+      "body": "# Karthik Nair\n\nKarthik is a Backend Engineer who owns the notifications service and the batch\ndata ingestion pipeline feeding the analytics warehouse.\n\n## Notable Projects\n- **Notifications Service** — Email/SMS/push fan-out service (Kafka-based).\n- **Data Ingestion Pipeline** — Nightly ETL from client systems into Snowflake.\n\n## Exit Note\nKarthik has resigned. Medium criticality; a knowledge transfer document has been\nsubmitted and is pending review. Notifications service ownership must be\nreassigned."
+    },
+    {
+      "slug": "emp-009",
+      "title": "Pooja Shah",
+      "meta": {
+        "id": "emp-009",
+        "name": "Pooja Shah",
+        "email": "pooja.shah@perficient.com",
+        "role": "Senior Accountant",
+        "department": "Finance",
+        "manager": "Anjali Desai",
+        "manager_email": "anjali.desai@perficient.com",
+        "tenure_years": 7.1,
+        "join_date": {
+          "__date__": "2019-07-22"
+        },
+        "location": "Pune, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Payroll & Full-and-Final Settlements",
+          "Statutory Compliance (PF/TDS)"
+        ],
+        "access_systems": [
+          "SAP",
+          "Workday",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Air 13\"",
+          "iPhone 13",
+          "Dell 24\" Monitor"
+        ],
+        "performance_rating": 5,
+        "criticality": "high",
+        "status": "active"
+      },
+      "body": "# Pooja Shah\n\nPooja is a Senior Accountant who runs payroll and full-and-final settlements.\nShe is the Finance Clearance owner on exit cases and calculates final dues.\n\n## Notable Projects\n- **Payroll & Full-and-Final Settlements** — Owns FnF for all exits.\n- **Statutory Compliance (PF/TDS)** — Manages PF transfers and TDS filings.\n\n## Notes\nActively employed. Acts as Finance Clearance owner across exit cases."
+    },
+    {
+      "slug": "emp-010",
+      "title": "Aditya Rao",
+      "meta": {
+        "id": "emp-010",
+        "name": "Aditya Rao",
+        "email": "aditya.rao@perficient.com",
+        "role": "Talent Acquisition Recruiter",
+        "department": "HR",
+        "manager": "Neha Iyer",
+        "manager_email": "neha.iyer@perficient.com",
+        "tenure_years": 2.0,
+        "join_date": {
+          "__date__": "2024-09-01"
+        },
+        "location": "Chennai, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Engineering Hiring Pipeline",
+          "Campus Recruitment 2026"
+        ],
+        "access_systems": [
+          "Workday",
+          "LinkedIn Recruiter",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Air 13\"",
+          "iPhone 13"
+        ],
+        "performance_rating": 3,
+        "criticality": "low",
+        "status": "active"
+      },
+      "body": "# Aditya Rao\n\nAditya is a Talent Acquisition Recruiter focused on the engineering hiring\npipeline and campus recruitment.\n\n## Notable Projects\n- **Engineering Hiring Pipeline** — Fills backfills for exiting engineers.\n- **Campus Recruitment 2026** — Leads the 2026 graduate hiring drive.\n\n## Notes\nActively employed. Coordinates backfill hiring for exiting roles."
+    },
+    {
+      "slug": "emp-011",
+      "title": "Farhan Khan",
+      "meta": {
+        "id": "emp-011",
+        "name": "Farhan Khan",
+        "email": "farhan.khan@perficient.com",
+        "role": "Network Engineer",
+        "department": "IT",
+        "manager": "Sunil Rao",
+        "manager_email": "sunil.rao@perficient.com",
+        "tenure_years": 5.8,
+        "join_date": {
+          "__date__": "2020-11-30"
+        },
+        "location": "Hyderabad, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Office Network & VPN",
+          "Firewall & Security Hardening"
+        ],
+        "access_systems": [
+          "Cisco Meraki",
+          "AWS",
+          "Jira",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 14\"",
+          "iPhone 14",
+          "YubiKey",
+          "Dell 27\" Monitor"
+        ],
+        "performance_rating": 4,
+        "criticality": "medium",
+        "status": "active"
+      },
+      "body": "# Farhan Khan\n\nFarhan is a Network Engineer responsible for office networking, VPN\ninfrastructure, and firewall hardening.\n\n## Notable Projects\n- **Office Network & VPN** — Manages site-to-site VPN and remote access.\n- **Firewall & Security Hardening** — Owns perimeter firewall rules.\n\n## Notes\nActively employed. Supports IT Clearance for network/VPN deprovisioning."
+    },
+    {
+      "slug": "emp-012",
+      "title": "Tara Menon",
+      "meta": {
+        "id": "emp-012",
+        "name": "Tara Menon",
+        "email": "tara.menon@perficient.com",
+        "role": "Account Manager",
+        "department": "Sales",
+        "manager": "Karan Malhotra",
+        "manager_email": "karan.malhotra@perficient.com",
+        "tenure_years": 4.6,
+        "join_date": {
+          "__date__": "2022-02-28"
+        },
+        "location": "Mumbai, IN",
+        "employment_type": "Full-time",
+        "project_assignments": [
+          "Key Account Management (West)",
+          "Customer Success Handoffs"
+        ],
+        "access_systems": [
+          "Salesforce",
+          "Confluence",
+          "VPN"
+        ],
+        "assets_assigned": [
+          "MacBook Pro 14\"",
+          "iPhone 14",
+          "Dell 24\" Monitor"
+        ],
+        "performance_rating": 4,
+        "criticality": "medium",
+        "status": "active"
+      },
+      "body": "# Tara Menon\n\nTara is an Account Manager for key West-region accounts. She is the designated\nrecipient for account handovers from exiting Sales staff.\n\n## Notable Projects\n- **Key Account Management (West)** — Manages the top strategic accounts.\n- **Customer Success Handoffs** — Coordinates transitions from AEs to CS.\n\n## Notes\nActively employed. Receiving Rahul Verma's (emp-004) account book on his exit."
+    },
+    {
+      "slug": "emp-013",
+      "title": "Hitesh Wagh",
+      "meta": {
+        "access_systems": [
+          "Production Server"
+        ],
+        "assets_assigned": [
+          "Mac Mini",
+          "Portronics Keyboard",
+          "Targus Mouse"
+        ],
+        "criticality": "high",
+        "department": "Engineering",
+        "email": "hitesh.wagh@perficient.com",
+        "employment_type": "Full-Time",
+        "id": "emp-013",
+        "join_date": "2014-03-01",
+        "location": "Chennai, IN",
+        "manager": "Ritesh Sharma",
+        "manager_email": "ritesh.sharma@perficient.com",
+        "name": "Hitesh Wagh",
+        "performance_rating": 5,
+        "project_assignments": [
+          "Development Operations",
+          "Dataset Handling"
+        ],
+        "role": "Senior ML Consultant",
+        "status": "exiting",
+        "tenure_years": 12.0
+      },
+      "body": "# Hitesh Wagh\n\nHitesh Wagh is a Senior ML Consultant in Engineering."
+    }
+  ],
+  "exit_cases": [
+    {
+      "slug": "case-001",
+      "title": "case-001",
+      "meta": {
+        "case_id": "case-001",
+        "employee_id": "emp-001",
+        "employee_name": "Aarav Mehta",
+        "exit_type": "resignation",
+        "last_working_day": {
+          "__date__": "2026-09-30"
+        },
+        "initiated_date": {
+          "__date__": "2026-08-25"
+        },
+        "current_stage": "Knowledge Transfer",
+        "overall_status": "at_risk",
+        "stages": [
+          {
+            "name": "IT Clearance",
+            "owner": "Sanya Kapoor",
+            "status": "in_progress",
+            "days_open": 8
+          },
+          {
+            "name": "Finance Clearance",
+            "owner": "Pooja Shah",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "HR Clearance",
+            "owner": "Meera Krishnan",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "Knowledge Transfer",
+            "owner": "Vikram Sharma",
+            "status": "in_progress",
+            "days_open": 9
+          },
+          {
+            "name": "Manager Sign-off",
+            "owner": "Vikram Sharma",
+            "status": "pending",
+            "days_open": 0
+          }
+        ],
+        "documents_submitted": [
+          "Resignation letter",
+          "Notice acknowledgement",
+          "Personal contact details",
+          "KT document"
+        ]
+      },
+      "body": "# Exit Case case-001 — Aarav Mehta (emp-001)\n\n## Timeline Notes\n- **2026-08-25** — Resignation accepted; exit case created. LWD set 2026-09-30.\n- **2026-08-29** — IT Clearance opened. Payment orchestration service holds\n  production AWS access; deprovisioning blocked pending KT completion.\n- **2026-08-28** — Knowledge Transfer initiated (kt-001). Draft submitted but\n  gaps flagged; review still open.\n- **OVERDUE** — Both IT Clearance (8 days) and Knowledge Transfer (9 days)\n  exceed the 5-business-day SLA. Escalation to department head recommended.\n- Finance, HR, and Manager Sign-off stages are queued behind KT completion.\n\n**Status: AT RISK** — high-criticality resource with two overdue stages."
+    },
+    {
+      "slug": "case-002",
+      "title": "case-002",
+      "meta": {
+        "case_id": "case-002",
+        "employee_id": "emp-004",
+        "employee_name": "Rahul Verma",
+        "exit_type": "resignation",
+        "last_working_day": {
+          "__date__": "2026-10-10"
+        },
+        "initiated_date": {
+          "__date__": "2026-09-01"
+        },
+        "current_stage": "IT Clearance",
+        "overall_status": "on_track",
+        "stages": [
+          {
+            "name": "IT Clearance",
+            "owner": "Sanya Kapoor",
+            "status": "in_progress",
+            "days_open": 3
+          },
+          {
+            "name": "Finance Clearance",
+            "owner": "Pooja Shah",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "HR Clearance",
+            "owner": "Meera Krishnan",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "Knowledge Transfer",
+            "owner": "Karan Malhotra",
+            "status": "in_progress",
+            "days_open": 2
+          },
+          {
+            "name": "Manager Sign-off",
+            "owner": "Karan Malhotra",
+            "status": "pending",
+            "days_open": 0
+          }
+        ],
+        "documents_submitted": [
+          "Resignation letter",
+          "Notice acknowledgement",
+          "Personal contact details",
+          "Exit interview form"
+        ]
+      },
+      "body": "# Exit Case case-002 — Rahul Verma (emp-004)\n\n## Timeline Notes\n- **2026-09-01** — Resignation accepted; exit case created. LWD set 2026-10-10.\n- **2026-09-04** — IT Clearance opened. Salesforce access transition planned to\n  hand accounts to Tara Menon (emp-012).\n- **2026-09-05** — Knowledge transfer of account book started with Tara Menon.\n- All stages within SLA. No escalations required.\n\n**Status: ON TRACK.**"
+    },
+    {
+      "slug": "case-003",
+      "title": "case-003",
+      "meta": {
+        "case_id": "case-003",
+        "employee_id": "emp-006",
+        "employee_name": "Dev Patel",
+        "exit_type": "termination",
+        "last_working_day": {
+          "__date__": "2026-09-08"
+        },
+        "initiated_date": {
+          "__date__": "2026-08-24"
+        },
+        "current_stage": "Finance Clearance",
+        "overall_status": "at_risk",
+        "stages": [
+          {
+            "name": "IT Clearance",
+            "owner": "Sanya Kapoor",
+            "status": "in_progress",
+            "days_open": 11
+          },
+          {
+            "name": "Finance Clearance",
+            "owner": "Pooja Shah",
+            "status": "in_progress",
+            "days_open": 7
+          },
+          {
+            "name": "HR Clearance",
+            "owner": "Meera Krishnan",
+            "status": "in_progress",
+            "days_open": 6
+          },
+          {
+            "name": "Knowledge Transfer",
+            "owner": "Vikram Sharma",
+            "status": "in_progress",
+            "days_open": 12
+          },
+          {
+            "name": "Manager Sign-off",
+            "owner": "Vikram Sharma",
+            "status": "pending",
+            "days_open": 0
+          }
+        ],
+        "documents_submitted": [
+          "Personal contact details",
+          "No-dues declaration",
+          "KT document"
+        ]
+      },
+      "body": "# Exit Case case-003 — Dev Patel (emp-006)\n\n## Timeline Notes\n- **2026-08-24** — Termination initiated. LWD accelerated to 2026-09-08.\n- **2026-08-24** — IT Clearance opened as CRITICAL: subject holds broad AWS,\n  CI/CD secret, and PagerDuty access. Full deprovisioning still not confirmed.\n- **2026-08-29** — Knowledge Transfer (kt-002) started for the AWS landing zone;\n  major gaps remain and review is incomplete.\n- **OVERDUE** — IT Clearance (11 days), Knowledge Transfer (12 days), Finance\n  Clearance (7 days), and HR Clearance (6 days) all exceed the 5-day SLA.\n- Escalated to Head of Engineering and CISO due to open production access.\n\n**Status: AT RISK** — termination case with multiple overdue, security-critical\nstages. Highest priority for escalation."
+    },
+    {
+      "slug": "case-004",
+      "title": "case-004",
+      "meta": {
+        "case_id": "case-004",
+        "employee_id": "emp-007",
+        "employee_name": "Nisha Reddy",
+        "exit_type": "resignation",
+        "last_working_day": {
+          "__date__": "2026-09-19"
+        },
+        "initiated_date": {
+          "__date__": "2026-09-03"
+        },
+        "current_stage": "HR Clearance",
+        "overall_status": "on_track",
+        "stages": [
+          {
+            "name": "IT Clearance",
+            "owner": "Sanya Kapoor",
+            "status": "completed",
+            "days_open": 2
+          },
+          {
+            "name": "Finance Clearance",
+            "owner": "Pooja Shah",
+            "status": "in_progress",
+            "days_open": 2
+          },
+          {
+            "name": "HR Clearance",
+            "owner": "Meera Krishnan",
+            "status": "in_progress",
+            "days_open": 3
+          },
+          {
+            "name": "Knowledge Transfer",
+            "owner": "Karan Malhotra",
+            "status": "completed",
+            "days_open": 1
+          },
+          {
+            "name": "Manager Sign-off",
+            "owner": "Karan Malhotra",
+            "status": "pending",
+            "days_open": 0
+          }
+        ],
+        "documents_submitted": [
+          "Resignation letter",
+          "Notice acknowledgement",
+          "Personal contact details",
+          "KT document",
+          "Successor acknowledgement",
+          "Asset Return Checklist",
+          "Device handover acknowledgement",
+          "VPN/MFA deactivation confirmation",
+          "No-dues declaration",
+          "Exit interview form"
+        ]
+      },
+      "body": "# Exit Case case-004 — Nisha Reddy (emp-007)\n\n## Timeline Notes\n- **2026-09-03** — Resignation accepted; exit case created. LWD set 2026-09-19.\n- **2026-09-04** — IT Clearance completed quickly (limited access footprint).\n- **2026-09-05** — Knowledge transfer completed; lead lists reassigned to pod.\n- Finance and HR clearances in progress and within SLA.\n\n**Status: ON TRACK** — low-criticality, straightforward exit."
+    },
+    {
+      "slug": "case-005",
+      "title": "case-005",
+      "meta": {
+        "case_id": "case-005",
+        "employee_id": "emp-008",
+        "employee_name": "Karthik Nair",
+        "exit_type": "resignation",
+        "last_working_day": {
+          "__date__": "2026-10-15"
+        },
+        "initiated_date": {
+          "__date__": "2026-09-02"
+        },
+        "current_stage": "Knowledge Transfer",
+        "overall_status": "on_track",
+        "stages": [
+          {
+            "name": "IT Clearance",
+            "owner": "Sanya Kapoor",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "Finance Clearance",
+            "owner": "Pooja Shah",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "HR Clearance",
+            "owner": "Meera Krishnan",
+            "status": "pending",
+            "days_open": 0
+          },
+          {
+            "name": "Knowledge Transfer",
+            "owner": "Vikram Sharma",
+            "status": "in_progress",
+            "days_open": 4
+          },
+          {
+            "name": "Manager Sign-off",
+            "owner": "Vikram Sharma",
+            "status": "pending",
+            "days_open": 0
+          }
+        ],
+        "documents_submitted": [
+          "Resignation letter",
+          "Notice acknowledgement",
+          "KT document"
+        ]
+      },
+      "body": "# Exit Case case-005 — Karthik Nair (emp-008)\n\n## Timeline Notes\n- **2026-09-02** — Resignation accepted; exit case created. LWD set 2026-10-15.\n- **2026-09-03** — Knowledge Transfer (kt-003) started for the notifications\n  service and data ingestion pipeline. Draft under review.\n- Deprovisioning and clearances scheduled closer to LWD; all within SLA.\n\n**Status: ON TRACK** — ample runway before last working day."
+    },
+    {
+      "slug": "case-006",
+      "title": "case-006",
+      "meta": {
+        "case_id": "case-006",
+        "current_stage": "IT Clearance",
+        "documents_submitted": [],
+        "employee_id": "emp-013",
+        "employee_name": "Hitesh Wagh",
+        "exit_type": "resignation",
+        "initiated_date": "2026-09-09",
+        "last_working_day": "2026-09-09",
+        "overall_status": "on_track",
+        "stages": [
+          {
+            "days_open": 0,
+            "name": "IT Clearance",
+            "owner": "",
+            "status": "pending"
+          },
+          {
+            "days_open": 0,
+            "name": "Finance Clearance",
+            "owner": "",
+            "status": "pending"
+          },
+          {
+            "days_open": 0,
+            "name": "HR Clearance",
+            "owner": "",
+            "status": "pending"
+          },
+          {
+            "days_open": 0,
+            "name": "Knowledge Transfer",
+            "owner": "",
+            "status": "pending"
+          },
+          {
+            "days_open": 0,
+            "name": "Manager Sign-off",
+            "owner": "",
+            "status": "pending"
+          }
+        ]
+      },
+      "body": "# Exit Case case-006 — Hitesh Wagh (emp-013)\n\nAuto-created when the employee was added; all clearance stages start pending."
+    }
+  ],
+  "kt_docs": [
+    {
+      "slug": "kt-001",
+      "title": "kt-001",
+      "meta": {
+        "kt_id": "kt-001",
+        "employee_id": "emp-001",
+        "employee_name": "Aarav Mehta",
+        "role": "Senior Software Engineer",
+        "case_id": "case-001",
+        "submitted_date": {
+          "__date__": "2026-08-28"
+        },
+        "reviewed": false,
+        "successor": "To be assigned"
+      },
+      "body": "# Knowledge Transfer — Aarav Mehta (Payments Platform)\n\n## System Overview\nThe Payments Microservices Platform consists of four Spring Boot services:\n`payment-orchestrator`, `ledger-service`, `refund-worker`, and the\n`payments-bff`. They communicate over REST and an internal Kafka topic\n(`payments.events`). Data is stored in PostgreSQL (`paydb`) with read replicas.\n\n## Architecture Notes\n- `payment-orchestrator` is the entry point; it coordinates authorization,\n  capture, and settlement via a state machine.\n- Idempotency is enforced using a Redis-backed idempotency key store.\n- The Acme Retail client portal calls the BFF, never the services directly.\n\n## Pending Tickets & In-Flight Work\n- PAY-1423: Retry storm on refund-worker under high load — mitigation in review.\n- PAY-1451: Migrate ledger-service to the new currency-rounding library.\n- PAY-1460: Acme Retail requested a new partial-refund flow (design phase).\n\n## Key Contacts\n- Product: Riya Sen (payments PM)\n- Client: Acme Retail integration team (integrations@acme-retail.example)\n- On-call rotation: shared payments PagerDuty schedule.\n\n## Business Logic Caveats\n- Settlement batches run at 02:00 IST; do not deploy between 01:30-02:30.\n- The `ledger-service` reconciliation job must not be run twice in a day.\n\n## Open Questions for Successor\n- Ownership of the partial-refund design (PAY-1460) needs to be reassigned.\n\n> NOTE: This KT does not yet include a Deployment / Runbook section describing\n> how to build, deploy, roll back, and operate these services. Reviewer to\n> flag as a gap."
+    },
+    {
+      "slug": "kt-002",
+      "title": "kt-002",
+      "meta": {
+        "kt_id": "kt-002",
+        "employee_id": "emp-006",
+        "employee_name": "Dev Patel",
+        "role": "DevOps Engineer",
+        "case_id": "case-003",
+        "submitted_date": {
+          "__date__": "2026-08-29"
+        },
+        "reviewed": false,
+        "successor": "To be assigned"
+      },
+      "body": "# Knowledge Transfer — Dev Patel (Cloud Infrastructure & CI/CD)\n\n## System Overview\nThe AWS environment is a multi-account landing zone managed with Terraform\n(state in an S3 backend with DynamoDB locking). Accounts: `mgmt`, `shared`,\n`prod`, `staging`, `dev`. Networking uses a Transit Gateway hub.\n\n## Terraform / IaC Notes\n- Root module lives in the `infra-live` repo; modules in `infra-modules`.\n- `terraform plan` must be run against the `prod` workspace with the\n  `prod-deployer` role. Never apply from a laptop; use the pipeline.\n- State is locked per-workspace; a stuck lock can be released via the DynamoDB\n  `terraform-locks` table.\n\n## CI/CD Platform\n- GitHub Actions with self-hosted runners in the `shared` account.\n- Deployment pipelines gate on the `staging` smoke tests before `prod`.\n\n## Deployment / Runbook\n- To deploy infra: open PR to `infra-live`, pipeline runs plan, requires one\n  approval, then apply on merge.\n- Rollback: revert the merge commit; the pipeline re-applies the previous state.\n- Incident runbook: check CloudWatch dashboard `platform-overview`, then\n  PagerDuty for the triggering alarm.\n\n## Pending Tickets & In-Flight Work\n- OPS-882: Transit Gateway route cleanup for the decommissioned `legacy` VPC.\n- OPS-905: Upgrade EKS node groups to the latest AMI.\n- OPS-910: Migrate CI secrets from the old vault path.\n\n## Key Contacts\n- Engineering Manager: Vikram Sharma\n- Security: CISO office for any IAM policy changes.\n\n> NOTE: This KT does not include an Access & Credentials handover section. The\n> owner holds broad privileged access (AWS admin roles, CI/CD secrets,\n> PagerDuty admin) and the specific credentials, secret locations, and rotation\n> steps are NOT documented here. Reviewer to flag this as a critical gap given\n> this is a termination case."
+    },
+    {
+      "slug": "kt-003",
+      "title": "kt-003",
+      "meta": {
+        "kt_id": "kt-003",
+        "employee_id": "emp-008",
+        "employee_name": "Karthik Nair",
+        "role": "Backend Engineer",
+        "case_id": "case-005",
+        "submitted_date": {
+          "__date__": "2026-09-03"
+        },
+        "reviewed": false,
+        "successor": "To be assigned"
+      },
+      "body": "# Knowledge Transfer — Karthik Nair (Notifications & Ingestion)\n\n## System Overview\nTwo systems: the **Notifications Service** (Kafka-driven fan-out to email/SMS/\npush) and the **Data Ingestion Pipeline** (nightly ETL from client systems into\nSnowflake).\n\n## Notifications Service\n- Consumes the `notifications.requested` Kafka topic.\n- Providers: SES (email), a third-party SMS gateway, and FCM (push).\n- Templates are stored in the `notif-templates` repo and rendered at send time.\n- Rate limiting is per-tenant, configured in the `notif-config` table.\n\n## Data Ingestion Pipeline\n- Airflow DAG `client_ingest_nightly` runs at 01:00 IST.\n- Extracts from client SFTP drops, validates schema, loads into Snowflake\n  `RAW` schema, then dbt transforms into `ANALYTICS`.\n- Failure alerts post to the `#data-alerts` Slack channel.\n\n## Deployment / Runbook\n- Both services deploy via the standard GitHub Actions pipeline.\n- Rollback: redeploy the previous image tag from the registry.\n- Airflow DAG can be manually re-triggered from the Airflow UI after fixing the\n  upstream data issue.\n\n## Access & Credentials Handover\n- SES sending is via an IAM role, not personal keys; hand over via team role.\n- Snowflake access is through the `analytics_loader` service account (secret in\n  the team vault path `secret/data/snowflake`).\n- FCM server key rotation instructions are in the `notif-config` README.\n\n## Key Contacts\n- Data PM: Rohit Bhatt\n- Analytics consumers: Finance reporting team.\n\n> NOTE: This KT does not include a Pending Tickets / In-Flight Work section.\n> Open Jira items, half-finished migrations, and any in-progress client\n> onboarding are NOT listed. Reviewer to flag as a gap."
+    }
+  ],
+  "interviews": [
+    {
+      "slug": "interview-001",
+      "title": "interview-001",
+      "meta": {
+        "interview_id": "interview-001",
+        "employee_id": "emp-004",
+        "employee_name": "Rahul Verma",
+        "department": "Sales",
+        "submitted_date": {
+          "__date__": "2026-09-05"
+        },
+        "sentiment": "negative",
+        "would_recommend": false
+      },
+      "body": "# Exit Interview — Rahul Verma (Sales)\n\n**Reason for leaving:**\nPrimarily burnout and frustration with sales leadership. Quotas were raised\ntwice in one year without any change in territory support or lead flow. I felt\nset up to fail regardless of effort.\n\n**What you liked:**\nThe product is genuinely good and my peers on the AE team were supportive. Some\nof the enterprise clients were a pleasure to work with.\n\n**What could improve:**\nSales management is the biggest issue. Targets are set top-down with no input,\npipeline reviews turned into blame sessions, and there was constant pressure but\nlittle coaching. Commission plan changes were communicated late and felt unfair.\nHigh attrition on the team is a symptom of this.\n\n**Manager feedback:**\nMy manager (Karan) is under pressure himself and passes it straight down. Very\nlittle one-on-one support or career development. Micromanaged on activity\nmetrics while ignoring actual deal blockers.\n\n**Would you recommend Perficient as a place to work?**\nNot in the Sales org as it currently runs. Maybe in Engineering or Product."
+    },
+    {
+      "slug": "interview-002",
+      "title": "interview-002",
+      "meta": {
+        "interview_id": "interview-002",
+        "employee_id": "emp-007",
+        "employee_name": "Nisha Reddy",
+        "department": "Sales",
+        "submitted_date": {
+          "__date__": "2026-09-06"
+        },
+        "sentiment": "mixed_negative",
+        "would_recommend": false
+      },
+      "body": "# Exit Interview — Nisha Reddy (Sales)\n\n**Reason for leaving:**\nI received an offer with clearer growth, but honestly I was also looking because\nthe SDR role here felt like a treadmill. Unrealistic call/quota targets and\nlittle visibility into how to actually get promoted.\n\n**What you liked:**\nGreat onboarding buddy and a friendly SDR pod. I learned a lot about outbound in\na short time and the tooling (Salesforce) was solid.\n\n**What could improve:**\nSame theme as others on the team: leadership sets aggressive targets without\nenough lead support, and the pressure is relentless. Feedback in pipeline\nreviews felt more like criticism than coaching. Several teammates left for the\nsame reasons in the last few months.\n\n**Manager feedback:**\nKaran is knowledgeable but stretched thin. One-on-ones were often cancelled and\ncareer conversations never really happened. The activity-metric focus felt\ndemotivating.\n\n**Would you recommend Perficient as a place to work?**\nFor the company overall, maybe. For the Sales development team, not right now\nuntil the management and quota culture changes."
+    },
+    {
+      "slug": "interview-003",
+      "title": "interview-003",
+      "meta": {
+        "interview_id": "interview-003",
+        "employee_id": "emp-001",
+        "employee_name": "Aarav Mehta",
+        "department": "Engineering",
+        "submitted_date": {
+          "__date__": "2026-09-02"
+        },
+        "sentiment": "positive",
+        "would_recommend": true
+      },
+      "body": "# Exit Interview — Aarav Mehta (Engineering)\n\n**Reason for leaving:**\nPurely a personal growth decision. I received an opportunity to lead a larger\nplatform team elsewhere. This was a hard decision to make.\n\n**What you liked:**\nAlmost everything about the engineering culture. Strong technical peers, real\nownership of systems, a supportive manager, and interesting problems on the\npayments platform. Work-life balance was respected and on-call was reasonable.\n\n**What could improve:**\nCareer ladder progression for senior ICs could be clearer, and cross-team\ndocumentation is inconsistent. Nothing that affected my decision to leave.\n\n**Manager feedback:**\nVikram was an excellent manager: gave me autonomy, backed me in tough calls, and\ninvested in my growth. I would happily work with him again.\n\n**Would you recommend Perficient as a place to work?**\nYes, strongly, especially for engineers who want ownership and good mentorship."
+    },
+    {
+      "slug": "interview-004",
+      "title": "interview-004",
+      "meta": {
+        "interview_id": "interview-004",
+        "employee_id": "emp-008",
+        "employee_name": "Karthik Nair",
+        "department": "Engineering",
+        "submitted_date": {
+          "__date__": "2026-09-04"
+        },
+        "sentiment": "mixed",
+        "would_recommend": true
+      },
+      "body": "# Exit Interview — Karthik Nair (Engineering)\n\n**Reason for leaving:**\nA mix of compensation and commute. My new role offers a meaningful raise and is\nfully remote, which matters a lot to me right now.\n\n**What you liked:**\nGood engineering peers and interesting work on the notifications and data\nplatforms. Managers were generally reasonable and code review culture was\nhealthy.\n\n**What could improve:**\nCompensation reviews felt slow and below market for backend engineers, which was\na real factor in leaving. Also, staffing was thin — I owned two services largely\nsolo, which made time off stressful. Better redundancy and bus-factor planning\nwould help.\n\n**Manager feedback:**\nVikram was supportive and fair, though the team was clearly under-resourced,\nwhich limited how much support anyone could give. No complaints about him\npersonally.\n\n**Would you recommend Perficient as a place to work?**\nYes, with the caveat that they should revisit backend compensation bands and\nteam staffing."
+    }
+  ],
+  "policies": [
+    {
+      "slug": "asset-return-policy",
+      "title": "Company Asset Return Policy",
+      "meta": {
+        "policy_id": "pol-it-004",
+        "title": "Company Asset Return Policy",
+        "version": 2.1,
+        "effective_date": {
+          "__date__": "2026-01-01"
+        },
+        "owner": "IT Asset Management",
+        "applies_to": "All separating employees and contractors",
+        "review_cycle": "Annual"
+      },
+      "body": "# Company Asset Return Policy\n\n## 1. Purpose\n1.1 To ensure timely and complete recovery of all company-issued assets from\nseparating employees.\n\n## 2. Assets in Scope\n2.1 Computing devices — laptops (MacBook Pro/Air), desktops.\n2.2 Mobile devices — company iPhones and tablets.\n2.3 Security hardware — YubiKeys, access cards.\n2.4 Peripherals — monitors, docking stations, keyboards.\n2.5 Any other company property (books, corporate credit cards, ID badge).\n\n## 3. Return Timeline\n3.1 Assets must be returned **on or before the last working day**.\n3.2 For remote employees, IT arranges a prepaid shipping kit; assets must be\ndispatched no later than the last working day and received within 7 days.\n3.3 Failure to return assets may result in recovery deductions from the\nfull-and-final settlement.\n\n## 4. Condition & Inspection\n4.1 Returned devices are inspected and logged against the assets_assigned record\nin the employee profile.\n4.2 Damage beyond normal wear may be recovered at depreciated value.\n\n## 5. Data Handling\n5.1 Devices are backed up (where required) and then securely wiped per the IT\nDeprovisioning Policy before reissue.\n\n## 6. Sign-off\n6.1 A completed asset return checklist is required to close the IT Clearance\nstage of the exit case.\n6.2 Any outstanding assets are flagged to Finance to hold settlement.\n\n## 7. Recovery Valuation Table (indicative)\n| Asset | Standard Recovery Value (unreturned) |\n|-------|--------------------------------------|\n| MacBook Pro 16\" | INR 180,000 |\n| MacBook Pro 14\" | INR 150,000 |\n| MacBook Air 13\" | INR 95,000 |\n| iPhone 14 | INR 70,000 |\n| YubiKey | INR 4,000 |\n| 27\" Monitor | INR 22,000 |"
+    },
+    {
+      "slug": "data-retention-nda-policy",
+      "title": "Data Retention, Confidentiality & NDA Policy",
+      "meta": {
+        "policy_id": "pol-legal-003",
+        "title": "Data Retention, Confidentiality & NDA Policy",
+        "version": 1.9,
+        "effective_date": {
+          "__date__": "2026-01-01"
+        },
+        "owner": "Legal & Compliance",
+        "applies_to": "All separating employees and contractors",
+        "review_cycle": "Annual"
+      },
+      "body": "# Data Retention, Confidentiality & NDA Policy\n\n## 1. Purpose\n1.1 To define confidentiality obligations that survive employment and the\nretention/disposal rules for company and client data at separation.\n\n## 2. Surviving Confidentiality Obligations\n2.1 The Non-Disclosure Agreement (NDA) signed at joining remains binding\nindefinitely after separation.\n2.2 Separating employees must not retain, copy, or transmit any confidential,\nproprietary, or client data.\n2.3 A signed **Confidentiality Reaffirmation** is collected during HR Clearance.\n\n## 3. Data Return & Deletion\n3.1 All company data on personal devices must be deleted; the employee attests\nto this in writing.\n3.2 Client deliverables and source code remain the property of Perficient and/or\nits clients and must be handed over during Knowledge Transfer.\n\n## 4. Retention Schedule\n4.1 Employee HR records — retained **7 years** after separation.\n4.2 Payroll and tax records (PF/TDS) — retained **8 years** per statutory rules.\n4.3 Email mailbox — retained **30 days** as forwarding, then archived for\n**1 year**, then deleted.\n4.4 Access and deprovisioning audit logs — retained **12 months**.\n\n## 5. Intellectual Property\n5.1 All work product created during employment is company IP.\n5.2 Personal projects unrelated to company business are excluded per the IP\nassignment clause of the employment agreement.\n\n## 6. Breach Handling\n6.1 Suspected breaches of confidentiality post-exit are referred to Legal &\nCompliance and may result in legal action.\n\n## 7. Cross-References\n7.1 Asset and credential handling are governed by the IT Deprovisioning Policy.\n7.2 Retention of settlement records is coordinated with Finance."
+    },
+    {
+      "slug": "exit-policy",
+      "title": "Employee Offboarding & Exit SLA Policy",
+      "meta": {
+        "policy_id": "pol-exit-001",
+        "title": "Employee Offboarding & Exit SLA Policy",
+        "version": 3.2,
+        "effective_date": {
+          "__date__": "2026-01-01"
+        },
+        "owner": "HR Operations (Meera Krishnan)",
+        "applies_to": "All full-time and contract employees",
+        "review_cycle": "Annual"
+      },
+      "body": "# Employee Offboarding & Exit SLA Policy\n\n## 1. Purpose\n1.1 This policy governs the end-to-end offboarding of any employee separating\nfrom Perficient, whether by resignation, termination, or retirement.\n1.2 It defines the mandatory clearance stages, service-level agreements (SLAs),\nand escalation rules to ensure timely, secure, and compliant exits.\n\n## 2. Scope\n2.1 Applies to all employees and contractors across Engineering, Finance, HR,\nSales, and IT.\n2.2 Covers the period from resignation/termination acceptance through the final\nfull-and-final settlement.\n\n## 3. Offboarding Stages\nEvery exit case must progress through the following five stages:\n3.1 **IT Clearance** — Deprovisioning of all system access and recovery of\nassets. Owner: IT Systems Administration.\n3.2 **Finance Clearance** — Settlement of dues, recovery of advances, and\nfull-and-final calculation. Owner: Finance.\n3.3 **HR Clearance** — Documentation, exit interview, and relieving letter.\nOwner: HR Business Partner.\n3.4 **Knowledge Transfer** — Handover of responsibilities, documentation, and\ncredentials to designated owners. Owner: Reporting Manager.\n3.5 **Manager Sign-off** — Final confirmation that all deliverables and\nhandovers are complete. Owner: Reporting Manager.\n\n## 4. Service-Level Agreements (SLA)\n4.1 Each stage must be **completed within five (5) business days** of being\nopened.\n4.2 A stage is considered **OVERDUE** when its `days_open` exceeds 5.\n4.3 The overall exit case must reach completion no later than the employee's\nlast working day, except where Finance Clearance depends on the final payroll\ncycle.\n\n## 5. Escalation Rules\n5.1 **Level 1 (Day 6):** An overdue stage triggers an automated reminder to the\nstage owner and the reporting manager.\n5.2 **Level 2 (Day 8):** The department head is notified and the case is flagged\n`at_risk`.\n5.3 **Level 3 (Day 10):** Escalation to the HR Director. For any open IT\nClearance involving production or privileged access, the CISO is also notified.\n5.4 Termination cases and cases involving high-criticality resources are\nescalated one level earlier than the timelines above.\n\n## 6. Roles & Responsibilities\n6.1 The reporting manager is accountable for overall case completion.\n6.2 HR Operations owns this policy and monitors SLA compliance across all cases.\n6.3 Stage owners are responsible for updating case status promptly.\n\n## 7. Exceptions\n7.1 SLA extensions require written approval from the HR Director.\n7.2 Exceptions must be logged in the exit case timeline notes."
+    },
+    {
+      "slug": "it-deprovisioning-policy",
+      "title": "IT Deprovisioning & Access Revocation Policy",
+      "meta": {
+        "policy_id": "pol-it-002",
+        "title": "IT Deprovisioning & Access Revocation Policy",
+        "version": 2.5,
+        "effective_date": {
+          "__date__": "2026-01-01"
+        },
+        "owner": "IT Systems Administration (Sanya Kapoor)",
+        "applies_to": "All separating employees and contractors",
+        "review_cycle": "Annual"
+      },
+      "body": "# IT Deprovisioning & Access Revocation Policy\n\n## 1. Purpose\n1.1 To ensure that all system access, credentials, and hardware assigned to a\nseparating employee are revoked and recovered in a secure, auditable manner.\n\n## 2. Timing\n2.1 For **resignations**, access revocation is scheduled to complete by end of\nthe last working day.\n2.2 For **terminations**, all access must be revoked **immediately** upon\nnotification, before the employee is informed where legally permissible.\n2.3 Privileged/production access (AWS admin, CI/CD secrets, database root,\nPagerDuty) must be revoked within **4 hours** of case initiation.\n\n## 3. Systems Checklist\n3.1 Identity provider (Okta/SSO) — disable account, revoke active sessions.\n3.2 Source control (GitHub) — remove from all orgs and teams; rotate any shared\ndeploy keys the user could access.\n3.3 Cloud (AWS) — remove IAM user/role bindings; rotate access keys.\n3.4 Business apps — Salesforce, SAP, Workday, Jira, Confluence.\n3.5 Network — VPN certificate revocation and MFA/YubiKey deactivation.\n3.6 Email — convert to a shared/forwarding mailbox for 30 days, then archive.\n\n## 4. Credential Rotation\n4.1 Any shared secret, service-account password, or API key known to the\nemployee must be rotated within 24 hours of exit.\n4.2 Rotation is mandatory for all privileged users regardless of exit type.\n\n## 5. Asset Recovery\n5.1 All company hardware (laptop, phone, YubiKey, monitors) must be returned and\nlogged. See the Asset Return Policy for details.\n5.2 Endpoints are remotely wiped after data backup confirmation.\n\n## 6. Audit & Evidence\n6.1 A deprovisioning checklist is completed and attached to the exit case.\n6.2 Revocation timestamps are retained for 12 months for audit.\n\n## 7. Dependencies\n7.1 Where deprovisioning is blocked by an incomplete Knowledge Transfer, the\ndependency and its risk must be recorded in the case timeline and escalated per\nthe Exit SLA Policy."
+    }
+  ],
+  "process_docs": [
+    {
+      "slug": "documents-required",
+      "title": "Documents & Forms Required at Each Stage",
+      "meta": {
+        "doc_id": "proc-002",
+        "title": "Documents & Forms Required at Each Stage",
+        "audience": "Exiting employees",
+        "last_updated": {
+          "__date__": "2026-08-15"
+        },
+        "owner": "HR Operations"
+      },
+      "body": "# Documents & Forms Required at Each Exit Stage\n\nUse this checklist to prepare the documents needed to complete each clearance\nstage without delays.\n\n## 1. At Resignation / Notice\n- Resignation letter (via Workday).\n- Acknowledgement of notice period.\n- Updated personal contact details and personal email for post-exit\n  correspondence.\n\n## 2. Knowledge Transfer Stage\n- **KT document** (submitted in the KT system) covering:\n  - Deployment / runbook procedures\n  - Access & credentials handover list\n  - Pending tickets and in-flight work\n  - Key contacts and vendor details\n- Successor acknowledgement (signed by the receiving team member).\n\n## 3. IT Clearance Stage\n- **Asset Return Checklist** (signed by IT).\n- Device handover acknowledgement.\n- VPN/MFA deactivation confirmation.\n\n## 4. Finance Clearance Stage\n- No-dues declaration.\n- Advance/loan settlement confirmation (if applicable).\n- Bank account confirmation for FnF credit.\n- Form 16 request (issued after year-end).\n\n## 5. HR Clearance Stage\n- Completed **exit interview** form.\n- Signed **Confidentiality Reaffirmation** (NDA survival).\n- ID badge and access card return acknowledgement.\n- PF transfer/withdrawal form (Form 19 / Form 10C or UAN transfer).\n\n## 6. On Final Sign-off\n- **Relieving letter** (issued by HR).\n- **Experience letter** (issued by HR).\n- Full-and-final settlement statement (issued by Finance).\n\n## Notes\n- Missing documents are the most common cause of overdue stages.\n- Digital signatures are accepted for all forms except statutory PF forms where\n  a wet signature may be required."
+    },
+    {
+      "slug": "exit-process-overview",
+      "title": "Exit Process Overview",
+      "meta": {
+        "doc_id": "proc-001",
+        "title": "Exit Process Overview",
+        "audience": "Exiting employees & managers",
+        "last_updated": {
+          "__date__": "2026-08-15"
+        },
+        "owner": "HR Operations"
+      },
+      "body": "# Exit Process Overview\n\nThis guide explains what an exiting employee at Perficient goes through, the\ntypical timeline, and who to contact at each step.\n\n## Step 1 — Resignation / Notice (Day 0)\n- Submit your resignation to your reporting manager and HR via Workday.\n- Standard notice period is **60 days** for full-time employees (30 days for\n  employees with under 1 year of tenure).\n- HR acknowledges and creates an **exit case** with five clearance stages.\n- **Contact:** your reporting manager and your HR Business Partner.\n\n## Step 2 — Knowledge Transfer (Weeks 1-3)\n- Work with your manager to identify successors and document your work.\n- Submit a Knowledge Transfer (KT) document covering deployment/runbooks,\n  access & credentials, pending tickets, and key contacts.\n- KT is reviewed by your manager and must be marked complete before IT\n  deprovisioning of production access.\n- **Contact:** reporting manager.\n\n## Step 3 — IT Clearance (Last week)\n- Return all assets (laptop, phone, YubiKey, monitors).\n- System access is revoked per the IT Deprovisioning Policy; each stage targets\n  completion within **5 business days**.\n- **Contact:** IT Systems Administration (Sanya Kapoor).\n\n## Step 4 — Finance Clearance (Around last working day)\n- Any advances or dues are settled; full-and-final (FnF) is calculated.\n- FnF is credited within **45 days** of the last working day.\n- **Contact:** Finance / Payroll (Pooja Shah).\n\n## Step 5 — HR Clearance & Documents (Last week)\n- Complete the exit interview.\n- Sign the confidentiality reaffirmation.\n- Receive your **relieving and experience letters** after final sign-off.\n- **Contact:** HR Business Partner (Meera Krishnan).\n\n## Step 6 — Manager Sign-off (Final)\n- Your manager confirms all handovers and deliverables are complete.\n- Once all five stages are complete, the exit case is closed.\n\n## SLA & Escalation\n- Each stage must complete within 5 business days; overdue stages are escalated\n  per the Exit SLA Policy. If a stage stalls, contact HR Operations."
+    },
+    {
+      "slug": "faq-source",
+      "title": "Exit FAQ (Source for Chatbot)",
+      "meta": {
+        "doc_id": "proc-003",
+        "title": "Exit FAQ (Source for Chatbot)",
+        "audience": "Exiting employees",
+        "last_updated": {
+          "__date__": "2026-08-20"
+        },
+        "owner": "HR Operations"
+      },
+      "body": "# Exit FAQ\n\nCommon questions and answers about separation from Perficient. This document is\nthe source of truth for the offboarding FAQ chatbot.\n\n## Notice Period\n**Q: What is the standard notice period?**\nA: 60 days for employees with 1+ year of tenure, 30 days for those under 1 year.\n\n**Q: Can I buy out my notice period?**\nA: Notice buyout is possible with manager and HR approval; the buyout amount is\nrecovered from your full-and-final settlement.\n\n## Full-and-Final Settlement\n**Q: When will I receive my full-and-final (FnF) settlement?**\nA: FnF is processed and credited within **45 days** of your last working day,\nsubject to completion of all clearances and asset returns.\n\n**Q: What does FnF include?**\nA: Unpaid salary, leave encashment for eligible balance, any pending\nreimbursements, minus recoveries (notice buyout, advances, unreturned assets).\n\n## Experience & Relieving Letters\n**Q: When do I get my relieving and experience letters?**\nA: Both are issued by HR after the Manager Sign-off stage is complete, typically\nwithin 3 business days of case closure.\n\n**Q: Can I get the experience letter earlier for a background check?**\nA: An employment verification letter can be requested from HR at any time; the\nformal experience letter is issued at exit.\n\n## Provident Fund (PF)\n**Q: What happens to my PF?**\nA: You can transfer your PF to your new employer via your UAN, or withdraw it.\nHR provides the required forms during HR Clearance.\n\n**Q: How long does PF transfer take?**\nA: PF transfers typically take 15-30 days once the withdrawal/transfer form is\nsubmitted to EPFO.\n\n## Insurance\n**Q: Does my health insurance continue after exit?**\nA: Group medical insurance coverage ends on your last working day. A conversion\noption to an individual policy may be available; contact HR for details.\n\n## Access & Assets\n**Q: When does my system access get revoked?**\nA: Access is revoked by end of your last working day (immediately for\nterminations). Return all assets on or before your last working day.\n\n**Q: What if I can't return my laptop in time?**\nA: Contact IT for a prepaid shipping kit. Unreturned assets may be recovered\nfrom your settlement at depreciated value.\n\n## Escalation\n**Q: My clearance is stuck. What do I do?**\nA: Each stage should complete within 5 business days. If overdue, contact HR\nOperations; overdue stages are automatically escalated to department heads."
+    }
+  ]
+}

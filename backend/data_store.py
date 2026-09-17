@@ -213,12 +213,25 @@ class DataStore:
 
     @staticmethod
     def _by_id(docs: list[Doc], value: str, keys: tuple[str, ...]) -> Doc | None:
+        """Resolve by id or by slug, case-insensitively.
+
+        The empty-value guard is load-bearing. Callers pass
+        `str(inputs.get("case_id") or "")` straight through, and exit cases are
+        matched on ("case_id", "id") -- a key they do not carry. Without the
+        guard, `.get("id", "")` returned "" for every case, matched the empty
+        search value, and handed back case-001: an agent asked for no case at
+        all would silently act on somebody else's.
+        """
         value = str(value).strip().lower()
+        if not value:
+            return None
         for doc in docs:
             if doc.slug.lower() == value:
                 return doc
             for key in keys:
-                if str(doc.meta.get(key, "")).strip().lower() == value:
+                candidate = doc.meta.get(key)
+                # A missing key must not compare equal to anything.
+                if candidate is not None and str(candidate).strip().lower() == value:
                     return doc
         return None
 
