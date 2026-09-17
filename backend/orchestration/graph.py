@@ -30,14 +30,16 @@ from datetime import datetime, timezone
 from typing import Annotated, Any, TypedDict
 from uuid import uuid4
 
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
+from psycopg_pool import ConnectionPool
 
 from ..agents import REGISTRY
 from ..agents._context import parse_days_open
 from ..agents.it_deprovisioning import execute_plan, plan_deprovisioning
 from ..agents.sla_escalation import draft_escalation
+from ..config import PG_URI
 from ..data_store import store
 from ..llm import LLMError
 from ..systems import access_status
@@ -336,12 +338,41 @@ def build_graph():
     graph.add_conditional_edges("compliance", _after_compliance, {"end": END, "escalate": "escalate"})
     graph.add_edge("escalate", "compliance")
 
-    # The checkpointer is what lets interrupt() pause a run and resume it later
-    # on the same thread_id. In-memory is fine for a single-process demo.
-    return graph.compile(checkpointer=MemorySaver())
+    # The checkpointer is what lets interrupt() pause a run and resume it
+    # later on the same thread_id.
+    return graph.compile(checkpointer=get_checkpointer())
 
 
 _graph = None
+_checkpointer: PostgresSaver | None = None
+_pool: ConnectionPool | None = None
+
+
+def get_checkpointer() -> PostgresSaver:
+    """The durable checkpointer, created on first use.
+
+    A run paused at the approval gate may sit for days. With MemorySaver the
+    checkpoint lived in the process and the thread_id lived only in a browser
+    tab, so a restart stranded the run: resuming returned 409 and every
+    parallel agent's work was lost. There was also no way to ask what was
+    waiting.
+
+    Built lazily so importing this module does not require a reachable
+    database -- the test suite and the CLI scripts import it freely.
+    """
+    global _checkpointer, _pool
+    if _checkpointer is None:
+        # PostgresSaver manages its own transactions and needs autocommit.
+        # prepare_threshold=0 keeps it working behind a connection pooler.
+        _pool = ConnectionPool(
+            conninfo=PG_URI,
+            max_size=10,
+            open=True,
+            kwargs={"autocommit": True, "prepare_threshold": 0},
+        )
+        _checkpointer = PostgresSaver(_pool)
+        _checkpointer.setup()   # idempotent; creates the checkpoint tables
+    return _checkpointer
 
 
 def get_graph():
@@ -380,6 +411,47 @@ def pending_approval(thread_id: str) -> dict[str, Any] | None:
         if task.name == APPROVAL_NODE and task.interrupts:
             return dict(task.interrupts[0].value)
     return None
+
+
+# How many checkpoint rows to scan when looking for paused runs. A run writes
+# one per step, so this covers a few hundred recent runs; older paused threads
+# would be missed, which is the right trade against an unbounded table scan on
+# a route the UI polls.
+_CHECKPOINT_SCAN_LIMIT = 2000
+
+
+def pending_approvals(limit: int = 100) -> list[dict[str, Any]]:
+    """Every run currently paused at the approval gate, newest first.
+
+    Without this the only handle on a paused run is the thread_id held in one
+    browser tab: close the tab and the run is unreachable, with no way to
+    discover that an exit case is sitting waiting on a human. Enumerating
+    threads is only possible at all because the checkpoints are in Postgres.
+    """
+    checkpointer = get_checkpointer()
+
+    # Collect the thread ids BEFORE inspecting any of them. PostgresSaver
+    # serialises every operation behind one non-reentrant lock, and list() is
+    # a generator that holds it while yielding -- calling pending_approval()
+    # inside this loop deadlocks the process against itself.
+    latest_ts: dict[str, Any] = {}
+    for tup in checkpointer.list(None, limit=_CHECKPOINT_SCAN_LIMIT):
+        thread_id = ((tup.config or {}).get("configurable") or {}).get("thread_id")
+        if thread_id and thread_id not in latest_ts:
+            # Newest first, so the first sighting is the current checkpoint.
+            latest_ts[thread_id] = (tup.checkpoint or {}).get("ts")
+
+    out: list[dict[str, Any]] = []
+    for thread_id, ts in latest_ts.items():
+        # Ask the graph for live state rather than trusting a checkpoint that
+        # may since have been resumed.
+        payload = pending_approval(thread_id)
+        if payload is None:
+            continue
+        out.append({"thread_id": thread_id, "paused_at": ts, **payload})
+        if len(out) >= limit:
+            break
+    return out
 
 
 def run_orchestration(case_id: str, *, decision: str = "approve", note: str = "") -> ExitOrchestrationState:

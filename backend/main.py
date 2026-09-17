@@ -35,7 +35,8 @@ from .agents.it_deprovisioning import execute_plan
 from .config import FRONTEND_DIR, PORTKEY
 from .data_store import store
 from .llm import LLMError
-from .orchestration import pending_approval, run_orchestration, stream_orchestration
+from .orchestration import (pending_approval, pending_approvals,
+                            run_orchestration, stream_orchestration)
 from .rag import retriever as rag
 
 app = FastAPI(title="Exit Automation Platform", version="1.1")
@@ -193,6 +194,17 @@ def execute_deprovisioning(payload: dict[str, Any] | None = None) -> dict[str, A
         note=str(payload.get("note") or ""),
     )
     return {"agent": "it_deprovisioning", "execution": execution}
+
+
+@app.get("/api/approvals")
+def list_pending_approvals() -> dict[str, Any]:
+    """Orchestration runs paused at the human approval gate, across all
+    sessions and surviving restarts.
+
+    Before the checkpoints were durable, a paused run was only reachable via
+    the thread_id held in the browser tab that started it.
+    """
+    return {"approvals": pending_approvals()}
 
 
 @app.post("/api/orchestrate/{case_id}")
