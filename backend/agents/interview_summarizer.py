@@ -36,7 +36,7 @@ class InterviewSummarizerAgent(BaseAgent):
             "Turns free-text exit interviews into a structured summary with "
             "sentiment, key themes, and prioritized recommendations."
         ),
-        icon="📝",
+        icon="✎",
         category="Analysis",
         fields=[
             Field("interview_id", "Interview", type="select", required=False,

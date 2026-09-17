@@ -28,7 +28,7 @@ class FAQChatbotAgent(BaseAgent):
             "A RAG chatbot that answers questions about timelines, steps, and "
             "documents by retrieving from the company's process docs and policies."
         ),
-        icon="💬",
+        icon="⁇",
         category="Communication",
         fields=[
             Field(

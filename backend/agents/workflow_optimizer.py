@@ -127,7 +127,7 @@ class WorkflowOptimizerAgent(BaseAgent):
             "departments, overloaded owners, stages queued behind KT — and proposes "
             "concrete workflow reconfigurations with expected gains."
         ),
-        icon="⚙",
+        icon="⚙︎",
         category="Analysis",
         fields=[
             Field("focus", "Focus (optional)", required=False,

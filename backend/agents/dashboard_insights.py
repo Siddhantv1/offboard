@@ -86,7 +86,7 @@ class DashboardInsightsAgent(BaseAgent):
             "Analyzes trends, bottlenecks, and department patterns across all exit "
             "cases and interviews, then writes a weekly narrative report."
         ),
-        icon="📊",
+        icon="▦",
         category="Analysis",
         fields=[],  # no inputs — analyzes the whole dataset
     )

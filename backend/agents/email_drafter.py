@@ -35,7 +35,7 @@ class EmailDraftingAgent(BaseAgent):
             "Drafts KT reminders, overdue warnings, and completion notices tailored "
             "to the employee and stage, ready to review and send."
         ),
-        icon="✉",
+        icon="✉︎",
         category="Communication",
         fields=[
             Field("employee_id", "Employee", type="select", required=False),

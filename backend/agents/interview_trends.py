@@ -117,7 +117,7 @@ class InterviewTrendAnalystAgent(BaseAgent):
             "to surface emerging patterns like rising complaints under one manager, "
             "raises alerts, and answers follow-up questions in conversation."
         ),
-        icon="📈",
+        icon="↗︎",
         category="Analysis",
         fields=[
             Field("question", "Your question", type="textarea", required=False,

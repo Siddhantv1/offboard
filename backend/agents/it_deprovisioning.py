@@ -110,7 +110,7 @@ class ITDeprovisioningAgent(BaseAgent):
             "revoke, data to archive, credentials to rotate) from the employee's real "
             "footprint and IT policy, then executes it only after a human approves."
         ),
-        icon="🔐",
+        icon="⊘",
         category="Planning",
         fields=[
             Field("employee_id", "Employee", type="select"),

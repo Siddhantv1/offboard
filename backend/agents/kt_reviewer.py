@@ -49,7 +49,7 @@ class KTReviewerAgent(BaseAgent):
             "Reviews a Knowledge Transfer document against role-critical topics, "
             "scores completeness, and flags gaps with suggested additions."
         ),
-        icon="🔍",
+        icon="◎",
         category="Analysis",
         fields=[
             Field("kt_id", "KT document", type="select"),

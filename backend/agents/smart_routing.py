@@ -47,7 +47,7 @@ class SmartRoutingAgent(BaseAgent):
             "Picks the best approver for a stage using availability, workload, and "
             "delegation rules — automatically rerouting around out-of-office owners."
         ),
-        icon="🧭",
+        icon="⇄",
         category="Planning",
         fields=[
             Field(

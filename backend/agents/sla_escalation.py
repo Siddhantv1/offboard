@@ -58,7 +58,7 @@ class SLAEscalationAgent(BaseAgent):
             "Monitors every active exit case, flags stages past the SLA, and drafts "
             "a context-rich escalation for each blocker — who, how long, what impact."
         ),
-        icon="🚨",
+        icon="⧗",
         category="Monitoring",
         fields=[
             Field("threshold_days", "SLA threshold (days)", type="number",

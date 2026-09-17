@@ -41,7 +41,7 @@ class ComplianceAgent(BaseAgent):
             "Verifies asset return, NDA acknowledgment, and access revocation "
             "against case evidence before issuing a final go/no-go clearance."
         ),
-        icon="🛡",
+        icon="◈",
         category="Monitoring",
         fields=[
             Field("case_id", "Exit case", type="select"),

@@ -245,7 +245,7 @@ class DocumentCollectionAgent(BaseAgent):
             "been submitted, drafts a reminder for what is missing, and validates an "
             "uploaded scan with local OCR before a quick model check."
         ),
-        icon="📄",
+        icon="▤",
         category="Communication",
         fields=[
             Field("case_id", "Exit case", type="select"),

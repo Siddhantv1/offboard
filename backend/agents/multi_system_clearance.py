@@ -46,7 +46,7 @@ class MultiSystemClearanceAgent(BaseAgent):
             "system as tools, then consolidates clearance status across all of them "
             "into one verdict with the open items per system."
         ),
-        icon="🔌",
+        icon="⧉",
         category="Monitoring",
         fields=[
             Field("case_id", "Exit case", type="select"),

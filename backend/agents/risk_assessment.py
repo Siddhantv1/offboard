@@ -35,7 +35,7 @@ class RiskAssessmentAgent(BaseAgent):
             "Scores the knowledge-continuity risk of a departure from tenure, "
             "criticality, and project dependencies — with mitigation actions."
         ),
-        icon="⚠",
+        icon="⚠︎",
         category="Analysis",
         fields=[
             Field("employee_id", "Employee", type="select"),

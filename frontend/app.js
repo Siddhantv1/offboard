@@ -1124,12 +1124,15 @@ function renderMarkdown(src) {
    routes the conversational agents.
    ============================================================ */
 
-/* Bars encode magnitude, so they all share one hue. An SLA breach is never
-   signalled by colour alone: the dashed rule, a hatched fill and the value text
-   each say it independently. Measured reason -- this palette's clay (#C15F3C)
-   and danger red (#B14638) sit ΔE 6.6 apart in normal vision, well under the
-   15 needed to tell two fills apart, so colour-coded bars would be unreadable
-   for everyone, not just colourblind readers. */
+/* Bars encode magnitude, so they all share one hue -- Primary Teal. An SLA
+   breach is never signalled by colour alone: the dashed rule, a hatched fill
+   and the value text each say it independently.
+
+   The old warm palette made this mandatory (clay and danger red sat ΔE 6.6
+   apart, unreadable as two fills). Teal #007A78 and crimson #A3123C measure
+   9.2 in deuteranopia and 27.2 in normal vision, so two-colour bars would now
+   pass. They are still wrong: one quantity on one scale gets one ramp, and
+   recolouring the tall bars would imply a second variable. */
 function barChart(rows, { unit = "d", sla = null, max = null } = {}) {
   const peak = Math.max(...rows.map((r) => r.value), sla ?? 0, 1);
   // Headroom when an SLA rule is drawn, so it never sits flush on the track edge
@@ -1596,7 +1599,7 @@ function badgeClass(val) {
   if (/(pass|cleared|ready|completed|positive|strong|available)/.test(v)) return "b-ok";
   if (/(fail|blocked|incomplete|critical|negative|high|overdue|false|weak)/.test(v)) return "b-danger";
   if (/(medium|mixed|needs_work|warn|soon|neutral|unverified|pending)/.test(v)) return "b-warn";
-  if (/(low|routine|in_progress)/.test(v)) return "b-clay";
+  if (/(low|routine|in_progress)/.test(v)) return "b-accent";
   return "b-neutral";
 }
 
