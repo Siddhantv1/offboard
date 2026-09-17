@@ -3,8 +3,9 @@
 Fifteen focused AI agents for employee offboarding, behind one unified frontend,
 plus a LangGraph orchestrator that runs eight of them as one graph with a
 human-in-the-loop approval gate. The LLM layer routes every model call through
-the **Portkey AI gateway** (AWS Bedrock provider) configured in Claude's
-`settings.json`.
+the **Portkey AI gateway** configured in Claude's `settings.json`, and
+**PostgreSQL** is the system of record for employees, cases, documents and
+audit trails (see [docs/database.md](docs/database.md)).
 
 ## The 15 agents
 
@@ -42,7 +43,12 @@ backend/             FastAPI app
   config.py          Portkey/env settings
   llm.py             LLMClient — thin wrapper over the Portkey SDK (all LLM calls,
                      incl. the tool-calling loop used by agent 11)
-  data_store.py      Loads the Markdown corpus (frontmatter + body)
+  data_store.py      PostgreSQL-backed store; returns Doc(.meta/.body) so agents
+                     are unaware of the storage behind it
+  db/                Persistence layer
+    models.py        SQLAlchemy models + DateAwareJSONB column type
+    seed.py          Imports data/ into PostgreSQL (idempotent)
+    migrations/      Alembic revisions
   systems.py         Mock enterprise connectors (IT assets, IAM, HRMS, finance) used as
                      tools by agent 11 and as the execution target of agent 14
   ocr.py             Local OCR (Windows built-in engine, ONNX fallback) for agent 12
@@ -59,9 +65,17 @@ backend/             FastAPI app
   orchestration/     LangGraph multi-agent orchestration (see below)
     graph.py         Exit Process Orchestrator: fan-out/join + retry cycle
 
-data/                Sample corpus (Markdown): employees, exit-cases, policies,
-                     process-docs, kt-docs, interviews
+data/                Seed corpus (Markdown). employees, exit-cases, kt-docs and
+                     interviews are imported into PostgreSQL by backend.db.seed;
+                     policies and process-docs are read at runtime as the RAG
+                     pipeline's source documents
   .chroma/           Generated vector DB (not source)
+
+scripts/
+  init_database.py   Creates the application role and databases
+
+tests/               pytest suite; test_store_contract.py pins the DataStore
+                     surface against a snapshot of the pre-migration behaviour
 ```
 
 **Design:** every agent declares an input schema (`fields`); the frontend renders
@@ -76,8 +90,9 @@ Approve-and-execute step under its result.
 ## Tool use, OCR, and human-in-the-loop (agents 11, 12, 14)
 
 - **Tool calling (11).** `LLMClient.complete_with_tools()` runs a real
-  function-calling loop through Portkey -> Bedrock Sonnet 5 (`finish_reason`
-  `tool_use`, OpenAI-style `tools`). The tools are the connectors in
+  function-calling loop through Portkey (OpenAI-style `tools`; the gateway
+  reports tool calls the same way on both Bedrock and Vertex, verified before
+  this agent was built around it). The tools are the connectors in
   `backend/systems.py`; they are deterministic mocks derived from the employee and
   case records, so every agent sees a consistent world. Swap in real clients to
   go to production — the agent only depends on the return shapes.
@@ -93,8 +108,16 @@ Approve-and-execute step under its result.
   same pair straddles a LangGraph `interrupt()` (below). Execution is LLM-free, so
   exactly what was approved is what runs.
 - **Truncation guard.** Agents that receive a lot of evidence (compliance in the
-  orchestrator, the optimizer) can hit the output cap mid-JSON; `complete_json()`
-  detects `finish_reason` `max_tokens` / `length` and retries once with more room.
+  orchestrator, the optimizer) can hit the output cap mid-JSON. `complete_json()`
+  detects this by walking the received text for unbalanced delimiters rather
+  than matching a provider's `finish_reason` vocabulary — Gemini reports
+  `MAX_TOKENS` where Anthropic reports `max_tokens`, so a hardcoded list fails
+  silently on the next provider — then retries at a budget measured from the
+  reasoning tokens actually consumed, and salvages a repaired object if the
+  retry still overflows.
+- **Persisted runs.** Every agent invocation is recorded in `agent_runs` by
+  `BaseAgent.execute()`, with inputs (upload bytes redacted), result, duration
+  and any exception. Agents implement `run()`; they inherit the rest.
 
 ## LLM layer (Portkey)
 
@@ -102,14 +125,22 @@ Approve-and-execute step under its result.
 `.env` (see `.env.example`), defaulting to the values in Claude's `settings.json`:
 
 - Gateway: `https://portkeygateway.perficient.com/v1`
-- Provider: `@aws-bedrock-use2`
-- Model: `us.anthropic.claude-sonnet-5`
+- Provider: `@dsvertex`
+- Model: `gemini-2.5-flash`
 
 Notes discovered while wiring this up:
-- The `@aws-bedrock-use2` integration enforces a **model allowlist**; use the
-  `us.`-prefixed inference-profile ID (`us.anthropic.claude-sonnet-5`).
-- The Sonnet-5 Bedrock model **rejects the `temperature` parameter**, so the client
-  never forwards it.
+- Every integration enforces a **model allowlist**. The previous
+  `@aws-bedrock-use2` provider now returns `400 bedrock error: Operation not
+  allowed` and is no longer usable on this gateway.
+- The gateway forwards each upstream provider's quirks rather than normalising
+  them, so `backend/llm.py` negotiates capabilities at runtime instead of
+  hardcoding any one provider's behaviour: it detects JSON-mode support,
+  measures reasoning-token usage, and finds truncation by walking the received
+  text for unbalanced delimiters rather than matching a `finish_reason`
+  vocabulary. Switching providers needs no code change.
+- Gemini's thinking tokens come out of `max_tokens` and expand to fill whatever
+  budget they are given, so raising the cap on a truncated answer buys more
+  thinking, not more answer.
 
 ## FAQ chatbot RAG pipeline
 
@@ -120,12 +151,12 @@ chunk (heading-aware, overlapping)
   -> embed  (Portkey -> Azure OpenAI text-embedding-3-small)
   -> persist (ChromaDB vector DB on disk under data/.chroma)
   -> retrieve (hybrid: semantic vector search + BM25, fused with RRF)
-  -> generate (Portkey -> Bedrock Claude Sonnet 5) with cited sources
+  -> generate (Portkey -> the configured chat model) with cited sources
 ```
 
 Embeddings and generation both go through the Portkey gateway now, just via
-different registered integrations: the `@aws-bedrock-use2` integration used for
-chat **cannot do embeddings** (`embed is not supported by bedrock`), but
+different registered integrations: the integration used for chat **cannot do
+embeddings** (`embed is not supported by bedrock` on the old provider), but
 Portkey also has an `@azure-openai` integration, which can. `backend/rag/embedder.py`
 routes to it by prefixing the model id (`@azure-openai/text-embedding-3-small`)
 rather than setting a different `provider` on the client. Hybrid retrieval
@@ -187,12 +218,30 @@ Document.txt`) are unbuilt; this graph is the pattern they'll extend.
 
 ## Run it
 
+Prerequisites: Python 3.11+ and PostgreSQL 17. To install the database on
+Windows (elevated prompt — it registers a service):
+
+```
+winget install --id PostgreSQL.PostgreSQL.17 --exact ^
+  --accept-package-agreements --accept-source-agreements ^
+  --custom "--superpassword postgres --serverport 5432 --enable-components server,commandlinetools"
+```
+
+Then:
+
 ```bash
 pip install -r requirements.txt
-cp .env.example .env          # adjust PORTKEY_MODEL / keys if needed
+cp .env.example .env          # set PORTKEY_API_KEY and the DATABASE_URL password
+python -m scripts.init_database   # creates the offboard role and databases
+alembic upgrade head              # builds the schema
+python -m backend.db.seed         # imports data/ into PostgreSQL
 uvicorn backend.main:app --reload
 # open http://127.0.0.1:8000  (first boot builds the FAQ index via the gateway and warms the OCR engine)
 ```
+
+`python -m pytest tests/` runs the suite. See
+[docs/database.md](docs/database.md) for schema, migrations, and how a new
+agent gets persistence without writing any.
 
 ### API
 
@@ -204,8 +253,10 @@ uvicorn backend.main:app --reload
 - `POST /api/agents/it_deprovisioning/execute` — execute an approved plan
   (`{plan, approved_by, note}`), returns the audit log
 - `GET  /api/cases` — exit case options (used by the orchestrator picker)
-- `POST /api/employees` — add a new employee (writes a Markdown file under
-  `data/employees/`, refreshes the in-memory cache immediately — no restart)
+- `GET  /api/approvals` — orchestration runs paused at the human approval gate,
+  across all sessions and surviving restarts
+- `POST /api/employees` — add a new employee (and a starter exit case if they
+  are marked exiting, in one transaction)
 - `POST /api/orchestrate/{case_id}` — run the orchestrator non-interactively
   (body `{decision: approve|reject}` answers the gate)
 - `GET  /api/orchestrate/{case_id}/stream` — the live run as Server-Sent Events
@@ -215,7 +266,12 @@ uvicorn backend.main:app --reload
 ## Sample data
 
 13 employees (6 exiting), 6 exit cases (2 with overdue stages: `case-001`,
-`case-003`; each case also lists `documents_submitted` for the Document
-Collection agent), 3 KT docs (each with a deliberate gap), 4 exit interviews (2
+`case-003`), 3 KT docs (each with a deliberate gap), 4 exit interviews (2
 negative Sales interviews for the trend demo), 4 policies, 3 process docs.
 See `data/README.md` for the cross-reference tables.
+
+Each case's `documents_submitted` list is seeded into `case_documents` as
+accepted rows tagged `uploaded_by = 'seed:exit-case-record'`. After that the
+list is **derived** from the latest upload per document, so it updates itself
+as scans are validated — and a seeded assertion stays distinguishable from a
+real scan, which has OCR text and the image attached.

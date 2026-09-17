@@ -13,3 +13,6 @@ data/.chroma/
 
 # Claude Code worktrees live inside the repo directory
 .claude/worktrees/
+
+# Local scratch
+.tmp/
