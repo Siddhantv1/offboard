@@ -180,9 +180,12 @@ class ExitCase(Base):
     stages: Mapped[list["CaseStage"]] = relationship(
         back_populates="case", cascade="all, delete-orphan",
         order_by="CaseStage.ordinal", lazy="selectin")
+    # id breaks ties on uploaded_at. Rows inserted in one transaction share a
+    # server_default timestamp, so without it the document order -- and hence
+    # documents_submitted -- would vary between runs.
     documents: Mapped[list["CaseDocument"]] = relationship(
         back_populates="case", cascade="all, delete-orphan",
-        order_by="CaseDocument.uploaded_at", lazy="selectin")
+        order_by="CaseDocument.uploaded_at, CaseDocument.id", lazy="selectin")
 
     def to_meta(self) -> dict[str, Any]:
         """Rebuild the flat frontmatter shape agents expect.
@@ -202,13 +205,25 @@ class ExitCase(Base):
             "current_stage": self.current_stage,
             "overall_status": self.overall_status,
             "stages": [s.to_meta() for s in self.stages],
-            # Only accepted uploads count. A rejected scan stays on record as
-            # evidence someone tried, without satisfying the requirement.
-            "documents_submitted": [
-                d.document_name for d in self.documents if d.verdict == "accepted"
-            ],
+            "documents_submitted": self.submitted_documents(),
             **(self.extra or {}),
         })
+
+    def submitted_documents(self) -> list[str]:
+        """Names of documents currently accepted for this case.
+
+        Only accepted uploads count: a rejected scan stays on record as
+        evidence someone tried, without satisfying the requirement.
+
+        The *latest* upload of a given document decides its state, so
+        re-submitting a rejected form clears it and re-submitting a bad copy
+        of an accepted one un-clears it. Names appear in first-upload order,
+        which keeps the list stable as documents are replaced.
+        """
+        latest: dict[str, CaseDocument] = {}
+        for doc in self.documents:          # ordered by (uploaded_at, id)
+            latest[doc.document_name] = doc
+        return [name for name, doc in latest.items() if doc.verdict == "accepted"]
 
 
 class CaseStage(Base):
