@@ -479,7 +479,9 @@
         "email": "hitesh.wagh@perficient.com",
         "employment_type": "Full-Time",
         "id": "emp-013",
-        "join_date": "2014-03-01",
+        "join_date": {
+          "__date__": "2014-03-01"
+        },
         "location": "Chennai, IN",
         "manager": "Ritesh Sharma",
         "manager_email": "ritesh.sharma@perficient.com",
@@ -796,8 +798,12 @@
         "employee_id": "emp-013",
         "employee_name": "Hitesh Wagh",
         "exit_type": "resignation",
-        "initiated_date": "2026-09-09",
-        "last_working_day": "2026-09-09",
+        "initiated_date": {
+          "__date__": "2026-09-09"
+        },
+        "last_working_day": {
+          "__date__": "2026-09-09"
+        },
         "overall_status": "on_track",
         "stages": [
           {

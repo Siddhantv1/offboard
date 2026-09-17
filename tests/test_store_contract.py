@@ -146,6 +146,34 @@ def test_employee_list_fields_are_lists():
             )
 
 
+@pytest.mark.parametrize("collection,fields", [
+    ("employees", ("join_date",)),
+    ("exit_cases", ("initiated_date", "last_working_day")),
+    ("kt_docs", ("submitted_date",)),
+    ("interviews", ("submitted_date",)),
+])
+def test_date_fields_are_date_objects_not_strings(collection, fields):
+    """Dates must be `datetime.date` on every record, without exception.
+
+    They were not: YAML writes an unquoted date back as a date and a quoted
+    string back as a string, and `add_employee` wrote `str(d)`. So records
+    created through the UI carried string dates while hand-authored ones
+    carried date objects -- the type depended on the record's provenance.
+    Date arithmetic would have worked on twelve employees and raised TypeError
+    on the thirteenth.
+    """
+    from datetime import date as date_type
+    for doc in getattr(store, collection)():
+        for field_name in fields:
+            value = doc.meta.get(field_name)
+            if value is None:
+                continue
+            assert isinstance(value, date_type), (
+                f"{doc.slug}: {field_name} is {type(value).__name__} "
+                f"({value!r}), expected date"
+            )
+
+
 def test_title_falls_back_through_name_title_id_then_slug():
     """`Doc.title` is used as a display label and as a case identifier in
     `compliance.py:80` and `kt_reviewer.py:80`, so its fallback chain is part

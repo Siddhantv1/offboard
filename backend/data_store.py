@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -64,6 +64,28 @@ def _next_id(existing: list[Doc], prefix: str) -> str:
         if (m := re.match(rf"{prefix}-(\d+)$", d.slug))
     ]
     return f"{prefix}-{max(nums, default=0) + 1:03d}"
+
+
+def _as_date(value: Any, default: date | None = None) -> date | None:
+    """Coerce a UI/YAML value to a real `date`.
+
+    Dates must be stored as date objects, not strings. YAML writes an unquoted
+    date back as a date and a quoted string back as a string, so writing
+    `str(d)` here produced records whose `join_date` was a str while every
+    hand-authored record had a date -- the type depended on how the record was
+    created, which breaks any consumer doing date arithmetic on some rows only.
+    """
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return default
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return default
 
 
 def _split_list(value: Any) -> list[str]:
@@ -141,7 +163,7 @@ class DataStore:
             "manager": str(fields.get("manager") or "").strip(),
             "manager_email": str(fields.get("manager_email") or "").strip(),
             "tenure_years": tenure_years,
-            "join_date": str(fields.get("join_date") or date.today().isoformat()),
+            "join_date": _as_date(fields.get("join_date"), default=date.today()),
             "location": str(fields.get("location") or "").strip(),
             "employment_type": str(fields.get("employment_type") or "Full-time").strip(),
             "project_assignments": _split_list(fields.get("project_assignments")),
@@ -169,13 +191,13 @@ class DataStore:
     def add_exit_case(self, employee: Doc, *, last_working_day: str | None = None) -> Doc:
         """Create a starter exit case (all stages pending) for an employee."""
         case_id = _next_id(self.exit_cases(), "case")
-        today = date.today().isoformat()
+        today = date.today()
         meta: dict[str, Any] = {
             "case_id": case_id,
             "employee_id": employee.meta.get("id"),
             "employee_name": employee.meta.get("name"),
             "exit_type": "resignation",
-            "last_working_day": str(last_working_day or today),
+            "last_working_day": _as_date(last_working_day, default=today),
             "initiated_date": today,
             "current_stage": DEFAULT_CLEARANCE_STAGES[0],
             "overall_status": "on_track",
