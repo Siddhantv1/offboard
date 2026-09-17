@@ -77,11 +77,16 @@ def _agent(agent_id: str):
     return agent
 
 
-def _run_safe(agent_id: str, inputs: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+def _run_safe(agent_id: str, inputs: dict[str, Any],
+              thread_id: str | None = None) -> tuple[dict[str, Any], str | None]:
     """Run a registered agent, turning a gateway failure into an error string
-    instead of an exception that would abort the whole graph run."""
+    instead of an exception that would abort the whole graph run.
+
+    Goes through `execute()`, not `run()`, so the attempt lands in the
+    agent_runs history whether it succeeds or fails.
+    """
     try:
-        result = _agent(agent_id).run(inputs)
+        result = _agent(agent_id).execute(inputs, thread_id=thread_id)
     except LLMError as exc:
         return {}, f"{agent_id}: {exc}"
     if isinstance(result, dict) and result.get("error"):

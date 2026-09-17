@@ -145,7 +145,7 @@ def run_agent(agent_id: str, payload: dict[str, Any] | None = None) -> dict[str,
     if not agent:
         raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'.")
     try:
-        result = agent.run(payload or {})
+        result = agent.execute(payload or {})
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
@@ -171,7 +171,7 @@ async def run_agent_upload(agent_id: str, request: Request) -> dict[str, Any]:
         elif value != "":
             inputs[key] = value
     try:
-        result = await run_in_threadpool(agent.run, inputs)
+        result = await run_in_threadpool(agent.execute, inputs)
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
