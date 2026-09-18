@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ..data_store import store
+from ._context import require_case
 from ..llm import LLMError
 from ..systems import CLEARANCE_HANDLERS, CLEARANCE_TOOLS
 
@@ -54,13 +54,12 @@ class MultiSystemClearanceAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        case_id = (inputs.get("case_id") or "").strip()
-        case = store.exit_case(case_id)
-        if not case:
-            return {"error": f"Unknown exit case '{case_id}'."}
+        case = require_case(inputs.get("case_id"))
+        if isinstance(case, dict):
+            return case
 
         user = (
-            f"Verify clearances across all systems for exit case {case.meta.get('case_id', case_id)} "
+            f"Verify clearances across all systems for exit case {case.meta.get('case_id')} "
             f"({case.meta.get('employee_name', '')}, exit type {case.meta.get('exit_type', 'unknown')}, "
             f"last working day {case.meta.get('last_working_day', 'unknown')})."
         )
@@ -70,7 +69,7 @@ class MultiSystemClearanceAgent(BaseAgent):
         except LLMError:
             consolidated = {"summary": text}
         return {
-            "case_id": case.meta.get("case_id", case_id),
+            "case_id": case.meta.get("case_id"),
             "consolidated": consolidated,
             "systems_called": sorted({t["tool"] for t in trace}),
             "tool_trace": trace,

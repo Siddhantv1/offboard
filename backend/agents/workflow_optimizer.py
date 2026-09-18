@@ -13,10 +13,8 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import parse_days_open
+from ._context import SLA_DAYS, parse_days_open
 from ..data_store import store
-
-SLA_DAYS = 5
 
 # The workflow as it stands today. Named here once so the prompt below and the
 # "before" side of the UI's before/after diagram can't drift apart.

@@ -6,11 +6,12 @@ a weekly narrative report with recommendations grounded in those metrics.
 """
 from __future__ import annotations
 
+import json
 from collections import Counter
 from typing import Any
 
-from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import parse_days_open
+from .base import AgentMeta, BaseAgent, llm, register
+from ._context import SLA_DAYS, parse_days_open
 from ..data_store import store
 
 SYSTEM = """You are an HR operations analyst writing the weekly offboarding \
@@ -25,7 +26,6 @@ Return JSON:
   "recommendations": [{"action": str, "impact": "high|medium|low"}],
   "watch_list": [str]
 }"""
-SLA_DAYS = 5
 
 
 def _compute_metrics() -> dict[str, Any]:
@@ -93,8 +93,6 @@ class DashboardInsightsAgent(BaseAgent):
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         metrics = _compute_metrics()
-        import json
-
         result = llm.complete_json(
             SYSTEM,
             "Write this week's offboarding report from these metrics:\n\n"

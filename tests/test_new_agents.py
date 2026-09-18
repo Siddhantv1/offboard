@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import pytest
 
+from backend.agents._context import SLA_DAYS as DEFAULT_THRESHOLD_DAYS
 from backend.agents.document_collection import REQUIRED_DOCUMENTS
-from backend.agents.policy_auditor import (DEFAULT_THRESHOLD_DAYS,
-                                            PolicyAuditorAgent,
+from backend.agents.policy_auditor import (PolicyAuditorAgent,
                                             _audit_case, _case_violations)
 from backend.agents.predictive_attrition import (PredictiveAttritionAgent,
                                                   _collect_signals)

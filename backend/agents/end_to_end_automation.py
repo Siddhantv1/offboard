@@ -14,14 +14,12 @@ from __future__ import annotations
 from typing import Any
 
 from .base import REGISTRY, AgentMeta, BaseAgent, Field, llm, register
-from ._context import parse_days_open
+from ._context import SLA_DAYS, parse_days_open, require_employee
 from .sla_escalation import draft_escalation
 from .smart_routing import APPROVER_ROSTER
 from ..data_store import store
 from ..llm import LLMError
 from ..orchestration import run_orchestration
-
-ESCALATION_THRESHOLD_DAYS = 5
 
 EXCEPTION_SYSTEM = """You are an HR exit-operations lead handling an exception: \
 an automated exit clearance run came back BLOCKED. Given the compliance \
@@ -70,10 +68,10 @@ class EndToEndAutomationAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        emp_id = (inputs.get("employee_id") or "").strip()
-        emp = store.employee(emp_id)
-        if not emp:
-            return {"error": f"Unknown employee '{emp_id}'."}
+        emp = require_employee(inputs.get("employee_id"))
+        if isinstance(emp, dict):
+            return emp
+        emp_id = str(emp.meta.get("id", ""))
 
         requested_exit_type = (inputs.get("exit_type") or "").strip().lower()
         last_working_day = (inputs.get("last_working_day") or "").strip() or None
@@ -122,9 +120,9 @@ class EndToEndAutomationAgent(BaseAgent):
         for stage in stages:
             if str(stage.get("status", "")).lower() == "completed":
                 continue
-            if parse_days_open(stage) > ESCALATION_THRESHOLD_DAYS:
+            if parse_days_open(stage) > SLA_DAYS:
                 proactive_escalations.append(
-                    draft_escalation(case_meta, stage, threshold=ESCALATION_THRESHOLD_DAYS)
+                    draft_escalation(case_meta, stage, threshold=SLA_DAYS)
                 )
         timeline.append(f"Proactively escalated {len(proactive_escalations)} overdue stage(s).")
 

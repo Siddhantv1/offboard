@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
+from ._context import doc_to_context, require_kt_doc
 from ..data_store import store
 
 # Role-appropriate critical topics a good KT doc should cover.
@@ -57,10 +57,9 @@ class KTReviewerAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        kt_id = (inputs.get("kt_id") or "").strip()
-        doc = store.kt_doc(kt_id)
-        if not doc:
-            return {"error": f"Unknown KT document '{kt_id}'."}
+        doc = require_kt_doc(inputs.get("kt_id"))
+        if isinstance(doc, dict):
+            return doc
 
         # Enrich with the author's role if we can resolve it.
         role_hint = ""

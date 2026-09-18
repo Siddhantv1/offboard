@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import parse_days_open
+from ._context import SLA_DAYS, parse_days_open
 from ..data_store import store
 
 SYSTEM = """You are an operations escalation agent for HR offboarding. Given a \
@@ -21,7 +21,7 @@ delay. Professional, firm, action-oriented.
 Return JSON: {"to": str, "cc": str, "subject": str, "body": str, "severity": "high|critical"}"""
 
 
-def draft_escalation(case_meta: dict[str, Any], stage: dict[str, Any], *, threshold: int = 5) -> dict[str, Any]:
+def draft_escalation(case_meta: dict[str, Any], stage: dict[str, Any], *, threshold: int = SLA_DAYS) -> dict[str, Any]:
     """Compose one escalation for one overdue stage of one case.
 
     Split out from `SLAEscalationAgent.run` so the orchestrator can escalate a
@@ -62,15 +62,15 @@ class SLAEscalationAgent(BaseAgent):
         category="Monitoring",
         fields=[
             Field("threshold_days", "SLA threshold (days)", type="number",
-                  required=False, placeholder="5"),
+                  required=False, placeholder=str(SLA_DAYS)),
         ],
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         try:
-            threshold = int(inputs.get("threshold_days") or 5)
+            threshold = int(inputs.get("threshold_days") or SLA_DAYS)
         except (TypeError, ValueError):
-            threshold = 5
+            threshold = SLA_DAYS
 
         escalations: list[dict[str, Any]] = []
         for case in store.exit_cases():

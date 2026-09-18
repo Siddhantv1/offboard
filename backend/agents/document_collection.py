@@ -16,6 +16,7 @@ import sys
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
+from ._context import require_case
 from .. import ocr
 from ..data_store import store
 from ..db import session_scope
@@ -269,11 +270,11 @@ class DocumentCollectionAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        case_id = (inputs.get("case_id") or "").strip()
-        case = store.exit_case(case_id)
-        if not case:
-            return {"error": f"Unknown exit case '{case_id}'."}
+        case = require_case(inputs.get("case_id"))
+        if isinstance(case, dict):
+            return case
         meta = case.meta
+        case_id = str(meta.get("case_id") or "")
 
         result: dict[str, Any] = {
             "case_id": meta.get("case_id", case_id),

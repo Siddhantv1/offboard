@@ -8,8 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
-from ..data_store import store
+from ._context import doc_to_context, require_interview
 
 SYSTEM = """You are an HR people-analytics specialist. Read an exit interview and \
 produce a structured, objective summary.
@@ -48,9 +47,9 @@ class InterviewSummarizerAgent(BaseAgent):
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         interview_id = (inputs.get("interview_id") or "").strip()
         if interview_id:
-            doc = store.interview(interview_id)
-            if not doc:
-                return {"error": f"Unknown interview '{interview_id}'."}
+            doc = require_interview(interview_id)
+            if isinstance(doc, dict):
+                return doc
             context = doc_to_context(doc)
         else:
             text = (inputs.get("text") or "").strip()

@@ -8,8 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
-from ..data_store import store
+from ._context import doc_to_context, require_employee
 
 SYSTEM = """You are a workforce-risk analyst. Assess the knowledge/continuity \
 risk of this employee leaving. Weigh tenure, role criticality, project \
@@ -43,10 +42,9 @@ class RiskAssessmentAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        emp_id = (inputs.get("employee_id") or "").strip()
-        doc = store.employee(emp_id)
-        if not doc:
-            return {"error": f"Unknown employee '{emp_id}'."}
+        doc = require_employee(inputs.get("employee_id"))
+        if isinstance(doc, dict):
+            return doc
         result = llm.complete_json(
             SYSTEM, f"Employee profile:\n\n{doc_to_context(doc)}"
         )

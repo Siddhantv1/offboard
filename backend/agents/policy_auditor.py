@@ -11,11 +11,9 @@ import json
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import parse_days_open
+from ._context import SLA_DAYS, parse_days_open, require_case
 from .document_collection import document_status
 from ..data_store import store
-
-DEFAULT_THRESHOLD_DAYS = 5
 
 SYSTEM = """You are a compliance auditor reviewing exit-process violations that \
 have already been computed from case data. You must only report violations \
@@ -104,7 +102,7 @@ class PolicyAuditorAgent(BaseAgent):
             Field("case_id", "Exit case (blank = audit every case)", type="select", required=False),
             Field(
                 "threshold_days", "SLA threshold (days)", type="number", required=False,
-                placeholder=str(DEFAULT_THRESHOLD_DAYS),
+                placeholder=str(SLA_DAYS),
                 help="Stages open longer than this without completing count as a breach.",
             ),
         ],
@@ -113,14 +111,14 @@ class PolicyAuditorAgent(BaseAgent):
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         case_id = (inputs.get("case_id") or "").strip()
         try:
-            threshold = int(inputs.get("threshold_days") or DEFAULT_THRESHOLD_DAYS)
+            threshold = int(inputs.get("threshold_days") or SLA_DAYS)
         except (TypeError, ValueError):
-            threshold = DEFAULT_THRESHOLD_DAYS
+            threshold = SLA_DAYS
 
         if case_id:
-            case = store.exit_case(case_id)
-            if not case:
-                return {"error": f"Unknown exit case '{case_id}'."}
+            case = require_case(case_id)
+            if isinstance(case, dict):
+                return case
             cases = [case]
         else:
             cases = store.exit_cases()

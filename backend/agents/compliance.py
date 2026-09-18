@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
+from ._context import doc_to_context, require_case
 from ..data_store import store
 
 SYSTEM = """You are a compliance officer performing the final pre-clearance \
@@ -49,10 +49,9 @@ class ComplianceAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        case_id = (inputs.get("case_id") or "").strip()
-        case = store.exit_case(case_id)
-        if not case:
-            return {"error": f"Unknown exit case '{case_id}'."}
+        case = require_case(inputs.get("case_id"))
+        if isinstance(case, dict):
+            return case
 
         # Step 1 — assemble evidence from the case and the linked employee.
         evidence = [f"EXIT CASE:\n{doc_to_context(case)}"]
@@ -77,4 +76,8 @@ class ComplianceAgent(BaseAgent):
             SYSTEM,
             f"Verify final clearance from this evidence:\n\n{evidence_block}",
         )
-        return {"case_id": case.title, "verification": result}
+        # `case.meta["case_id"]` directly, not `case.title` -- an ExitCase's
+        # meta has no "name"/"title" key, so `title` would fall through to
+        # `slug`, which only reports the case id by the coincidence that the
+        # two happen to match.
+        return {"case_id": case.meta["case_id"], "verification": result}

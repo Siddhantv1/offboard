@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
+from ._context import doc_to_context, require_employee
 from ..data_store import store
 
 SYSTEM = """You are an HR talent-strategy analyst deciding whether a departing \
@@ -61,10 +61,10 @@ class RehireAssessmentAgent(BaseAgent):
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        emp_id = (inputs.get("employee_id") or "").strip()
-        doc = store.employee(emp_id)
-        if not doc:
-            return {"error": f"Unknown employee '{emp_id}'."}
+        doc = require_employee(inputs.get("employee_id"))
+        if isinstance(doc, dict):
+            return doc
+        emp_id = str(doc.meta.get("id", ""))
 
         blocks = [f"EMPLOYEE PROFILE:\n{doc_to_context(doc)}"]
 

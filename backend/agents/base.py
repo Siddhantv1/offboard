@@ -155,7 +155,7 @@ class BaseAgent:
             with session_scope() as session:
                 row = AgentRun(
                     agent_id=self.meta.id,
-                    case_id=_identifier(inputs, "case_id"),
+                    case_id=_identifier(inputs, "case_id", "kt_id", "interview_id"),
                     employee_id=_identifier(inputs, "employee_id", "emp_id"),
                     thread_id=thread_id,
                     inputs=sanitise_for_storage(inputs),

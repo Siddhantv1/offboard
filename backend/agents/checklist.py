@@ -8,8 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
-from ..data_store import store
+from ._context import doc_to_context, require_employee
 
 SYSTEM = """You are an HR offboarding specialist. Given an exiting employee's \
 profile, produce a personalized, actionable exit checklist. Be specific to the \
@@ -54,9 +53,9 @@ class ChecklistAgent(BaseAgent):
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         emp_id = (inputs.get("employee_id") or "").strip()
         if emp_id:
-            doc = store.employee(emp_id)
-            if not doc:
-                return {"error": f"Unknown employee '{emp_id}'."}
+            doc = require_employee(emp_id)
+            if isinstance(doc, dict):
+                return doc
             context = doc_to_context(doc)
         else:
             role = inputs.get("role", "").strip()

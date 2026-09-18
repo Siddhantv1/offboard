@@ -22,7 +22,7 @@ from uuid import uuid4
 from sqlalchemy import func, update
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
-from ._context import doc_to_context
+from ._context import doc_to_context, require_employee
 from ..data_store import store
 from ..db import session_scope
 from ..db.models import DeprovisioningPlan
@@ -68,9 +68,9 @@ def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_d
     `execute_plan()` take a `plan_id` instead of an arbitrary client-supplied
     plan body.
     """
-    emp = store.employee(employee_id)
-    if not emp:
-        return {"error": f"Unknown employee '{employee_id}'."}
+    emp = require_employee(employee_id)
+    if isinstance(emp, dict):
+        return emp
     user = (
         f"{POLICY_EXCERPT}\n\n"
         f"Exit type: {exit_type or 'unknown'}\nLast working day: {last_working_day or 'unknown'}\n"
