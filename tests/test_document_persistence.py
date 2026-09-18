@@ -134,6 +134,63 @@ def test_upload_is_visible_to_a_separate_store_instance(case_id):
     assert DOC in DataStore().exit_case(case_id).meta["documents_submitted"]
 
 
+def test_review_document_overrides_the_verdict(case_id):
+    """The point of the human override: a model verdict that flows into
+    `documents_submitted` (and everything downstream of it) must be exactly
+    what a reviewer's override changes -- not a note bolted on beside an
+    unchanged status."""
+    doc_id = _upload(case_id, "needs_review")
+    assert DOC not in store.exit_case(case_id).meta["documents_submitted"]
+
+    reviewed = store.review_document(
+        case_id, doc_id, verdict="accepted",
+        reviewed_by="hr@perficient.com", note="Checked manually, it's fine.",
+    )
+
+    assert reviewed["verdict"] == "accepted"
+    assert reviewed["reviewed_by"] == "hr@perficient.com"
+    assert reviewed["review_note"] == "Checked manually, it's fine."
+    assert reviewed["reviewed_at"] is not None
+    assert DOC in store.exit_case(case_id).meta["documents_submitted"], (
+        "the override did not flow through to documents_submitted"
+    )
+
+
+def test_review_document_can_also_revoke_an_acceptance(case_id):
+    doc_id = _upload(case_id, "accepted")
+    assert DOC in store.exit_case(case_id).meta["documents_submitted"]
+
+    store.review_document(case_id, doc_id, verdict="rejected", reviewed_by="hr@perficient.com")
+
+    assert DOC not in store.exit_case(case_id).meta["documents_submitted"]
+
+
+def test_review_document_rejects_an_unknown_verdict(case_id):
+    doc_id = _upload(case_id, "needs_review")
+    with pytest.raises(ValueError):
+        store.review_document(case_id, doc_id, verdict="maybe", reviewed_by="hr@perficient.com")
+
+
+def test_review_document_rejects_a_doc_id_from_another_case(case_id):
+    """A doc_id is a global primary key; the case_id in the URL must still be
+    checked, or reviewing case-001's document #7 could silently overwrite a
+    document that actually belongs to case-002."""
+    other = next(c for c in store.exit_cases() if c.meta["case_id"] != case_id)
+    doc_id = _upload(case_id, "needs_review")
+    with pytest.raises(LookupError):
+        store.review_document(
+            other.meta["case_id"], doc_id, verdict="accepted", reviewed_by="hr@perficient.com"
+        )
+
+
+def test_case_documents_lists_every_verdict_not_just_accepted(case_id):
+    """Unlike `documents_submitted`, this is the raw audit trail a reviewer
+    needs: rejected and needs_review rows must show up too, not just passes."""
+    _upload(case_id, "rejected")
+    rows = store.case_documents(case_id)
+    assert any(r["document_name"] == DOC and r["verdict"] == "rejected" for r in rows)
+
+
 def test_unknown_case_is_rejected_by_the_foreign_key(case_id):
     """A typo in the case id must not silently create an orphaned document."""
     assert record_upload(

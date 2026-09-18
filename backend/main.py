@@ -6,6 +6,9 @@ Serves the unified frontend (static) and a small JSON API:
   GET  /api/health            -> gateway/config sanity
   GET  /api/cases             -> exit case options (orchestrator picker)
   POST /api/employees         -> add a new employee record
+  GET  /api/cases/{id}/documents -> every uploaded document on a case, every verdict
+  POST /api/cases/{id}/documents/{doc_id}/review -> human override of a document's verdict
+  GET  /api/me/case            -> the signed-in employee's own exit case + document status
   POST /api/agents/{id}/upload -> same, as multipart form (file fields, e.g. a scan)
   POST /api/agents/it_deprovisioning/execute -> run an approved deprovisioning plan
   POST /api/orchestrate/{case_id} -> run the LangGraph exit-clearance orchestrator
@@ -32,6 +35,7 @@ from starlette.datastructures import UploadFile  # form parts arrive as this cla
 
 from . import auth, ocr
 from .agents import REGISTRY
+from .agents.document_collection import document_status
 from .auth import CurrentUser, HRUser, OptionalUser
 from .agents.it_deprovisioning import execute_plan
 from .config import COOKIE_SECURE, FRONTEND_DIST, PORTKEY
@@ -205,6 +209,18 @@ def list_agents(user: CurrentUser) -> dict[str, Any]:
     return {"agents": [_serialize_agent(a) for a in visible]}
 
 
+@app.get("/api/me/case")
+def my_case(user: CurrentUser) -> dict[str, Any]:
+    """The signed-in employee's own exit case: stages, status, and exactly
+    which documents are still owed. Scoped to `user.employee_id` from the
+    session -- never a client-supplied id, so no employee can request
+    another employee's case by guessing a case_id."""
+    case = store.exit_case_for_employee(user.employee_id) if user.employee_id else None
+    if not case:
+        raise HTTPException(status_code=404, detail="No exit case is associated with this account.")
+    return {"case": case.meta, "documents": document_status(case.meta)}
+
+
 @app.get("/api/cases")
 def list_cases(user: HRUser) -> dict[str, Any]:
     """Exit case options for the orchestrator picker (frontend-only helper)."""
@@ -214,12 +230,55 @@ def list_cases(user: HRUser) -> dict[str, Any]:
 @app.post("/api/employees")
 def create_employee(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Add a new employee record (writes a Markdown file, refreshes the cache).
-    If marked "exiting", also creates a starter exit case for the orchestrator."""
+    If marked "exiting", also creates a starter exit case for the orchestrator
+    and, if the email has no account yet, a one-time login credential."""
     try:
-        emp_doc, case_doc = store.add_employee(payload or {})
+        emp_doc, case_doc, credential = store.add_employee(payload or {})
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"employee": emp_doc.meta, "case": case_doc.meta if case_doc else None}
+    return {
+        "employee": emp_doc.meta,
+        "case": case_doc.meta if case_doc else None,
+        "credential": credential,
+    }
+
+
+@app.get("/api/cases/{case_id}/documents")
+def list_case_documents(case_id: str, user: HRUser) -> dict[str, Any]:
+    """Every uploaded document on a case, every verdict -- the raw rows behind
+    Document Collection's `documents_submitted` summary, so HR can see (and
+    override) exactly what the model decided and why."""
+    if not store.exit_case(case_id):
+        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
+    return {"case_id": case_id, "documents": store.case_documents(case_id)}
+
+
+@app.post("/api/cases/{case_id}/documents/{doc_id}/review")
+def review_case_document(
+    case_id: str, doc_id: int, user: HRUser, payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A human overrides the model's verdict on one uploaded document.
+
+    The verdict this writes is exactly what `ExitCase.submitted_documents()`
+    reads back, so overriding it here is what actually clears (or reinstates)
+    the requirement everywhere else in the app -- not a note bolted on beside
+    an unchanged status.
+    """
+    if not store.exit_case(case_id):
+        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
+    payload = payload or {}
+    try:
+        document = store.review_document(
+            case_id, doc_id,
+            verdict=str(payload.get("verdict") or ""),
+            reviewed_by=user.full_name or user.email,
+            note=str(payload.get("note") or ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"case_id": case_id, "document": document}
 
 
 @app.post("/api/agents/{agent_id}/run")

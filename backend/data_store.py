@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 import zlib
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,9 +30,10 @@ import frontmatter
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .auth import generate_temp_password, hash_password
 from .config import DATA_DIR
 from .db import session_scope
-from .db.models import CaseStage, Employee, ExitCase, Interview, KTDoc
+from .db.models import CaseDocument, CaseStage, Employee, ExitCase, Interview, KTDoc, User
 
 
 @dataclass
@@ -81,6 +82,23 @@ def _doc(row: Any) -> Doc:
     """ORM row -> Doc. Must be called inside the session scope that loaded the
     row, so relationship attributes are still attached."""
     return Doc(meta=row.to_meta(), body=row.body or "", slug=row.slug)
+
+
+def _document_meta(d: CaseDocument) -> dict[str, Any]:
+    """CaseDocument row -> the shape the review UI and its API need. Must be
+    called inside the session scope that loaded the row (see `_doc`)."""
+    return {
+        "id": d.id,
+        "document_name": d.document_name,
+        "filename": d.filename,
+        "verdict": d.verdict,
+        "reason": d.reason,
+        "uploaded_at": d.uploaded_at,
+        "uploaded_by": d.uploaded_by,
+        "reviewed_by": d.reviewed_by,
+        "reviewed_at": d.reviewed_at,
+        "review_note": d.review_note,
+    }
 
 
 def _as_date(value: Any, default: date | None = None) -> date | None:
@@ -184,6 +202,61 @@ class DataStore:
     def interview(self, interview_id: str) -> Doc | None:
         return self._lookup(Interview, Interview.id, interview_id)
 
+    def exit_case_for_employee(self, employee_id: str) -> Doc | None:
+        """The exit case tied to an employee, most-recently-initiated first.
+
+        Keyed off `employee_id` -- server-trusted, taken from the caller's own
+        session -- rather than any case_id a client could supply, so an
+        employee's self-service view can only ever resolve to their own case.
+        """
+        needle = str(employee_id).strip()
+        if not needle:
+            return None
+        with session_scope() as s:
+            row = s.scalar(
+                select(ExitCase)
+                .where(ExitCase.employee_id == needle)
+                .order_by(ExitCase.initiated_date.desc())
+                .limit(1)
+            )
+            return _doc(row) if row else None
+
+    def case_documents(self, case_id: str) -> list[dict[str, Any]]:
+        """Every uploaded document on a case -- every verdict, not just the
+        accepted ones `to_meta()` folds into `documents_submitted` -- so HR can
+        see (and, via `review_document`, override) what the model decided."""
+        with session_scope() as s:
+            case = s.get(ExitCase, case_id)
+            return [_document_meta(d) for d in case.documents] if case else []
+
+    def review_document(
+        self, case_id: str, doc_id: int, *, verdict: str, reviewed_by: str, note: str = "",
+    ) -> dict[str, Any]:
+        """A human overrides the model's verdict on one uploaded document.
+
+        The model's judgement is a first pass, not a final answer -- OCR
+        misreads, and the LLM call itself can be unavailable (see
+        `document_collection.validate_upload`'s `needs_review` fallback), so
+        without this an operator who can plainly see a scan is fine has no way
+        to correct it, and `documents_submitted` (which drives every
+        completion-percentage view) stays wrong until the employee re-uploads.
+        Recording who and when is the point: "the system accepted it" is not
+        an answer an auditor accepts for a human override either.
+        """
+        verdict = verdict.strip().lower()
+        if verdict not in ("accepted", "needs_review", "rejected"):
+            raise ValueError("verdict must be accepted, needs_review, or rejected.")
+        with session_scope() as s:
+            doc = s.get(CaseDocument, doc_id)
+            if doc is None or doc.case_id != case_id:
+                raise LookupError(f"No document #{doc_id} on case {case_id!r}.")
+            doc.verdict = verdict
+            doc.reviewed_by = reviewed_by
+            doc.reviewed_at = datetime.now(timezone.utc)
+            doc.review_note = note
+            s.flush()
+            return _document_meta(doc)
+
     @staticmethod
     def _lookup(model: Any, id_col: Any, value: str) -> Doc | None:
         """Resolve by id or by slug, case-insensitively, tolerating whitespace.
@@ -210,13 +283,23 @@ class DataStore:
             return _doc(row) if row else None
 
     # -- writes ------------------------------------------------------------
-    def add_employee(self, fields: dict[str, Any]) -> tuple[Doc, Doc | None]:
+    def add_employee(
+        self, fields: dict[str, Any]
+    ) -> tuple[Doc, Doc | None, dict[str, str] | None]:
         """Create an employee, and a starter exit case if they are exiting.
 
         Both inserts share one transaction. An employee marked exiting but left
         without a case would be invisible to the orchestrator, which picks a
         *case*, not an employee -- a half-created record that looks fine in the
         employee list and cannot be actioned.
+
+        An exiting employee with no email already registered also gets a login
+        account (role "employee", a generated password, must_change_password
+        set) -- otherwise the only way onto the portal was a separate manual
+        script, and a leaver who never had one run for them could never sign in
+        to see their own offboarding. The third return value is that
+        account's one-time (email, password), or None if nothing was created
+        (no exit case, or the email already has an account).
         """
         name = str(fields.get("name") or "").strip()
         role = str(fields.get("role") or "").strip()
@@ -268,10 +351,22 @@ class DataStore:
 
             emp_doc = _doc(emp)
             case_doc = None
+            credential = None
             if status == "exiting":
                 case = _insert_case(s, emp, last_working_day=fields.get("last_working_day"))
                 case_doc = _doc(case)
-        return emp_doc, case_doc
+                if emp.email and not s.scalar(select(User).where(User.email == emp.email)):
+                    secret = generate_temp_password()
+                    s.add(User(
+                        email=emp.email,
+                        password_hash=hash_password(secret),
+                        role="employee",
+                        employee_id=emp.id,
+                        full_name=emp.name,
+                        must_change_password=True,
+                    ))
+                    credential = {"email": emp.email, "password": secret}
+        return emp_doc, case_doc, credential
 
     def add_exit_case(self, employee: Doc, *,
                       last_working_day: str | None = None) -> Doc:

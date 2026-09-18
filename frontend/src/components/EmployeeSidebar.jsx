@@ -1,8 +1,18 @@
-/** An employee's nav has exactly one destination today: the FAQ chatbot.
- *  Kept as its own tiny component rather than branching inside Sidebar, since
- *  the two have nothing structural in common besides the brand mark -- an
- *  employee's case-progress view (still pending) will grow this file, not
- *  Sidebar's HR nav-group logic. */
+import { NavLink } from "react-router-dom";
+
+/** An employee's nav: their own case status, and the FAQ chatbot. Kept as its
+ *  own tiny component rather than branching inside Sidebar, since the two
+ *  have nothing structural in common besides the brand mark -- Sidebar's
+ *  agent-catalogue nav-group logic has no employee equivalent. */
+function Item({ to, icon, children }) {
+  return (
+    <NavLink to={to} className={({ isActive }) => "nav-item" + (isActive ? " active" : "")}>
+      <span className="ni-icon">{icon}</span>
+      <span className="ni-name">{children}</span>
+    </NavLink>
+  );
+}
+
 export default function EmployeeSidebar() {
   return (
     <aside className="sidebar">
@@ -15,10 +25,12 @@ export default function EmployeeSidebar() {
       </div>
 
       <nav className="nav">
-        <div className="nav-item active">
-          <span className="ni-icon">⁇</span>
-          <span className="ni-name">Ask a question</span>
-        </div>
+        <Item to="/my-case" icon="◔">
+          My Case
+        </Item>
+        <Item to="/agents/faq_chatbot" icon="⁇">
+          Ask a question
+        </Item>
       </nav>
     </aside>
   );

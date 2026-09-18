@@ -34,6 +34,7 @@ export default function AddEmployee() {
   const { status, added, error } = state;
   const emp = added?.employee || {};
   const createdCase = added?.case;
+  const credential = added?.credential;
 
   return (
     <div className="agent-view">
@@ -84,6 +85,16 @@ export default function AddEmployee() {
                   )}
                 </div>
               </div>
+              {credential && (
+                <div className="note-trunc credential-note">
+                  <strong>One-time login credential</strong> — shown once and never shown again.
+                  Share it with {emp.name || "the new employee"} through a secure channel now.
+                  <div className="credential-line">
+                    {credential.email} <code>{credential.password}</code>
+                  </div>
+                  They will be required to set a new password on first sign-in.
+                </div>
+              )}
             </>
           )}
         </div>

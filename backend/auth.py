@@ -62,6 +62,17 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Unambiguous alphabet for generated passwords: no O/0, l/1/I. These get read
+# off a screen (or an HR operator's clipboard) and typed by someone else.
+_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+
+def generate_temp_password(length: int = 14) -> str:
+    """A random password for a freshly provisioned account. Shown once by the
+    caller and never stored except as its Argon2 hash."""
+    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
+
+
 def hash_password(password: str) -> str:
     return _hasher.hash(password)
 

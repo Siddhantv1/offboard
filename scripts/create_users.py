@@ -17,26 +17,17 @@ are marked must_change_password, so the holder is prompted to replace them.
 from __future__ import annotations
 
 import argparse
-import secrets
-import string
 import sys
 
 from sqlalchemy import select
 
-from backend.auth import hash_password
+from backend.auth import generate_temp_password, hash_password
 from backend.db import session_scope
 from backend.db.models import Employee, ExitCase, User
-
-# Unambiguous alphabet: no O/0, l/1/I. These get read off a screen and typed.
-ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 
 DEFAULT_HR = [
     ("hr@perficient.com", "HR Operations"),
 ]
-
-
-def make_password(length: int = 14) -> str:
-    return "".join(secrets.choice(ALPHABET) for _ in range(length))
 
 
 def upsert(session, *, email: str, role: str, full_name: str | None,
@@ -49,7 +40,7 @@ def upsert(session, *, email: str, role: str, full_name: str | None,
     if existing and not force:
         return "exists", None
 
-    secret = password or make_password()
+    secret = password or generate_temp_password()
     if existing:
         existing.password_hash = hash_password(secret)
         existing.must_change_password = password is None

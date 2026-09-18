@@ -639,6 +639,12 @@ input[type="file"]::file-selector-button {
   background: var(--warn-wash); border: 1px solid #E4CE96; color: var(--warn);
   border-radius: var(--radius-sm);
 }
+.credential-note { margin: 16px 0 0; line-height: 1.6; }
+.credential-line {
+  margin: 8px 0; font-size: 14px; color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+.credential-line code { font-weight: 600; }
 
 /* section heads: serif, sentence case — deliberately not another caps eyebrow */
 .subhead {

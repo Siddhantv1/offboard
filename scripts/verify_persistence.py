@@ -62,7 +62,7 @@ def main() -> int:
         # Written through the same store the UI uses, not raw SQL.
         from backend.data_store import DataStore, store
 
-        emp, case = store.add_employee(
+        emp, case, _credential = store.add_employee(
             {"name": PROBE, "role": "QA", "department": "Engineering", "status": "exiting"}
         )
         emp_id = emp.meta["id"]

@@ -10,6 +10,7 @@ import AgentPage from "./pages/AgentPage.jsx";
 import ChangePassword from "./pages/ChangePassword.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
+import MyCase from "./pages/MyCase.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import Orchestrator from "./pages/Orchestrator.jsx";
 
@@ -100,26 +101,34 @@ function HRShell() {
   );
 }
 
+function EmployeeCrumb() {
+  const { pathname } = useLocation();
+  const label = pathname.startsWith("/my-case") ? "My Exit Case" : "Ask a question";
+  return (
+    <div className="crumb">
+      <b>{label}</b>
+    </div>
+  );
+}
+
 function EmployeeShell() {
   // Scope, by explicit decision: status of their own case, its outstanding
   // steps, and the FAQ chatbot -- never the agent catalogue or anyone else's
-  // data. The case-status view is still to be built; for now every route
-  // funnels to the one thing that exists.
+  // data.
   return (
     <AgentsProvider>
       <div className="app">
         <EmployeeSidebar />
         <main className="main">
           <header className="topbar">
-            <div className="crumb">
-              <b>Ask a question</b>
-            </div>
+            <EmployeeCrumb />
             <TopbarUser />
           </header>
           <section className="content">
             <Routes>
               <Route path="/agents/faq_chatbot" element={<AgentPage agentId="faq_chatbot" />} />
-              <Route path="*" element={<Navigate to="/agents/faq_chatbot" replace />} />
+              <Route path="/my-case" element={<MyCase />} />
+              <Route path="*" element={<Navigate to="/my-case" replace />} />
             </Routes>
           </section>
         </main>
