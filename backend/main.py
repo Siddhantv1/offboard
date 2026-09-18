@@ -167,7 +167,9 @@ def change_password(
 
 # -- API -------------------------------------------------------------------
 @app.get("/api/health")
-def health(user: CurrentUser) -> dict[str, Any]:
+def health(user: HRUser) -> dict[str, Any]:
+    # Gateway/model/agent-count are internal-architecture details an employee
+    # was explicitly scoped out of seeing, so this stays HR-only.
     return {
         "status": "ok",
         "gateway": PORTKEY.base_url,
@@ -181,8 +183,14 @@ def health(user: CurrentUser) -> dict[str, Any]:
 
 
 @app.get("/api/agents")
-def list_agents(user: HRUser) -> dict[str, Any]:
-    return {"agents": [_serialize_agent(a) for a in REGISTRY.values()]}
+def list_agents(user: CurrentUser) -> dict[str, Any]:
+    # HR sees the full catalog; an employee sees only the agents they are
+    # actually allowed to run (today: just the FAQ chatbot), via the same
+    # allowlist run_agent enforces -- one seam, not two rules to keep in sync.
+    visible = REGISTRY.values() if user.is_hr else (
+        a for aid, a in REGISTRY.items() if aid in EMPLOYEE_AGENTS
+    )
+    return {"agents": [_serialize_agent(a) for a in visible]}
 
 
 @app.get("/api/cases")
