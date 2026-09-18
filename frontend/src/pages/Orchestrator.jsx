@@ -4,7 +4,7 @@ import ApprovalPanel from "../components/orchestrator/ApprovalPanel.jsx";
 import OrchDiagram from "../components/orchestrator/OrchDiagram.jsx";
 import OrchestrationResult from "../components/orchestrator/OrchestrationResult.jsx";
 import { ErrorBox, PageHead } from "../components/ui.jsx";
-import { fetchJSON } from "../lib/api.js";
+import { csrfToken, fetchJSON } from "../lib/api.js";
 import { ORCH_DESCRIPTION, ORCH_NAMES } from "../lib/constants.js";
 import { fmtElapsed } from "../lib/format.js";
 
@@ -180,7 +180,12 @@ export default function Orchestrator() {
     setApproval(null);
     setNodeStatus((s) => ({ ...s, approval_gate: "running" }));
     describe();
-    const q = new URLSearchParams({ thread_id: threadRef.current ?? "", decision, note });
+    const q = new URLSearchParams({
+      thread_id: threadRef.current ?? "",
+      decision,
+      note,
+      csrf_token: csrfToken(),
+    });
     connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream?${q}`);
   }
 

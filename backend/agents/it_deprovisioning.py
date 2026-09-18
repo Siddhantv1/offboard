@@ -17,10 +17,15 @@ plan/execute pair straddles a LangGraph interrupt (the approval gate).
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
+
+from sqlalchemy import func, update
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
 from ._context import doc_to_context
 from ..data_store import store
+from ..db import session_scope
+from ..db.models import DeprovisioningPlan
 from ..systems import execute_deprovisioning_action
 
 SYSTEM = """You are an IT security engineer preparing a deprovisioning plan for a \
@@ -55,8 +60,14 @@ POLICY_EXCERPT = """IT Deprovisioning & Access Revocation Policy (pol-it-002):
 
 
 def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_day: str = "",
-                        case_notes: str = "") -> dict[str, Any]:
-    """Phase 1: build the plan (LLM). Raises LLMError on gateway failure."""
+                        case_notes: str = "", case_id: str = "") -> dict[str, Any]:
+    """Phase 1: build the plan (LLM) and persist it server-side.
+
+    Raises LLMError on gateway failure. Persisting the plan -- rather than
+    trusting whatever the client echoes back at execute time -- is what lets
+    `execute_plan()` take a `plan_id` instead of an arbitrary client-supplied
+    plan body.
+    """
     emp = store.employee(employee_id)
     if not emp:
         return {"error": f"Unknown employee '{employee_id}'."}
@@ -67,36 +78,67 @@ def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_d
         + f"\nEmployee record:\n{doc_to_context(emp)}\n\nProduce the deprovisioning plan."
     )
     plan = llm.complete_json(SYSTEM, user)
-    if isinstance(plan, dict):
-        plan["employee_id"] = emp.meta.get("id", employee_id)
+    if isinstance(plan, dict) and not plan.get("error"):
+        plan_id = f"dep-{uuid4().hex[:8]}"
+        emp_id = str(emp.meta.get("id", employee_id))
+        plan["employee_id"] = emp_id
         plan["employee"] = emp.meta.get("name", emp.title)
+        plan["case_id"] = case_id or None
+        plan["plan_id"] = plan_id
         plan["requires_approval"] = True
+        with session_scope() as s:
+            s.add(DeprovisioningPlan(
+                id=plan_id,
+                employee_id=emp_id,
+                case_id=case_id or None,
+                plan=plan,
+                status="pending",
+            ))
     return plan
 
 
-def execute_plan(plan: dict[str, Any], *, approved_by: str = "hr-operator",
+def execute_plan(plan_id: str, *, approved_by: str = "hr-operator",
                  note: str = "") -> dict[str, Any]:
     """Phase 2: run each approved action through the connectors (no LLM).
 
-    `approved_by` and `note` are carried down to each action so the persisted
-    audit trail records the authorisation, not just the revocation.
+    Takes the persisted plan's id rather than a client-supplied plan body, and
+    atomically flips it pending->executed inside one transaction (CAS update +
+    action execution + result write-back), so a retried, double-clicked, or
+    replayed call cannot run the connectors twice: a concurrent call on the
+    same plan_id blocks on Postgres's row lock until this transaction commits,
+    then finds status already 'executed' and returns the cached result.
     """
-    actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
-    emp_id = str(plan.get("employee_id") or "")
-    case_id = str(plan.get("case_id") or "")
-    records = [
-        execute_deprovisioning_action(a, employee_id=emp_id, case_id=case_id,
-                                      approved_by=approved_by, note=note)
-        for a in actions
-    ]
-    return {
-        "employee_id": plan.get("employee_id"),
-        "approved_by": approved_by,
-        "approval_note": note,
-        "executed": len(records),
-        "audit_log": records,
-        "status": "executed" if records else "nothing_to_execute",
-    }
+    with session_scope() as s:
+        claimed = s.execute(
+            update(DeprovisioningPlan)
+            .where(DeprovisioningPlan.id == plan_id, DeprovisioningPlan.status == "pending")
+            .values(status="executed", approved_by=approved_by, note=note, executed_at=func.now())
+        ).rowcount == 1
+        row = s.get(DeprovisioningPlan, plan_id)
+        if row is None:
+            raise LookupError(f"Unknown deprovisioning plan '{plan_id}'.")
+        if not claimed:
+            return row.execution or {"status": "executed", "executed": 0}
+
+        plan = dict(row.plan)
+        actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
+        emp_id = str(plan.get("employee_id") or "")
+        case_id = str(plan.get("case_id") or "")
+        records = [
+            execute_deprovisioning_action(a, employee_id=emp_id, case_id=case_id,
+                                          approved_by=approved_by, note=note)
+            for a in actions
+        ]
+        execution = {
+            "employee_id": plan.get("employee_id"),
+            "approved_by": approved_by,
+            "approval_note": note,
+            "executed": len(records),
+            "audit_log": records,
+            "status": "executed" if records else "nothing_to_execute",
+        }
+        row.execution = execution
+        return execution
 
 
 @register
@@ -127,13 +169,15 @@ class ITDeprovisioningAgent(BaseAgent):
             return {"error": "Select an employee."}
         exit_type = (inputs.get("exit_type") or "").strip()
         lwd = ""
+        case_id = ""
         # If the employee has an exit case, borrow its exit type / LWD.
         for case in store.exit_cases():
             if str(case.meta.get("employee_id", "")) == emp_id:
                 exit_type = exit_type or str(case.meta.get("exit_type", ""))
                 lwd = str(case.meta.get("last_working_day", ""))
+                case_id = str(case.meta.get("case_id", ""))
                 break
-        plan = plan_deprovisioning(emp_id, exit_type=exit_type, last_working_day=lwd)
+        plan = plan_deprovisioning(emp_id, exit_type=exit_type, last_working_day=lwd, case_id=case_id)
         if "error" in plan:
             return plan
         return {"plan": plan, "awaiting_approval": True}

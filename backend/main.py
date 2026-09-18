@@ -129,6 +129,7 @@ def login(response: Response, payload: dict[str, Any] | None = None) -> dict[str
         # and never distinguishes "no such account" from "wrong password".
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     auth.set_session_cookie(response, token, secure=COOKIE_SECURE)
+    auth.set_csrf_cookie(response, secure=COOKIE_SECURE)
     return {"user": identity.as_json()}
 
 
@@ -136,6 +137,7 @@ def login(response: Response, payload: dict[str, Any] | None = None) -> dict[str
 def logout(request: Request, response: Response) -> dict[str, str]:
     auth.destroy_session(request.cookies.get(auth.SESSION_COOKIE))
     auth.clear_session_cookie(response)
+    auth.clear_csrf_cookie(response)
     return {"status": "signed out"}
 
 
@@ -162,6 +164,7 @@ def change_password(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     # change_password revoked every session, including this one.
     auth.clear_session_cookie(response)
+    auth.clear_csrf_cookie(response)
     return {"status": "password changed, sign in again"}
 
 
@@ -254,16 +257,25 @@ async def run_agent_upload(agent_id: str, user: HRUser, request: Request) -> dic
 @app.post("/api/agents/it_deprovisioning/execute")
 def execute_deprovisioning(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Phase 2 of the IT Deprovisioning agent: run a plan the operator has
-    approved on the agent page. No LLM -- exactly the approved actions run."""
+    approved on the agent page. No LLM -- exactly the approved actions run.
+
+    Takes the persisted plan's `plan_id`, not a client-supplied plan body: the
+    plan itself, and who is approving it, must come from the server's own
+    record of what was drafted and who is authenticated -- not from whatever
+    the client's request body happens to say.
+    """
     payload = payload or {}
-    plan = payload.get("plan")
-    if not isinstance(plan, dict) or not plan.get("actions"):
-        raise HTTPException(status_code=422, detail="Body must include the approved `plan` with its actions.")
-    execution = execute_plan(
-        plan,
-        approved_by=str(payload.get("approved_by") or "hr-operator (ui)"),
-        note=str(payload.get("note") or ""),
-    )
+    plan_id = str(payload.get("plan_id") or "")
+    if not plan_id:
+        raise HTTPException(status_code=422, detail="Body must include the approved plan's `plan_id`.")
+    try:
+        execution = execute_plan(
+            plan_id,
+            approved_by=user.full_name or user.email,
+            note=str(payload.get("note") or ""),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"agent": "it_deprovisioning", "execution": execution}
 
 
@@ -289,7 +301,10 @@ def orchestrate_case(case_id: str, user: HRUser, payload: dict[str, Any] | None 
     if decision not in ("approve", "reject"):
         raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'.")
     try:
-        result = run_orchestration(case_id, decision=decision, note=str((payload or {}).get("note") or ""))
+        result = run_orchestration(
+            case_id, decision=decision, note=str((payload or {}).get("note") or ""),
+            by=user.full_name or user.email,
+        )
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
@@ -303,8 +318,9 @@ def _sse(event: str, data: Any) -> str:
 
 @app.get("/api/orchestrate/{case_id}/stream")
 def orchestrate_case_stream(
-    user: HRUser,
+    request: Request, user: HRUser,
     case_id: str, thread_id: str | None = None, decision: str | None = None, note: str = "",
+    csrf_token: str | None = None,
 ) -> StreamingResponse:
     """The orchestrator as Server-Sent Events so the UI can light up each node
     the moment it starts and finishes:
@@ -316,7 +332,10 @@ def orchestrate_case_stream(
     A fresh call starts a run. When it pauses at the human approval gate, call
     the same route again with `thread_id` and `decision=approve|reject` (plus an
     optional `note`) to resume that run and stream the rest of it. GET rather
-    than POST because the browser's EventSource can only GET.
+    than POST because the browser's EventSource can only GET -- which also
+    means `SameSite=Lax` alone will not stop a cross-site top-level navigation
+    from carrying the session cookie here, so a resume additionally requires
+    the double-submit `csrf_token`.
     """
     if not store.exit_case(case_id):
         raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
@@ -325,6 +344,7 @@ def orchestrate_case_stream(
     if thread_id or decision:
         if not (thread_id and decision):
             raise HTTPException(status_code=422, detail="Resuming needs both thread_id and decision.")
+        auth.verify_csrf(request, csrf_token)
         decision = decision.lower()
         if decision not in ("approve", "reject"):
             raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'.")
@@ -333,7 +353,7 @@ def orchestrate_case_stream(
             raise HTTPException(status_code=409, detail="No approval is pending for that run (it may have finished or been restarted).")
         if str(pending.get("case_id")) != case_id:
             raise HTTPException(status_code=409, detail="That run belongs to a different exit case.")
-        resume = {"decision": decision, "note": note, "by": "hr-operator (ui)"}
+        resume = {"decision": decision, "note": note, "by": user.full_name or user.email}
 
     def events() -> Iterator[str]:
         try:

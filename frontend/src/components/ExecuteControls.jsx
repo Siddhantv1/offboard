@@ -16,8 +16,7 @@ export default function ExecuteControls({ plan }) {
     setState({ status: "running", execution: null, error: null });
     try {
       const data = await postJSON("/api/agents/it_deprovisioning/execute", {
-        plan,
-        approved_by: "hr-operator (ui)",
+        plan_id: plan.plan_id,
         note: noteRef.current?.value.trim() || "",
       });
       setState({ status: "done", execution: data.execution, error: null });

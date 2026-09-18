@@ -28,7 +28,7 @@ from typing import Annotated
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-from fastapi import Cookie, Depends, HTTPException, Response
+from fastapi import Cookie, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 
 from .db import session_scope
@@ -39,6 +39,13 @@ SESSION_TTL = timedelta(hours=12)
 # Sliding expiry: a session in active use is extended, so a long working day
 # does not sign someone out mid-review.
 SESSION_REFRESH_AFTER = timedelta(minutes=30)
+
+# Double-submit CSRF cookie. `SameSite=Lax` on the session cookie already
+# blocks cross-site POSTs, but it still attaches to a top-level cross-site GET
+# navigation -- exactly what the orchestrator's resume/stream endpoint is. A
+# second, JS-readable cookie set at login lets that GET carry a token a
+# cross-origin page cannot read, so it cannot forge a match.
+CSRF_COOKIE = "offboard_csrf"
 
 MAX_FAILED_ATTEMPTS = 8
 LOCKOUT = timedelta(minutes=15)
@@ -256,6 +263,38 @@ def set_session_cookie(response: Response, token: str, *, secure: bool) -> None:
 
 def clear_session_cookie(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE, path="/")
+
+
+def set_csrf_cookie(response: Response, *, secure: bool) -> str:
+    """Issue a fresh double-submit CSRF token, readable by the frontend JS so
+    it can echo it back on the resume/stream request."""
+    token = secrets.token_urlsafe(24)
+    response.set_cookie(
+        CSRF_COOKIE,
+        token,
+        httponly=False,  # must be readable by frontend JS to echo back
+        samesite="lax",
+        secure=secure,
+        max_age=int(SESSION_TTL.total_seconds()),
+        path="/",
+    )
+    return token
+
+
+def clear_csrf_cookie(response: Response) -> None:
+    response.delete_cookie(CSRF_COOKIE, path="/")
+
+
+def verify_csrf(request: Request, token: str | None) -> None:
+    """Raise 403 unless `token` matches this session's CSRF cookie.
+
+    Constant-time comparison: this is a secret-equality check, and a
+    timing-leaky one would let an attacker recover the cookie value byte by
+    byte instead of needing to read it directly.
+    """
+    cookie_value = request.cookies.get(CSRF_COOKIE)
+    if not token or not cookie_value or not secrets.compare_digest(token, cookie_value):
+        raise HTTPException(status_code=403, detail="Missing or invalid CSRF token.")
 
 
 # -- FastAPI dependencies -----------------------------------------------------

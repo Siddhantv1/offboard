@@ -25,3 +25,10 @@ export const postJSON = (url, body) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+
+/** The double-submit CSRF cookie set at login (readable by design -- it is
+ * proof the caller can read this origin's cookies, not a secret in itself). */
+export function csrfToken() {
+  const match = document.cookie.match(/(?:^|; )offboard_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}

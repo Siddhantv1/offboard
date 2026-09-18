@@ -165,6 +165,7 @@ def run_deprov_plan(state: ExitOrchestrationState) -> dict[str, Any]:
             exit_type=str(meta.get("exit_type", "")),
             last_working_day=str(meta.get("last_working_day", "")),
             case_notes=state.get("case_notes", ""),
+            case_id=state["case_id"],
         )
     except LLMError as exc:
         return {"deprov_plan": {}, "errors": [f"it_deprovisioning: {exc}"], "log": ["deprov_plan: failed"]}
@@ -222,7 +223,30 @@ def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
             "deprov_execution": {"status": "skipped", "reason": why, "executed": 0},
             "log": [f"deprov_execute: skipped ({why})"],
         }
-    result = execute_plan(plan, approved_by=approval.get("by", "hr-operator"), note=approval.get("note", ""))
+    plan_id = plan.get("plan_id")
+    if not plan_id:
+        result = {"status": "error", "reason": "plan has no plan_id", "executed": 0}
+        return {
+            "deprov_execution": result,
+            "errors": ["deprov_execute: plan has no plan_id"],
+            "log": ["deprov_execute: failed (no plan_id)"],
+        }
+    try:
+        result = execute_plan(plan_id, approved_by=approval.get("by", "hr-operator"), note=approval.get("note", ""))
+    except LookupError as exc:
+        result = {"status": "error", "reason": str(exc), "executed": 0}
+        return {
+            "deprov_execution": result,
+            "errors": [f"deprov_execute: {exc}"],
+            "log": ["deprov_execute: failed (unknown plan)"],
+        }
+    except Exception as exc:  # noqa: BLE001 - a connector failure must not crash the orchestration
+        result = {"status": "error", "reason": str(exc), "executed": 0}
+        return {
+            "deprov_execution": result,
+            "errors": [f"deprov_execute: {exc}"],
+            "log": ["deprov_execute: failed"],
+        }
     return {"deprov_execution": result, "log": [f"deprov_execute: {result['executed']} action(s) executed"]}
 
 
@@ -454,7 +478,9 @@ def pending_approvals(limit: int = 100) -> list[dict[str, Any]]:
     return out
 
 
-def run_orchestration(case_id: str, *, decision: str = "approve", note: str = "") -> ExitOrchestrationState:
+def run_orchestration(
+    case_id: str, *, decision: str = "approve", note: str = "", by: str = "api (auto)"
+) -> ExitOrchestrationState:
     """Blocking, non-interactive run (POST endpoint). The approval gate is
     answered automatically with `decision` so the call can complete."""
     graph = get_graph()
@@ -462,7 +488,7 @@ def run_orchestration(case_id: str, *, decision: str = "approve", note: str = ""
     state = graph.invoke(_initial_state(case_id), config=config)
     if graph.get_state(config).next:
         state = graph.invoke(
-            Command(resume={"decision": decision, "by": "api (auto)", "note": note or f"auto-{decision}"}),
+            Command(resume={"decision": decision, "by": by, "note": note or f"auto-{decision}"}),
             config=config,
         )
     return _finalize(dict(state))

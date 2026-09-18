@@ -346,6 +346,33 @@ class DeprovisioningAction(Base):
         }
 
 
+class DeprovisioningPlan(Base):
+    """A drafted deprovisioning plan awaiting (or having received) approval.
+
+    Persisting the plan server-side closes the gap where the execute route
+    used to accept an arbitrary client-supplied `plan` body: the client now
+    only ever sends back a `plan_id`. `status` starts 'pending' and moves to
+    'executed' exactly once via a compare-and-swap in `execute_plan()`.
+    """
+
+    __tablename__ = "deprovisioning_plans"
+    __table_args__ = (
+        CheckConstraint("status in ('pending', 'executed')", name="ck_deprov_plan_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    employee_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    case_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    plan: Mapped[dict[str, Any]] = mapped_column(DateAwareJSONB, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
+    approved_by: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str] = mapped_column(Text, default="")
+    execution: Mapped[dict[str, Any] | None] = mapped_column(DateAwareJSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class AgentRun(Base):
     """Execution history for every agent.
 
