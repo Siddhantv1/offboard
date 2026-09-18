@@ -17,5 +17,9 @@ from . import document_collection  # 12 # noqa: F401,E402
 from . import workflow_optimizer   # 13 # noqa: F401,E402
 from . import it_deprovisioning    # 14 # noqa: F401,E402
 from . import interview_trends     # 15 # noqa: F401,E402
+from . import rehire_assessment    # 17 # noqa: F401,E402
+from . import policy_auditor       # 18 # noqa: F401,E402
+from . import predictive_attrition # 19 # noqa: F401,E402
+from . import end_to_end_automation  # 20 # noqa: F401,E402
 
 __all__ = ["REGISTRY", "AgentMeta", "BaseAgent", "Field"]
