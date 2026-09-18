@@ -9,13 +9,17 @@ export const Badge = ({ value, label, className }) => (
 );
 
 export const Loading = ({ children }) => (
-  <div className="loading">
+  <div className="loading" role="status" aria-live="polite">
     <span className="spinner" />
     {children}
   </div>
 );
 
-export const ErrorBox = ({ children }) => <div className="err">{children}</div>;
+export const ErrorBox = ({ children }) => (
+  <div className="err" role="alert">
+    {children}
+  </div>
+);
 
 export const Empty = ({ children }) => <p className="empty">{children}</p>;
 

@@ -5,7 +5,12 @@
  * state) and means adding a field type needs no state plumbing.
  */
 export default function Field({ field: f }) {
-  const common = { name: f.name, id: `f-${f.name}`, placeholder: f.placeholder || undefined };
+  const common = {
+    name: f.name,
+    id: `f-${f.name}`,
+    placeholder: f.placeholder || undefined,
+    required: f.required || undefined,
+  };
 
   let control;
   if (f.type === "textarea") {

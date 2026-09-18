@@ -12,9 +12,13 @@ import { PageHead } from "./ui.jsx";
 export default function Chat({ agent }) {
   const preset = CHAT_PRESETS[agent.id] || CHAT_PRESETS.faq_chatbot;
 
-  const [messages, setMessages] = useState(
-    preset.auto ? [] : [{ role: "assistant", content: preset.greeting }],
-  );
+  // Auto agents (trend analyst) run their first turn with no question, so the
+  // greeting is what fills the thread until that analysis lands; `pending`
+  // keeps it out of the history sent back to the model, since it was never
+  // a real answer.
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: preset.greeting, pending: preset.auto },
+  ]);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [showStarters, setShowStarters] = useState(true);
@@ -198,10 +202,11 @@ function Message({ message: m }) {
 const Typing = () => (
   <div className="msg msg-bot">
     <div className="msg-avatar">◗</div>
-    <div className="bubble typing">
-      <span />
-      <span />
-      <span />
+    <div className="bubble typing" role="status">
+      <span className="sr-only">Assistant is typing…</span>
+      <span className="dot" aria-hidden="true" />
+      <span className="dot dot-2" aria-hidden="true" />
+      <span className="dot dot-3" aria-hidden="true" />
     </div>
   </div>
 );

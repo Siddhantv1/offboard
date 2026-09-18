@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from "react-router-do
 
 import EmployeeSidebar from "./components/EmployeeSidebar.jsx";
 import Sidebar from "./components/Sidebar.jsx";
+import { Loading } from "./components/ui.jsx";
 import { AgentsProvider, useAgents } from "./lib/agents.jsx";
 import { AuthProvider, useAuth } from "./lib/auth.jsx";
 import AddEmployee from "./pages/AddEmployee.jsx";
@@ -143,7 +144,7 @@ function Shell() {
   if (loading) {
     return (
       <div className="auth-screen">
-        <div className="auth-loading">Loading…</div>
+        <Loading>Loading…</Loading>
       </div>
     );
   }
