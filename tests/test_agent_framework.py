@@ -12,6 +12,8 @@ import pytest
 
 from backend.agents.base import (REGISTRY, AgentMeta, BaseAgent, Field,
                                  register, sanitise_for_storage)
+from backend.db import session_scope
+from backend.db.models import AgentRun
 
 
 # -- redaction ----------------------------------------------------------------
@@ -184,3 +186,125 @@ def test_execute_tolerates_none_inputs():
             return {"keys": sorted(inputs)}
 
     assert Nullable().execute(None) == {"keys": []}
+
+
+# -- execute() history persistence ---------------------------------------------
+# Every test above sets record_runs = False specifically to skip the database.
+# These leave it at its default (True) to pin the one thing that matters most
+# about a history row: it exists, and it is correct, not just accepted.
+def _delete_test_runs(agent_id: str) -> None:
+    with session_scope() as session:
+        session.query(AgentRun).filter(AgentRun.agent_id == agent_id).delete()
+
+
+@pytest.fixture
+def cleanup_agent_runs():
+    ids: list[str] = []
+    yield ids
+    for agent_id in ids:
+        _delete_test_runs(agent_id)
+
+
+def test_execute_persists_a_run_and_marks_it_finished_on_success(cleanup_agent_runs):
+    cleanup_agent_runs.append("_test_persist_ok")
+
+    class Recorded(BaseAgent):
+        meta = AgentMeta(id="_test_persist_ok", name="R", tagline="t", description="d",
+                         icon="r", category="Test")
+
+        def run(self, inputs):
+            return {"echoed": inputs.get("note")}
+
+    result = Recorded().execute({"case_id": "case-history-001", "employee_id": "emp-history-001",
+                                 "note": "hello"})
+    assert result == {"echoed": "hello"}
+
+    with session_scope() as session:
+        row = session.query(AgentRun).filter(AgentRun.agent_id == "_test_persist_ok").one()
+        assert row.case_id == "case-history-001"
+        assert row.employee_id == "emp-history-001"
+        assert row.inputs["note"] == "hello"
+        assert row.finished_at is not None
+        assert row.duration_ms is not None and row.duration_ms >= 0
+        assert row.error is None
+        assert row.result == {"echoed": "hello"}
+
+
+def test_execute_persists_the_error_on_failure(cleanup_agent_runs):
+    cleanup_agent_runs.append("_test_persist_error")
+
+    class Failing(BaseAgent):
+        meta = AgentMeta(id="_test_persist_error", name="F", tagline="t", description="d",
+                         icon="f", category="Test")
+
+        def run(self, inputs):
+            raise KeyError("boom")
+
+    with pytest.raises(KeyError):
+        Failing().execute({"case_id": "case-history-002"})
+
+    with session_scope() as session:
+        row = session.query(AgentRun).filter(AgentRun.agent_id == "_test_persist_error").one()
+        assert row.finished_at is not None
+        assert row.result is None
+        assert "boom" in row.error
+
+
+def test_execute_falls_back_to_kt_id_and_emp_id_for_identifiers(cleanup_agent_runs):
+    """`_identifier` accepts several key names so every agent's own input
+    schema (kt_id, emp_id, ...) still lands in the same case_id/employee_id
+    columns other agents use."""
+    cleanup_agent_runs.append("_test_persist_aliases")
+
+    class Aliased(BaseAgent):
+        meta = AgentMeta(id="_test_persist_aliases", name="A", tagline="t", description="d",
+                         icon="a", category="Test")
+
+        def run(self, inputs):
+            return {}
+
+    Aliased().execute({"kt_id": "kt-007", "emp_id": "emp-007"})
+
+    with session_scope() as session:
+        row = session.query(AgentRun).filter(AgentRun.agent_id == "_test_persist_aliases").one()
+        assert row.case_id == "kt-007"
+        assert row.employee_id == "emp-007"
+
+
+def test_execute_with_no_identifiers_leaves_case_and_employee_null(cleanup_agent_runs):
+    cleanup_agent_runs.append("_test_persist_no_ids")
+
+    class NoIds(BaseAgent):
+        meta = AgentMeta(id="_test_persist_no_ids", name="N", tagline="t", description="d",
+                         icon="n", category="Test")
+
+        def run(self, inputs):
+            return {"ok": True}
+
+    NoIds().execute({"focus": "no case or employee here"})
+
+    with session_scope() as session:
+        row = session.query(AgentRun).filter(AgentRun.agent_id == "_test_persist_no_ids").one()
+        assert row.case_id is None
+        assert row.employee_id is None
+
+
+def test_record_runs_false_writes_no_history_row(cleanup_agent_runs):
+    """The opt-out flag other tests in this file rely on actually opts out."""
+    cleanup_agent_runs.append("_test_persist_disabled")
+
+    class Unrecorded(BaseAgent):
+        meta = AgentMeta(id="_test_persist_disabled", name="U", tagline="t", description="d",
+                         icon="u", category="Test")
+        record_runs = False
+
+        def run(self, inputs):
+            return {}
+
+    Unrecorded().execute({"case_id": "case-should-not-be-stored"})
+
+    with session_scope() as session:
+        count = session.query(AgentRun).filter(
+            AgentRun.agent_id == "_test_persist_disabled"
+        ).count()
+    assert count == 0
