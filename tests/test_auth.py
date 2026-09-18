@@ -85,14 +85,29 @@ def test_wrong_password_and_unknown_account_are_indistinguishable(account):
     assert str(wrong.value) == str(unknown.value)
 
 
-def test_repeated_failures_lock_the_account(account):
+def test_repeated_wrong_passwords_lock_out_further_wrong_guesses(account):
     for _ in range(auth.MAX_FAILED_ATTEMPTS):
         with pytest.raises(auth.AuthError):
             auth.authenticate(EMAIL, "wrong")
 
-    # Even the *correct* password is refused while locked.
     with pytest.raises(auth.AuthError, match="Too many failed attempts"):
-        auth.authenticate(EMAIL, PASSWORD)
+        auth.authenticate(EMAIL, "still-wrong")
+
+
+def test_the_correct_password_always_succeeds_even_while_locked(account):
+    """The lockout throttles an attacker's guessing; it must never deny the
+    real owner -- who knows the password -- their own account. Locking on
+    email alone would let anyone who merely knows the address deny the owner
+    access indefinitely, just by repeating a few wrong guesses forever."""
+    for _ in range(auth.MAX_FAILED_ATTEMPTS):
+        with pytest.raises(auth.AuthError):
+            auth.authenticate(EMAIL, "wrong")
+
+    identity, token = auth.authenticate(EMAIL, PASSWORD)
+    assert identity.email == EMAIL
+    assert len(token) > 30
+    assert _user().failed_attempts == 0
+    assert _user().locked_until is None
 
 
 def test_a_successful_login_clears_the_failure_count(account):

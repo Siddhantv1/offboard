@@ -42,13 +42,13 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    try {
-      await postJSON("/api/auth/logout", {});
-    } finally {
-      // Sign out locally even if the request failed -- a dead network is not
-      // a reason to leave someone stuck looking logged in.
-      setUser(null);
-    }
+    // Only clear local state once the server confirms the session is gone.
+    // The session cookie is httponly, so a failed request leaves it valid --
+    // clearing `user` anyway would show a shared machine as "signed out"
+    // while the live session (and anyone still at that browser) can still
+    // use it. Callers should surface the rejection and let the operator retry.
+    await postJSON("/api/auth/logout", {});
+    setUser(null);
   }, []);
 
   const value = useMemo(

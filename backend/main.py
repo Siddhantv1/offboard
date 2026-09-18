@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -41,6 +42,14 @@ from .orchestration import (pending_approval, pending_approvals,
 from .rag import retriever as rag
 
 app = FastAPI(title="Exit Automation Platform", version="1.1")
+logger = logging.getLogger(__name__)
+
+# Per-request cap on multipart uploads (scans are a few MB at most). Checked
+# against Content-Length before request.form() runs -- that call fully parses
+# and spools the body first, so catching it there is what actually avoids
+# buffering an oversized upload; the later per-file read() cap is
+# defense-in-depth for requests with no Content-Length header.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 @app.on_event("startup")
@@ -224,7 +233,8 @@ def run_agent(agent_id: str, user: CurrentUser, payload: dict[str, Any] | None =
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("agent '%s' failed", agent_id)
+        raise HTTPException(status_code=500, detail="Something went wrong running this agent.") from exc
     return {"agent": agent_id, "result": result}
 
 
@@ -236,11 +246,16 @@ async def run_agent_upload(agent_id: str, user: HRUser, request: Request) -> dic
     agent = REGISTRY.get(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'.")
+    content_length = request.headers.get("content-length")
+    if content_length is not None and int(content_length) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Upload is too large (max 10 MB).")
     form = await request.form()
     inputs: dict[str, Any] = {}
     for key, value in form.multi_items():
         if isinstance(value, UploadFile):
-            data = await value.read()
+            data = await value.read(MAX_UPLOAD_BYTES + 1)
+            if len(data) > MAX_UPLOAD_BYTES:
+                raise HTTPException(status_code=413, detail="Upload is too large (max 10 MB).")
             if data:
                 inputs[key] = {"filename": value.filename, "content_type": value.content_type, "bytes": data}
         elif value != "":
@@ -250,7 +265,8 @@ async def run_agent_upload(agent_id: str, user: HRUser, request: Request) -> dic
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("agent '%s' failed on upload", agent_id)
+        raise HTTPException(status_code=500, detail="Something went wrong running this agent.") from exc
     return {"agent": agent_id, "result": result}
 
 
@@ -308,7 +324,8 @@ def orchestrate_case(case_id: str, user: HRUser, payload: dict[str, Any] | None 
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("orchestration failed for case '%s'", case_id)
+        raise HTTPException(status_code=500, detail="Something went wrong running the orchestrator.") from exc
     return {"case_id": case_id, "orchestration": result}
 
 
@@ -361,8 +378,9 @@ def orchestrate_case_stream(
                 yield _sse(ev.pop("event"), ev)
         except LLMError as exc:
             yield _sse("error", {"message": f"LLM gateway error: {exc}"})
-        except Exception as exc:  # noqa: BLE001
-            yield _sse("error", {"message": str(exc)})
+        except Exception:  # noqa: BLE001
+            logger.exception("orchestration stream failed for case '%s'", case_id)
+            yield _sse("error", {"message": "Something went wrong running the orchestrator."})
 
     return StreamingResponse(
         events(),

@@ -73,10 +73,13 @@ PORT = int(os.getenv("PORT", "8000"))
 # The URL carries the "+psycopg" dialect tag for SQLAlchemy. Libraries that
 # want a plain libpq URI (LangGraph's PostgresSaver) should use PG_URI below
 # rather than re-deriving it.
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://offboard:offboard@localhost:5432/offboard",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. There is deliberately no default here: a "
+        "misconfigured deployment should fail to start rather than silently "
+        "connect with guessable credentials. Set it in .env."
+    )
 
 # Separate database for the test suite, so a run can truncate freely without
 # touching development data. Overridden by TEST_DATABASE_URL in .env.

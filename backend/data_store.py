@@ -20,6 +20,7 @@ there is nothing to gain from putting them in a table.
 from __future__ import annotations
 
 import re
+import zlib
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -123,7 +124,14 @@ def _next_id(session: Session, id_col: Any, prefix: str) -> str:
     Derived by scanning existing ids rather than a sequence, so the
     human-readable numbering stays contiguous with the seeded data and a
     re-seed does not leave a gap.
+
+    Takes a transaction-scoped advisory lock keyed by `prefix` first: two
+    concurrent callers both scanning-then-inserting without it could compute
+    the same "next" id and collide (or worse, both succeed against
+    different rows and silently skip a number). The lock releases itself
+    when the enclosing transaction commits or rolls back.
     """
+    session.execute(select(func.pg_advisory_xact_lock(zlib.crc32(prefix.encode()))))
     nums = [
         int(m.group(1))
         for value in session.scalars(select(id_col))

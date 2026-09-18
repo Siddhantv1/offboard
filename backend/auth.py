@@ -145,12 +145,15 @@ def authenticate(email: str, password: str) -> tuple[Identity, str]:
         if not user.is_active:
             verify_password(_DUMMY_HASH, password)
             raise AuthError("This account is disabled. Contact HR.")
-        if user.locked_until and user.locked_until > _now():
-            mins = max(1, int((user.locked_until - _now()).total_seconds() // 60) + 1)
-            raise AuthError(f"Too many failed attempts. Try again in {mins} minutes.")
 
         if verify_password(user.password_hash, password):
-            # Success: clear throttling, upgrade the hash if parameters moved on.
+            # A correct password always succeeds, even mid-lockout. The
+            # lockout throttles an *attacker's* guessing; it must never deny
+            # the real owner -- who knows the password -- their own account.
+            # Locking on email alone (as this used to, checked before the
+            # password) let anyone who merely knew the address deny the owner
+            # access indefinitely, just by repeating a few wrong guesses every
+            # lockout window forever.
             user.failed_attempts = 0
             user.locked_until = None
             user.last_login_at = _now()
@@ -166,6 +169,12 @@ def authenticate(email: str, password: str) -> tuple[Identity, str]:
                 )
             )
             return _identity(user), token
+
+        # Wrong password: the lockout throttle applies only to further wrong
+        # guesses, never to the correct one above.
+        if user.locked_until and user.locked_until > _now():
+            mins = max(1, int((user.locked_until - _now()).total_seconds() // 60) + 1)
+            raise AuthError(f"Too many failed attempts. Try again in {mins} minutes.")
 
         failed_user_id = user.id
 
@@ -304,9 +313,20 @@ def optional_user(
     return resolve_session(token)
 
 
-def current_user(user: Annotated[Identity | None, Depends(optional_user)]) -> Identity:
+def current_user(
+    request: Request,
+    user: Annotated[Identity | None, Depends(optional_user)],
+) -> Identity:
     if user is None:
         raise HTTPException(status_code=401, detail="Sign in to continue.")
+    # Enforced server-side, not just hidden client-side: otherwise anyone who
+    # skips the frontend gate (a direct API call, a stale tab) keeps full
+    # access on a password the account owner was required to change.
+    if user.must_change_password and request.url.path != "/api/auth/password":
+        raise HTTPException(
+            status_code=403,
+            detail="You must set a new password before continuing.",
+        )
     return user
 
 

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 
 import EmployeeSidebar from "./components/EmployeeSidebar.jsx";
@@ -49,13 +50,27 @@ function AgentRoute() {
 
 function TopbarUser() {
   const { user, logout } = useAuth();
+  const [signOutError, setSignOutError] = useState(null);
+
+  async function handleSignOut() {
+    setSignOutError(null);
+    try {
+      await logout();
+    } catch (e) {
+      // logout() no longer clears the session locally on failure -- the
+      // server-side cookie is still valid, so say so instead of pretending.
+      setSignOutError(e.message || "Could not sign out. Try again.");
+    }
+  }
+
   return (
     <div className="topbar-user">
       <span className="topbar-user-name">{user?.full_name || user?.email}</span>
       <span className="topbar-user-role">{user?.role === "hr" ? "HR" : "Employee"}</span>
-      <button type="button" className="btn btn-ghost topbar-signout" onClick={logout}>
+      <button type="button" className="btn btn-ghost topbar-signout" onClick={handleSignOut}>
         Sign out
       </button>
+      {signOutError && <span className="topbar-signout-error">{signOutError}</span>}
     </div>
   );
 }

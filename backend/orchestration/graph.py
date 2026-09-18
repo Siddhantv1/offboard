@@ -150,7 +150,7 @@ def run_routing(state: ExitOrchestrationState) -> dict[str, Any]:
             continue
         result, error = _run_safe("smart_routing", {"stage": name})
         routing[name] = result
-        if error and not result.get("error"):
+        if error:
             return {"routing": routing, "errors": [error], "log": [f"smart_routing: failed on '{name}'"]}
     return {"routing": routing, "log": [f"smart_routing: {len(routing)} open stage(s)"]}
 

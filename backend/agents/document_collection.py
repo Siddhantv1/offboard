@@ -20,6 +20,7 @@ from .. import ocr
 from ..data_store import store
 from ..db import session_scope
 from ..db.models import CaseDocument
+from ..llm import LLMError
 
 # Canonical required documents, mirroring data/process-docs/documents-required.md
 # (proc-002). `issued` documents are produced by the company at sign-off, not
@@ -205,7 +206,16 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
             + (f", avg confidence {extracted['confidence']}" if extracted.get("confidence") is not None else "")
             + f"):\n{extracted['text']}"
         )
-        judgement = llm.complete_json(VALIDATE_SYSTEM, user, max_tokens=800)
+        try:
+            judgement = llm.complete_json(VALIDATE_SYSTEM, user, max_tokens=800)
+        except LLMError as exc:
+            # The OCR read above already succeeded and is worth keeping even
+            # if the judgement call fails -- without this, a gateway hiccup
+            # on this cheap text call would discard a correctly-read scan and
+            # force the employee to re-upload for no fault of their own.
+            judgement = {"verdict": "needs_review",
+                         "reason": f"Automatic validation was unavailable ({exc}); "
+                                   "an HR reviewer should check this scan manually."}
 
     out: dict[str, Any] = {
         "document": document_name,
