@@ -1314,17 +1314,48 @@ a.back:focus-visible,
 .doc-progress .meter { max-width: none; height: 10px; }
 .doc-all-in { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
 
-.doc-stage { margin-top: 20px; }
-.doc-stage-name {
-  font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
-  color: var(--muted); margin: 0 0 6px;
-}
+.doc-progress-note { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
 
-.doc-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.doc-row { padding: 14px 0; border-bottom: 1px solid var(--line); }
 .doc-row:last-child { border-bottom: none; }
 .doc-row-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .doc-name { font-weight: 500; font-size: 14px; }
 .doc-conditional { color: var(--muted); font-size: 12px; }
+/* Which clearance the form belongs to. On the row rather than as a heading,
+   because the list is ordered by what needs doing, not by stage. */
+.doc-stage-tag {
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted);
+}
+/* A refused document is the only row that needs action right now, so it is
+   the only one that gets a colour on its edge. */
+.doc-row-rejected {
+  border-left: 2px solid var(--danger);
+  padding-left: 12px; margin-left: -14px;
+}
+.doc-row-accepted .doc-name { color: var(--muted); font-weight: 450; }
+.doc-blurb { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; line-height: 1.5; }
+.doc-reason {
+  margin: 8px 0 0; font-size: 13px; line-height: 1.5;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--danger-wash); color: var(--ink);
+}
+.doc-reviewed {
+  margin: 6px 0 0; font-size: 12.5px; color: var(--muted);
+}
+.doc-sent { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.doc-scan { margin-top: 10px; }
+.doc-scan img {
+  display: block; max-width: 100%; max-height: 420px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+}
+.doc-done { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.doc-file-label.is-urgent {
+  border-color: var(--danger); color: var(--danger); font-weight: 500;
+}
+.doc-file-label.is-urgent:hover {
+  background: var(--danger-wash); border-color: var(--danger);
+}
 
 .doc-row-actions {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px;
@@ -1347,18 +1378,6 @@ input[type="file"].doc-file:focus-visible + .doc-file-label {
 }
 input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: default; }
 .doc-busy { color: var(--muted); font-size: 12.5px; }
-
-.doc-verdict {
-  margin-top: 10px; padding: 10px 12px; font-size: 13px;
-  border-radius: var(--radius-sm); border: 1px solid var(--line);
-  background: var(--inset); line-height: 1.5;
-}
-.doc-verdict-accepted { background: var(--ok-wash); border-color: var(--teal-soft); }
-.doc-verdict-needs_review { background: var(--warn-wash); border-color: #E4CE96; }
-.doc-verdict-rejected { background: var(--danger-wash); border-color: var(--danger); }
-.doc-verdict-reason {
-  margin-top: 6px; color: var(--muted); font-size: 12.5px;
-}
 
 .doc-done-toggle {
   background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px;

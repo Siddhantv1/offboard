@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DocumentUpload from "../components/DocumentUpload.jsx";
-import SubmittedDocuments from "../components/SubmittedDocuments.jsx";
 import { Badge, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
 import { fetchJSON } from "../lib/api.js";
 
@@ -44,12 +43,6 @@ export default function MyCase() {
     // requirement -- so refresh it quietly in the background.
     fetchJSON("/api/me/case")
       .then((c) => setState((s) => ({ ...s, data: c })))
-      .catch(() => {});
-    // The sent-list is not part of the upload response, so fetch it again --
-    // otherwise the document you just sent is missing from "what you have
-    // sent" until a reload.
-    fetchJSON("/api/me/case/documents")
-      .then((d) => setDocs((cur) => (cur ? { ...cur, uploads: d.uploads } : d)))
       .catch(() => {});
   }, []);
 
@@ -105,16 +98,8 @@ export default function MyCase() {
           <DocumentUpload
             checklist={docs.checklist}
             summary={docs.summary}
-            onUploaded={onUploaded}
-          />
-        </Panel>
-      )}
-
-      {!!docs?.uploads?.length && (
-        <Panel title="What you have sent">
-          <SubmittedDocuments
-            documents={docs.uploads}
             imageUrl={(id) => `/api/me/case/documents/${id}/image`}
+            onUploaded={onUploaded}
           />
         </Panel>
       )}

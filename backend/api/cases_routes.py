@@ -80,31 +80,78 @@ def _my_case(user: Identity):
 
 
 def _upload_checklist(case_meta: dict[str, Any]) -> list[dict[str, Any]]:
-    """Every document the employee can send, with where it stands.
+    """One row per document, carrying both what is required and what was sent.
 
-    `document_status` already works this out; this reshapes it into the thing
-    the upload UI needs -- one row per document, in process order, saying
-    whether it is outstanding, already in, or not being asked for yet.
+    This used to return the requirement only, and the page listed every upload
+    row separately underneath. That read badly: re-sending a rejected form
+    produced two entries for the same document, and the requirement list and
+    the sent list disagreed about the same thing at the same time. A person
+    owes a *document*, not a series of attempts -- so the attempt is folded
+    into the requirement, and only the latest one counts.
+
+    Latest-wins matches `ExitCase.submitted_documents()` exactly, which is what
+    actually decides whether the requirement is cleared. Same rule, one place
+    to read it.
     """
     by_name = {r["document"]: r for r in document_status(case_meta)["documents"]}
+
+    # Uploads arrive oldest-first (ordered by uploaded_at, id), so the last one
+    # written per name is the one that counts.
+    latest: dict[str, dict[str, Any]] = {}
+    attempts: dict[str, int] = {}
+    for upload in store.case_documents(str(case_meta.get("case_id") or "")):
+        name = upload.get("document_name")
+        latest[name] = upload
+        attempts[name] = attempts.get(name, 0) + 1
+
     rows = []
     for d in _UPLOADABLE:
-        status = by_name.get(d["name"], {}).get("status", "missing")
+        name = d["name"]
+        required = by_name.get(name, {}).get("status", "missing")
+        sent = latest.get(name)
+        verdict = (sent or {}).get("verdict")
+
+        # One vocabulary the UI can switch on, rather than making it reconcile
+        # "missing" against a rejected upload to work out what to show.
+        if verdict == "accepted":
+            state = "accepted"
+        elif verdict == "rejected":
+            state = "rejected"
+        elif verdict:
+            state = "in_review"
+        elif required == "not_yet_due":
+            state = "not_yet_due"
+        else:
+            state = "needed"
+
         rows.append({
-            "document": d["name"],
+            "document": name,
             "stage": d["stage"],
-            "status": status,
+            "state": state,
             "conditional": bool(d.get("conditional")),
-            # "not_yet_due" still accepts an upload. Being early is not a
-            # mistake worth blocking -- the paperwork is the same paperwork.
-            "can_upload": status != "submitted",
+            # Accepted is the only state with nothing left to do. "not_yet_due"
+            # still takes an upload: being early is not a mistake, the paperwork
+            # is the same paperwork.
+            "can_upload": state != "accepted",
+            "attempts": attempts.get(name, 0),
+            "latest": {
+                "id": sent["id"],
+                "filename": sent.get("filename"),
+                "verdict": sent.get("verdict"),
+                "reason": sent.get("reason"),
+                "uploaded_at": sent.get("uploaded_at"),
+                "reviewed_by": sent.get("reviewed_by"),
+                "review_note": sent.get("review_note"),
+                "has_image": sent.get("has_image"),
+            } if sent else None,
         })
     return rows
 
 
 @router.get("/me/case/documents")
 def my_case_documents(user: CurrentUser) -> dict[str, Any]:
-    """What the signed-in person still owes, and what they have sent."""
+    """The caller's document checklist: what is required, what they sent, and
+    what happened to it -- one row per document, not one per attempt."""
     case = _my_case(user)
     status = document_status(case.meta)
     return {
@@ -116,15 +163,6 @@ def my_case_documents(user: CurrentUser) -> dict[str, Any]:
             "completion_pct": status["completion_pct"],
             "all_in": status["all_due_documents_in"],
         },
-        # Their own uploads, with the verdict and any reviewer note, so a
-        # rejection explains itself instead of the document silently staying
-        # outstanding.
-        "uploads": [
-            {k: d.get(k) for k in
-             ("id", "document_name", "filename", "verdict", "reason",
-              "uploaded_at", "reviewed_by", "review_note", "has_image")}
-            for d in store.case_documents(str(case.meta.get("case_id")))
-        ],
     }
 
 

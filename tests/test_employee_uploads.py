@@ -17,7 +17,7 @@ from backend import auth
 from backend.api.cases_routes import _ISSUED, _UPLOADABLE, _upload_checklist
 from backend.data_store import store
 from backend.db import session_scope
-from backend.db.models import User
+from backend.db.models import CaseDocument, User
 from backend.main import app
 
 
@@ -70,12 +70,68 @@ def test_the_checklist_marks_what_is_already_in(employee, client):
     assert body["checklist"], "an exiting employee should have a checklist"
     assert set(body["summary"]) == {"submitted", "required_now", "completion_pct", "all_in"}
 
-    # A document already on the case reads as received and is not re-requested.
-    submitted = [r for r in body["checklist"] if r["status"] == "submitted"]
-    assert submitted, "the seeded case has documents in already"
-    assert all(r["can_upload"] is False for r in submitted), (
-        "a received document should not be presented as outstanding work"
+    # A document already accepted reads as done and is not re-requested.
+    accepted = [r for r in body["checklist"] if r["state"] == "accepted"]
+    assert accepted, "the seeded case has documents in already"
+    assert all(r["can_upload"] is False for r in accepted), (
+        "an accepted document should not be presented as outstanding work"
     )
+
+
+def test_the_checklist_has_exactly_one_row_per_document(employee, client):
+    """A person owes a document, not a series of attempts.
+
+    The page used to show the requirement list and a separate list of every
+    upload, so re-sending a rejected form produced two entries for the same
+    thing -- and the two lists could disagree about its state at the same
+    moment. The attempt is folded into the requirement now.
+    """
+    email, password, _ = employee
+    _login(client, email, password)
+    body = client.get("/api/me/case/documents").json()
+
+    names = [r["document"] for r in body["checklist"]]
+    assert len(names) == len(set(names)), f"duplicate rows: {names}"
+
+    # The old separate list is gone; nothing should re-introduce it.
+    assert "uploads" not in body, (
+        "a second list of raw uploads is what produced the duplicates"
+    )
+
+    for row in body["checklist"]:
+        assert row["state"] in {
+            "accepted", "rejected", "in_review", "needed", "not_yet_due",
+        }, row
+        # Only an accepted document has nothing left to do.
+        assert row["can_upload"] is (row["state"] != "accepted")
+        # A row that reports attempts must carry the latest one, and vice
+        # versa -- otherwise the UI cannot show why something was refused.
+        assert (row["attempts"] > 0) is (row["latest"] is not None)
+
+
+def test_a_rejected_document_still_invites_a_new_copy(employee, client):
+    """The state that matters most: refused, and obvious what to do next."""
+    email, password, case_id = employee
+    _login(client, email, password)
+
+    with session_scope() as s:
+        s.add(CaseDocument(
+            case_id=case_id, document_name="No-dues declaration",
+            filename="blurry.png", verdict="rejected",
+            reason="Too blurry to read the signature.",
+        ))
+    try:
+        body = client.get("/api/me/case/documents").json()
+        row = next(r for r in body["checklist"]
+                   if r["document"] == "No-dues declaration")
+        assert row["state"] == "rejected"
+        assert row["can_upload"] is True, "a refusal must be fixable"
+        assert row["latest"]["reason"] == "Too blurry to read the signature."
+    finally:
+        with session_scope() as s:
+            s.execute(delete(CaseDocument).where(
+                CaseDocument.case_id == case_id,
+                CaseDocument.filename == "blurry.png"))
 
 
 # -- the guards ---------------------------------------------------------------
