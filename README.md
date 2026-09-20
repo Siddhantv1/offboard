@@ -7,7 +7,7 @@ the **Portkey AI gateway** configured in Claude's `settings.json`, and
 **PostgreSQL** is the system of record for employees, cases, documents and
 audit trails (see [docs/database.md](docs/database.md)).
 
-## The 15 agents
+## The 19 agents
 
 | # | Agent | What it does |
 |---|-------|--------------|
@@ -241,6 +241,8 @@ cp .env.example .env          # set PORTKEY_API_KEY and the DATABASE_URL passwor
 python -m scripts.init_database   # creates the offboard role and databases
 alembic upgrade head              # builds the schema
 python -m backend.db.seed         # imports data/ into PostgreSQL
+python -m scripts.create_users    # one account per role; prints passwords ONCE
+python -m scripts.link_stage_owners   # connects accounts to the stages they own
 cd frontend && npm install && npm run build && cd ..   # builds the React app
 uvicorn backend.main:app --reload
 # open http://127.0.0.1:8000  (first boot builds the FAQ index via the gateway and warms the OCR engine)
@@ -254,29 +256,126 @@ Vite instead and let it proxy the API, which gives hot reload:
 cd frontend && npm run dev     # http://127.0.0.1:5173, /api proxied to :8000
 ```
 
-`python -m pytest tests/` runs the suite. See
-[docs/database.md](docs/database.md) for schema, migrations, and how a new
+`python -m pytest` runs the backend suite and `cd frontend && npm test` the
+frontend one. The backend tests run against `TEST_DATABASE_URL` (a separate
+`offboard_test` database), which `tests/conftest.py` points the engine at
+before anything imports `backend.db` -- so a test run cannot touch development
+data. That database must be migrated and seeded too, or the suite refuses to
+start rather than quietly skipping half of itself:
+
+```bash
+DATABASE_URL=$TEST_DATABASE_URL alembic upgrade head
+DATABASE_URL=$TEST_DATABASE_URL python -m backend.db.seed
+```
+
+See [docs/database.md](docs/database.md) for schema, migrations, and how a new
 agent gets persistence without writing any.
+
+## Roles
+
+### Signing in for a demo
+
+`scripts/create_users.py` prints each generated password exactly once. For a
+local run where you want to move between roles, put one known password on every
+account instead:
+
+```bash
+python -m scripts.create_users --demo-passwords    # password: offboard-demo-2026
+```
+
+It refuses unless `COOKIE_SECURE=0`, which is the setting that already says
+"this is local http". The four accounts worth using:
+
+| Role | Account | What they see |
+|---|---|---|
+| HR | `hr@perficient.com` | all 6 cases, orchestrator, people & access |
+| IT | `sanya.kapoor@perficient.com` | all 6 cases, 6 IT Clearance stages assigned, deprovisioning |
+| Manager | `vikram.sharma@perficient.com` | 3 cases (emp-001, 006, 008), KT + sign-off |
+| Employee | `aarav.mehta@perficient.com` | case-001 only, plus the FAQ chatbot |
+
+Three of the seeded managers — `anjali.desai@`, `neha.iyer@`, `sunil.rao@` —
+correctly see nothing: none of their reports are exiting. That is the scope
+check working, not an empty database.
+
+
+Four kinds of person, matching the five clearance stages the exit data already
+models. Each one gets a scoped work queue and can actually move the stage they
+own -- recorded in `case_stage_events`, because the exit case *is* the
+compliance record.
+
+| Role | Owns | Sees |
+|---|---|---|
+| `hr` | HR Clearance, Finance Clearance | Everything. Blanket override on any stage, recorded as an escalation |
+| `it` | IT Clearance | Every case (they clear access on all of them), plus deprovisioning |
+| `manager` | Knowledge Transfer, Manager Sign-off | Only cases whose employee reports to them |
+| `employee` | — | Only their own exit case, plus the FAQ chatbot |
+
+Authorisation is two independent checks. `require_roles(...)` gates the route;
+`scoped_case` resolves the record already filtered to the caller, so a route
+physically cannot obtain a case it has not scoped -- `tests/test_permissions.py`
+walks the route table and fails if a new `{case_id}` route skips it.
+
+Two things are deliberately split across people:
+
+* **Deprovisioning** goes `pending -> approved -> executed`. HR authorises, IT
+  runs it, and the two cannot be the same person. Before the split, whoever
+  executed was recorded as the approver -- so opening execution to IT would
+  have let one account draft a revocation against anyone, run it, and sign its
+  own paperwork.
+* **Nobody can action their own exit case**, whatever their role.
+
+`blocked` is a `blocked_reason` column, not a stage status. Four consumers read
+`status in ("in_progress", "completed")` as "started", so a fourth status would
+read as *earlier* than in progress and silently regress derived facts --
+including making a blocked stage's documents stop counting as due, which erases
+the policy auditor's missing-document findings. A stalled stage stays
+`in_progress` and carries a reason, so its SLA keeps counting.
 
 ### API
 
-- `GET  /api/health` — gateway/config + data counts
-- `GET  /api/agents` — agent catalog with auto-filled select options
-- `POST /api/agents/{id}/run` — run an agent; body is a JSON object of inputs
-- `POST /api/agents/{id}/upload` — same, as a multipart form (for `file` fields;
-  the Document Collection scan)
-- `POST /api/agents/it_deprovisioning/execute` — execute an approved plan
-  (`{plan, approved_by, note}`), returns the audit log
-- `GET  /api/cases` — exit case options (used by the orchestrator picker)
-- `GET  /api/approvals` — orchestration runs paused at the human approval gate,
-  across all sessions and surviving restarts
-- `POST /api/employees` — add a new employee (and a starter exit case if they
-  are marked exiting, in one transaction)
-- `POST /api/orchestrate/{case_id}` — run the orchestrator non-interactively
-  (body `{decision: approve|reject}` answers the gate)
+Routes live in `backend/api/`; `backend/main.py` only assembles the app, mounts
+the static bundle, and declares the SPA catch-all last so it cannot shadow the
+API. Every mutating `/api` request must carry the `X-CSRF-Token` header
+(middleware, so a new route cannot forget it); login and logout are exempt.
+
+**Auth** — `backend/api/auth_routes.py`
+- `POST /api/auth/login` · `POST /api/auth/logout`
+- `GET  /api/auth/me` — 200-with-null when signed out, so a page load can ask
+  without treating "nobody" as an error
+- `POST /api/auth/password` — rotate; revokes every session including this one
+
+**Agents** — `backend/api/agents_routes.py`
+- `GET  /api/agents` — the catalog, filtered to the caller's role, with select
+  options scoped to the records they may name
+- `POST /api/agents/{id}/run` — checks the agent *and* its arguments
+- `POST /api/agents/{id}/upload` — same, as multipart (the Document Collection scan)
+- `POST /api/agents/it_deprovisioning/execute` — `{plan_id, note}`. `hr` and `it`;
+  refuses a plan that is unapproved, or approved by the same person
+
+**Cases and work** — `backend/api/cases_routes.py`
+- `GET  /api/me/case` — the caller's own case, resolved from the session
+- `GET  /api/queue?scope=mine|all` — open stages of the types the role owns,
+  worst first
+- `GET  /api/cases` · `GET /api/cases/{case_id}` · `GET /api/cases/{case_id}/timeline`
+- `POST /api/cases/{case_id}/stages/{stage_key}/transition` — `{to, note, claim,
+  blocked_reason}`; writes `case_stage_events` and recomputes the case
+- `POST /api/cases/{case_id}/stages/{stage_key}/claim`
+- `GET  /api/cases/{case_id}/documents` · `POST /api/cases/{case_id}/documents/{doc_id}/review`
+- `POST /api/employees`
+
+**Orchestration** — `backend/api/orchestration_routes.py`
+- `GET  /api/approvals` — runs paused at the human gate, surviving restarts
+- `POST /api/deprovisioning/{plan_id}/approve` — HR authorises; IT then executes
+- `POST /api/orchestrate/{case_id}` — non-interactive; `{decision}` answers the gate
 - `GET  /api/orchestrate/{case_id}/stream` — the live run as Server-Sent Events
   (`run_start`, `node_start`, `node_end`, `awaiting_approval`, `done`, `error`);
-  add `?thread_id=…&decision=approve|reject&note=…` to resume a paused run
+  add `?thread_id=…&decision=approve|reject&note=…&csrf_token=…` to resume.
+  EventSource cannot send headers, hence the token as a query parameter.
+
+**Admin** — `backend/api/admin_routes.py`, all HR
+- `GET/POST /api/admin/users` · `PATCH /api/admin/users/{id}` ·
+  `POST /api/admin/users/{id}/reset-password`. Refuses to deactivate or demote
+  the last active HR account.
 
 ## Sample data
 

@@ -200,3 +200,69 @@ A GUI is optional and can be added at any time without touching the server:
 winget install DBeaver.DBeaver.Community     # lighter than pgAdmin, good JSONB viewer
 winget install PostgreSQL.pgAdmin
 ```
+
+
+## Setup order
+
+The four steps must run in this order, and each is safe to re-run:
+
+```bash
+alembic upgrade head              # schema only -- no step depends on seed data
+python -m backend.db.seed         # imports data/ into PostgreSQL
+python -m scripts.create_users    # one account per role
+python -m scripts.link_stage_owners   # free-text stage owners -> accounts
+```
+
+`link_stage_owners` is a script rather than part of a migration on purpose.
+Matching `CaseStage.owner` ("Sanya Kapoor") to an account needs accounts, which
+step 3 creates *after* the schema exists. A backfill inside Alembic would run
+before the data it depends on: on a fresh clone or in CI, `alembic upgrade head`
+goes first against empty tables, links nothing, and never runs again -- leaving
+every install except the original developer's with permanently unassigned work
+queues and no error. Alembic's contract is that revision N is a pure function of
+revision N-1, and a step whose output depends on whether someone ran a demo-data
+script breaks that invisibly.
+
+Not every owner gets linked, and that is expected. Of the five names in the
+corpus, two (Vikram Sharma, Karan Malhotra) have no `employees` row at all, and
+Pooja Shah is an active Finance employee with no reason to hold an account. An
+unlinked stage is *unclaimed*, which the queues treat as a first-class state --
+it is what lets someone pick up work when the assignee is away.
+
+## Tables added for the four-role model
+
+| Table / column | Why |
+|---|---|
+| `users.role` | Widened from `('hr','employee')` to `('hr','it','manager','employee')`. The downgrade **aborts** if any `it`/`manager` row exists rather than reassigning them to `hr` -- a downgrade that silently grants HR's blanket override is worse than one that refuses. |
+| `case_stages.stage_key` | Routes a stage to a role. Nullable: nothing constrains `CaseStage.name`, so an unexpected name maps to NULL, which degrades safely to HR-only rather than aborting the migration. |
+| `case_stages.owner_user_id` | The personal queue. `SET NULL` on delete -- losing an account must not delete the compliance record, and `owner` still holds the name as text. |
+| `case_stages.status_changed_at` | `days_open` is a stored integer that nothing increments, so every case created through the product sat at 0 forever and could never breach SLA. `policy.effective_days_open` takes the max of the two: seeded values stay authoritative, new cases age for real. |
+| `case_stages.blocked_reason` / `blocked_at` | A stalled stage, without adding a fourth status. See the note in README. |
+| `case_stage_events` | The audit trail. `actor_label` is denormalised beside the FK so the record still names who acted after that account is deleted. |
+| `deprovisioning_plans.approved_by_user_id` / `executed_by_user_id` | Separation of duties, enforced by a CHECK as well as in Python. |
+
+## What must never enter `CaseStage.to_meta()`
+
+`to_meta()` is the agent-facing contract: `tests/test_store_contract.py`
+compares it against `tests/golden/store_snapshot.json`, and all 19 agents read
+it. The platform columns above are deliberately absent from it. Adding one
+breaks the golden snapshot *and* silently changes what every agent sees.
+
+## `current_stage` is authored, not derived
+
+Measured against the six seeded cases, no rule reproduces it: case-001 has IT
+(8d) and KT (9d) both in progress and names KT, so it is not "lowest ordinal
+open"; case-003 has four stages open and names Finance, so it is not "longest
+open" either. It is a human's judgement of where the case actually is.
+
+So `stages.recompute_case` only advances the pointer when the stage it names has
+become `completed`, and otherwise leaves it alone. On the corpus as it stands
+that is a no-op for all six cases, which
+`test_recompute_is_a_no_op_on_the_seeded_corpus` pins. A rule derived from
+ordinals would have rewritten four of the five multi-stage cases the first time
+anyone moved a stage.
+
+`overall_status` genuinely *is* derived, and the rule reproduces every
+hand-authored value exactly: at risk when any non-completed stage has been open
+strictly longer than `SLA_DAYS`. Strict `>` matches all five agents that infer
+the same thing, so exactly 5 days is not a breach.
