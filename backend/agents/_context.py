@@ -5,11 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from ..data_store import Doc, store
+from ..policy import SLA_DAYS  # noqa: F401  (re-exported -- see below)
 
-# Days a clearance stage can sit open before it counts as overdue. One knob
-# shared by the dashboard, workflow optimizer, escalation and policy agents,
-# instead of each redefining its own copy of the same number.
-SLA_DAYS = 5
+# SLA_DAYS moved to `backend/policy.py` and is re-exported here so the agent
+# modules that do `from ._context import SLA_DAYS` keep working unchanged.
+#
+# It moved because the stage-transition API needs the same number, and
+# importing it from this package would drag in `backend/agents/__init__.py` --
+# all 19 agent modules and the known end_to_end_automation -> orchestration ->
+# graph -> agents cycle -- into the write path, to read one integer.
 
 
 def doc_to_context(doc: Doc, include_body: bool = True) -> str:

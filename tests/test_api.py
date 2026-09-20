@@ -102,10 +102,18 @@ def employee_without_case_account():
 
 
 def _login(client: TestClient, email: str, password: str) -> str:
-    """Log in (cookies land on the client automatically) and return the CSRF token."""
+    """Log in and return the CSRF token.
+
+    Cookies land on the client automatically. The token is additionally pinned
+    as a default header, because every mutating /api request now has to carry
+    the double-submit value -- which is exactly what the browser client does
+    once in its fetch wrapper rather than at each call site.
+    """
     resp = client.post("/api/auth/login", json={"email": email, "password": password})
     assert resp.status_code == 200
-    return client.cookies.get(auth.CSRF_COOKIE)
+    token = client.cookies.get(auth.CSRF_COOKIE)
+    client.headers["X-CSRF-Token"] = token
+    return token
 
 
 def _a_real_case_id() -> str:

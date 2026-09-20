@@ -1,6 +1,6 @@
 """Database engine and session management.
 
-Sync SQLAlchemy, deliberately. All 15 agents (soon 20) and the `store` facade
+Sync SQLAlchemy, deliberately. Every agent and the `store` facade
 are synchronous, and FastAPI already wraps the blocking routes in
 `run_in_threadpool`. Going async here would force rewriting every agent for no
 benefit at this concurrency.

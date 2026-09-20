@@ -202,21 +202,73 @@ def test_identity_exposes_no_secrets(account):
 
 
 def test_employee_agent_allowlist_is_restrictive():
-    from backend.main import EMPLOYEE_AGENTS, _assert_may_run
+    from backend.api.agents_routes import assert_may_run as _assert_may_run
+    from backend.policy import ROLE_AGENTS
+
+    EMPLOYEE_AGENTS = ROLE_AGENTS["employee"]
 
     hr = auth.Identity(1, "hr@x", "hr", None, None, False)
     emp = auth.Identity(2, "e@x", "employee", "emp-001", None, False)
 
-    _assert_may_run(hr, "checklist")            # HR may run anything
-    _assert_may_run(emp, "faq_chatbot")         # the one employee-facing agent
+    _assert_may_run(hr, "checklist", {})        # HR may run anything
+    _assert_may_run(emp, "faq_chatbot", {})     # the one employee-facing agent
 
     import fastapi
     for blocked in ("checklist", "dashboard_insights", "it_deprovisioning",
                     "multi_system_clearance", "interview_trends"):
         with pytest.raises(fastapi.HTTPException) as exc:
-            _assert_may_run(emp, blocked)
+            _assert_may_run(emp, blocked, {})
         assert exc.value.status_code == 403
 
     assert EMPLOYEE_AGENTS == {"faq_chatbot"}, (
         "widening this set gives every employee that agent's view of other people"
     )
+
+
+def test_each_role_can_run_only_its_own_agents():
+    """The ROLE_AGENTS table is the single seam for both the catalogue and the
+    run route, so a mistake here widens two surfaces at once."""
+    import fastapi
+
+    from backend.api.agents_routes import assert_may_run as _assert_may_run
+
+    it = auth.Identity(3, "it@x", "it", None, None, False)
+    mgr = auth.Identity(4, "m@x", "manager", None, None, False)
+
+    _assert_may_run(it, "it_deprovisioning", {})
+    _assert_may_run(it, "multi_system_clearance", {})
+    _assert_may_run(mgr, "kt_reviewer", {})
+    _assert_may_run(mgr, "risk_assessment", {})
+
+    # Neither role gets the other's tools, and neither gets HR's analytics.
+    for user, blocked in (
+        (it, "kt_reviewer"), (it, "interview_trends"), (it, "predictive_attrition"),
+        (mgr, "it_deprovisioning"), (mgr, "multi_system_clearance"),
+        (mgr, "dashboard_insights"),
+    ):
+        with pytest.raises(fastapi.HTTPException) as exc:
+            _assert_may_run(user, blocked, {})
+        assert exc.value.status_code == 403, f"{user.role} should not run {blocked}"
+
+
+def test_running_an_allowed_agent_on_an_out_of_scope_record_is_refused():
+    """The hole that role-only checks leave open.
+
+    A manager is cleared to run `risk_assessment`, which takes an arbitrary
+    `employee_id`. Without argument scoping they could run it against anyone in
+    the company -- a read side channel straight past the per-case checks.
+    """
+    import fastapi
+
+    from backend.api.agents_routes import assert_may_run as _assert_may_run
+
+    # A manager with no reports: every employee id is out of scope for them.
+    mgr = auth.Identity(5, "nobodys-manager@example.com", "manager", None, None, False)
+
+    with pytest.raises(fastapi.HTTPException) as exc:
+        _assert_may_run(mgr, "risk_assessment", {"employee_id": "emp-001"})
+    assert exc.value.status_code == 403
+    assert "outside your scope" in exc.value.detail
+
+    # Same agent, no record named -> allowed through to the agent's own validation.
+    _assert_may_run(mgr, "risk_assessment", {})

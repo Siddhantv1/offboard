@@ -1,59 +1,39 @@
 """FastAPI application.
 
-Serves the unified frontend (static) and a small JSON API:
-  GET  /api/agents            -> agent catalog, with select options auto-filled
-  POST /api/agents/{id}/run   -> run one agent with a JSON body of inputs
-  GET  /api/health            -> gateway/config sanity
-  GET  /api/cases             -> exit case options (orchestrator picker)
-  POST /api/employees         -> add a new employee record
-  GET  /api/cases/{id}/documents -> every uploaded document on a case, every verdict
-  POST /api/cases/{id}/documents/{doc_id}/review -> human override of a document's verdict
-  GET  /api/me/case            -> the signed-in employee's own exit case + document status
-  POST /api/agents/{id}/upload -> same, as multipart form (file fields, e.g. a scan)
-  POST /api/agents/it_deprovisioning/execute -> run an approved deprovisioning plan
-  POST /api/orchestrate/{case_id} -> run the LangGraph exit-clearance orchestrator
-  GET  /api/orchestrate/{case_id}/stream -> same run, as Server-Sent Events
-                                            (one event per node start/finish);
-                                            pauses at the approval gate, then
-                                            ?thread_id=&decision=approve|reject resumes it
+Assembly only. Every route lives in `backend/api/` -- see `api/router.py` for
+the map. This file owns the three things the routers cannot: the app object,
+the startup hook, and the static frontend mount.
 
+The API surface, by router:
+
+  api/auth_routes.py           /api/auth/*       sign in/out, who am I, password
+  api/health_routes.py         /api/health       gateway + config sanity
+  api/agents_routes.py         /api/agents/*     catalogue, run, upload, execute
+  api/cases_routes.py          /api/cases/*, /api/me/case, /api/queue,
+                               /api/employees, documents, transitions, timeline
+  api/orchestration_routes.py  /api/orchestrate/*, /api/approvals,
+                               /api/deprovisioning/{id}/approve
+  api/admin_routes.py          /api/admin/users/*  HR user administration
+
+Ordering constraint: the SPA catch-all at the bottom matches *everything*, so
+it must stay the last route registered. The `include_router` call above it is
+what keeps the API reachable at all.
 """
 from __future__ import annotations
 
-import dataclasses
-import json
-import logging
+import secrets
 import threading
-from collections.abc import Iterator
-from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
-from starlette.datastructures import UploadFile  # form parts arrive as this class, not fastapi.UploadFile
 
 from . import auth, ocr
-from .agents import REGISTRY
-from .agents.document_collection import document_status
-from .auth import CurrentUser, HRUser, OptionalUser
-from .agents.it_deprovisioning import execute_plan
-from .config import COOKIE_SECURE, FRONTEND_DIST, PORTKEY
-from .data_store import store
-from .llm import LLMError
-from .orchestration import (pending_approval, pending_approvals,
-                            run_orchestration, stream_orchestration)
+from .api.router import api_router
+from .config import FRONTEND_DIST
 from .rag import retriever as rag
 
-app = FastAPI(title="Exit Automation Platform", version="1.1")
-logger = logging.getLogger(__name__)
-
-# Per-request cap on multipart uploads (scans are a few MB at most). Checked
-# against Content-Length before request.form() runs -- that call fully parses
-# and spools the body first, so catching it there is what actually avoids
-# buffering an oversized upload; the later per-file read() cap is
-# defense-in-depth for requests with no Content-Length header.
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+app = FastAPI(title="Exit Automation Platform", version="2.0")
 
 
 @app.on_event("startup")
@@ -67,385 +47,49 @@ def _build_rag_index() -> None:
     threading.Thread(target=ocr.warm_up, name="ocr-warmup", daemon=True).start()
 
 
-# -- dynamic select options -----------------------------------------------
-def _employee_options() -> list[dict[str, str]]:
-    opts = []
-    for d in store.employees():
-        label = f"{d.meta.get('name', d.slug)} · {d.meta.get('role', '')}"
-        opts.append({"value": str(d.meta.get("id", d.slug)), "label": label.strip(" ·")})
-    return opts
+#: Mutating requests to these paths carry no session yet (login) or must work
+#: even when the session is already gone (logout), so the double-submit check
+#: cannot apply to them.
+CSRF_EXEMPT = frozenset({"/api/auth/login", "/api/auth/logout"})
+_MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
-def _case_options() -> list[dict[str, str]]:
-    return [
-        {"value": str(d.meta.get("case_id", d.slug)),
-         "label": f"{d.meta.get('case_id', d.slug)} · {d.meta.get('employee_name', '')}".strip(" ·")}
-        for d in store.exit_cases()
-    ]
+@app.middleware("http")
+async def _enforce_csrf(request: Request, call_next):
+    """Double-submit CSRF on every mutating API request.
 
+    Middleware rather than a per-route dependency, deliberately. Before this,
+    exactly one route (the orchestrator's SSE resume) called `verify_csrf`, and
+    every other mutating endpoint -- create employee, run agent, execute a
+    deprovisioning plan, change password -- relied on `SameSite=Lax` alone.
+    Lax stops a cross-site POST today, but it is one cookie-attribute change
+    away from not doing so, and the failure would be silent.
 
-def _kt_options() -> list[dict[str, str]]:
-    return [
-        {"value": str(d.meta.get("kt_id", d.slug)),
-         "label": f"{d.meta.get('kt_id', d.slug)} · emp {d.meta.get('employee_id', '?')}"}
-        for d in store.kt_docs()
-    ]
-
-
-def _interview_options() -> list[dict[str, str]]:
-    return [
-        {"value": str(d.meta.get("interview_id", d.slug)),
-         "label": f"{d.meta.get('interview_id', d.slug)} · {d.meta.get('department', '')}".strip(" ·")}
-        for d in store.interviews()
-    ]
-
-
-_DYNAMIC = {
-    "employee_id": _employee_options,
-    "case_id": _case_options,
-    "kt_id": _kt_options,
-    "interview_id": _interview_options,
-}
-
-
-def _serialize_agent(agent: Any) -> dict[str, Any]:
-    meta = dataclasses.asdict(agent.meta)
-    for field in meta["fields"]:
-        filler = _DYNAMIC.get(field["name"])
-        if filler and not field["options"]:
-            field["options"] = filler()
-    return meta
-
-
-# -- auth ------------------------------------------------------------------
-#: The only agents an employee may invoke directly. The FAQ chatbot answers
-#: from published policy and reveals nothing about anyone else; every other
-#: agent reads case data across the organisation.
-EMPLOYEE_AGENTS = {"faq_chatbot"}
-
-
-def _assert_may_run(user: auth.Identity, agent_id: str) -> None:
-    if user.is_hr or agent_id in EMPLOYEE_AGENTS:
-        return
-    raise HTTPException(status_code=403, detail="This area is for HR accounts.")
-
-
-@app.post("/api/auth/login")
-def login(response: Response, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    payload = payload or {}
-    try:
-        identity, token = auth.authenticate(
-            str(payload.get("email") or ""), str(payload.get("password") or "")
-        )
-    except auth.AuthError as exc:
-        # 401 with the module's own message: it is written to be safe to show,
-        # and never distinguishes "no such account" from "wrong password".
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-    auth.set_session_cookie(response, token, secure=COOKIE_SECURE)
-    auth.set_csrf_cookie(response, secure=COOKIE_SECURE)
-    return {"user": identity.as_json()}
-
-
-@app.post("/api/auth/logout")
-def logout(request: Request, response: Response) -> dict[str, str]:
-    auth.destroy_session(request.cookies.get(auth.SESSION_COOKIE))
-    auth.clear_session_cookie(response)
-    auth.clear_csrf_cookie(response)
-    return {"status": "signed out"}
-
-
-@app.get("/api/auth/me")
-def whoami(user: OptionalUser) -> dict[str, Any]:
-    """Who the browser is, or null. Deliberately 200-with-null rather than 401
-    so the app can ask on load without treating "not signed in" as an error."""
-    return {"user": user.as_json() if user else None}
-
-
-@app.post("/api/auth/password")
-def change_password(
-    request: Request, response: Response, user: CurrentUser,
-    payload: dict[str, Any] | None = None,
-) -> dict[str, str]:
-    payload = payload or {}
-    try:
-        auth.change_password(
-            user.user_id,
-            str(payload.get("current_password") or ""),
-            str(payload.get("new_password") or ""),
-        )
-    except auth.AuthError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    # change_password revoked every session, including this one.
-    auth.clear_session_cookie(response)
-    auth.clear_csrf_cookie(response)
-    return {"status": "password changed, sign in again"}
-
-
-# -- API -------------------------------------------------------------------
-@app.get("/api/health")
-def health(user: HRUser) -> dict[str, Any]:
-    # Gateway/model/agent-count are internal-architecture details an employee
-    # was explicitly scoped out of seeing, so this stays HR-only.
-    return {
-        "status": "ok",
-        "gateway": PORTKEY.base_url,
-        "provider": PORTKEY.provider,
-        "model": PORTKEY.model,
-        "agents": len(REGISTRY),
-        "employees": len(store.employees()),
-        "exit_cases": len(store.exit_cases()),
-        "rag": rag.stats(),
-    }
-
-
-@app.get("/api/agents")
-def list_agents(user: CurrentUser) -> dict[str, Any]:
-    # HR sees the full catalog; an employee sees only the agents they are
-    # actually allowed to run (today: just the FAQ chatbot), via the same
-    # allowlist run_agent enforces -- one seam, not two rules to keep in sync.
-    visible = REGISTRY.values() if user.is_hr else (
-        a for aid, a in REGISTRY.items() if aid in EMPLOYEE_AGENTS
-    )
-    return {"agents": [_serialize_agent(a) for a in visible]}
-
-
-@app.get("/api/me/case")
-def my_case(user: CurrentUser) -> dict[str, Any]:
-    """The signed-in employee's own exit case: stages, status, and exactly
-    which documents are still owed. Scoped to `user.employee_id` from the
-    session -- never a client-supplied id, so no employee can request
-    another employee's case by guessing a case_id."""
-    case = store.exit_case_for_employee(user.employee_id) if user.employee_id else None
-    if not case:
-        raise HTTPException(status_code=404, detail="No exit case is associated with this account.")
-    return {"case": case.meta, "documents": document_status(case.meta)}
-
-
-@app.get("/api/cases")
-def list_cases(user: HRUser) -> dict[str, Any]:
-    """Exit case options for the orchestrator picker (frontend-only helper)."""
-    return {"cases": _case_options()}
-
-
-@app.post("/api/employees")
-def create_employee(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Add a new employee record (writes a Markdown file, refreshes the cache).
-    If marked "exiting", also creates a starter exit case for the orchestrator
-    and, if the email has no account yet, a one-time login credential."""
-    try:
-        emp_doc, case_doc, credential = store.add_employee(payload or {})
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {
-        "employee": emp_doc.meta,
-        "case": case_doc.meta if case_doc else None,
-        "credential": credential,
-    }
-
-
-@app.get("/api/cases/{case_id}/documents")
-def list_case_documents(case_id: str, user: HRUser) -> dict[str, Any]:
-    """Every uploaded document on a case, every verdict -- the raw rows behind
-    Document Collection's `documents_submitted` summary, so HR can see (and
-    override) exactly what the model decided and why."""
-    if not store.exit_case(case_id):
-        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
-    return {"case_id": case_id, "documents": store.case_documents(case_id)}
-
-
-@app.post("/api/cases/{case_id}/documents/{doc_id}/review")
-def review_case_document(
-    case_id: str, doc_id: int, user: HRUser, payload: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """A human overrides the model's verdict on one uploaded document.
-
-    The verdict this writes is exactly what `ExitCase.submitted_documents()`
-    reads back, so overriding it here is what actually clears (or reinstates)
-    the requirement everywhere else in the app -- not a note bolted on beside
-    an unchanged status.
+    Putting it here means a new mutating route is protected by *where it lives*
+    rather than by its author remembering. GETs are untouched: the SSE stream
+    route does its own check, because EventSource cannot send headers and has
+    to pass the token as a query parameter instead.
     """
-    if not store.exit_case(case_id):
-        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
-    payload = payload or {}
-    try:
-        document = store.review_document(
-            case_id, doc_id,
-            verdict=str(payload.get("verdict") or ""),
-            reviewed_by=user.full_name or user.email,
-            note=str(payload.get("note") or ""),
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"case_id": case_id, "document": document}
+    if (request.method in _MUTATING
+            and request.url.path.startswith("/api/")
+            and request.url.path not in CSRF_EXEMPT
+            # No session means there is nothing for a cross-site page to abuse,
+            # so let it through and answer with the 401 the route would give.
+            # Without this, an expired session gets "Missing or invalid CSRF
+            # token" on its next write -- which tells the user nothing useful
+            # and never prompts them to sign in again.
+            and request.cookies.get(auth.SESSION_COOKIE)):
+        cookie = request.cookies.get(auth.CSRF_COOKIE)
+        header = request.headers.get("X-CSRF-Token")
+        if not cookie or not header or not secrets.compare_digest(header, cookie):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Missing or invalid CSRF token."},
+            )
+    return await call_next(request)
 
 
-@app.post("/api/agents/{agent_id}/run")
-def run_agent(agent_id: str, user: CurrentUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    _assert_may_run(user, agent_id)
-    agent = REGISTRY.get(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'.")
-    try:
-        result = agent.execute(payload or {})
-    except LLMError as exc:
-        raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("agent '%s' failed", agent_id)
-        raise HTTPException(status_code=500, detail="Something went wrong running this agent.") from exc
-    return {"agent": agent_id, "result": result}
-
-
-@app.post("/api/agents/{agent_id}/upload")
-async def run_agent_upload(agent_id: str, user: HRUser, request: Request) -> dict[str, Any]:
-    """Multipart variant of /run for agents with `file` fields (Document
-    Collection's scan upload). File parts arrive in `inputs[name]` as
-    {"filename", "content_type", "bytes"}; other parts as plain strings."""
-    agent = REGISTRY.get(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Unknown agent '{agent_id}'.")
-    content_length = request.headers.get("content-length")
-    if content_length is not None and int(content_length) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Upload is too large (max 10 MB).")
-    form = await request.form()
-    inputs: dict[str, Any] = {}
-    for key, value in form.multi_items():
-        if isinstance(value, UploadFile):
-            data = await value.read(MAX_UPLOAD_BYTES + 1)
-            if len(data) > MAX_UPLOAD_BYTES:
-                raise HTTPException(status_code=413, detail="Upload is too large (max 10 MB).")
-            if data:
-                inputs[key] = {"filename": value.filename, "content_type": value.content_type, "bytes": data}
-        elif value != "":
-            inputs[key] = value
-    try:
-        result = await run_in_threadpool(agent.execute, inputs)
-    except LLMError as exc:
-        raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("agent '%s' failed on upload", agent_id)
-        raise HTTPException(status_code=500, detail="Something went wrong running this agent.") from exc
-    return {"agent": agent_id, "result": result}
-
-
-@app.post("/api/agents/it_deprovisioning/execute")
-def execute_deprovisioning(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Phase 2 of the IT Deprovisioning agent: run a plan the operator has
-    approved on the agent page. No LLM -- exactly the approved actions run.
-
-    Takes the persisted plan's `plan_id`, not a client-supplied plan body: the
-    plan itself, and who is approving it, must come from the server's own
-    record of what was drafted and who is authenticated -- not from whatever
-    the client's request body happens to say.
-    """
-    payload = payload or {}
-    plan_id = str(payload.get("plan_id") or "")
-    if not plan_id:
-        raise HTTPException(status_code=422, detail="Body must include the approved plan's `plan_id`.")
-    try:
-        execution = execute_plan(
-            plan_id,
-            approved_by=user.full_name or user.email,
-            note=str(payload.get("note") or ""),
-        )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"agent": "it_deprovisioning", "execution": execution}
-
-
-@app.get("/api/approvals")
-def list_pending_approvals(user: HRUser) -> dict[str, Any]:
-    """Orchestration runs paused at the human approval gate, across all
-    sessions and surviving restarts.
-
-    Before the checkpoints were durable, a paused run was only reachable via
-    the thread_id held in the browser tab that started it.
-    """
-    return {"approvals": pending_approvals()}
-
-
-@app.post("/api/orchestrate/{case_id}")
-def orchestrate_case(case_id: str, user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Run the multi-agent LangGraph orchestrator for one exit case end to end.
-    Non-interactive: the human approval gate is answered with `decision`
-    from the body (default "approve"). Use the /stream route for a real pause."""
-    if not store.exit_case(case_id):
-        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
-    decision = str((payload or {}).get("decision") or "approve").lower()
-    if decision not in ("approve", "reject"):
-        raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'.")
-    try:
-        result = run_orchestration(
-            case_id, decision=decision, note=str((payload or {}).get("note") or ""),
-            by=user.full_name or user.email,
-        )
-    except LLMError as exc:
-        raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("orchestration failed for case '%s'", case_id)
-        raise HTTPException(status_code=500, detail="Something went wrong running the orchestrator.") from exc
-    return {"case_id": case_id, "orchestration": result}
-
-
-def _sse(event: str, data: Any) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
-
-
-@app.get("/api/orchestrate/{case_id}/stream")
-def orchestrate_case_stream(
-    request: Request, user: HRUser,
-    case_id: str, thread_id: str | None = None, decision: str | None = None, note: str = "",
-    csrf_token: str | None = None,
-) -> StreamingResponse:
-    """The orchestrator as Server-Sent Events so the UI can light up each node
-    the moment it starts and finishes:
-      run_start {thread_id}          node_start {node, step}
-      node_end  {node, step, error, log, retries}
-      awaiting_approval {thread_id, case_id, employee, plan}  -- run is paused
-      done      {result}             error {message}
-
-    A fresh call starts a run. When it pauses at the human approval gate, call
-    the same route again with `thread_id` and `decision=approve|reject` (plus an
-    optional `note`) to resume that run and stream the rest of it. GET rather
-    than POST because the browser's EventSource can only GET -- which also
-    means `SameSite=Lax` alone will not stop a cross-site top-level navigation
-    from carrying the session cookie here, so a resume additionally requires
-    the double-submit `csrf_token`.
-    """
-    if not store.exit_case(case_id):
-        raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
-
-    resume: dict[str, Any] | None = None
-    if thread_id or decision:
-        if not (thread_id and decision):
-            raise HTTPException(status_code=422, detail="Resuming needs both thread_id and decision.")
-        auth.verify_csrf(request, csrf_token)
-        decision = decision.lower()
-        if decision not in ("approve", "reject"):
-            raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'.")
-        pending = pending_approval(thread_id)
-        if not pending:
-            raise HTTPException(status_code=409, detail="No approval is pending for that run (it may have finished or been restarted).")
-        if str(pending.get("case_id")) != case_id:
-            raise HTTPException(status_code=409, detail="That run belongs to a different exit case.")
-        resume = {"decision": decision, "note": note, "by": user.full_name or user.email}
-
-    def events() -> Iterator[str]:
-        try:
-            for ev in stream_orchestration(case_id, thread_id=thread_id, resume=resume):
-                yield _sse(ev.pop("event"), ev)
-        except LLMError as exc:
-            yield _sse("error", {"message": f"LLM gateway error: {exc}"})
-        except Exception:  # noqa: BLE001
-            logger.exception("orchestration stream failed for case '%s'", case_id)
-            yield _sse("error", {"message": "Something went wrong running the orchestrator."})
-
-    return StreamingResponse(
-        events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+app.include_router(api_router)
 
 
 # -- static frontend (declared last so it doesn't shadow /api) --------------

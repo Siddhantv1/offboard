@@ -22,17 +22,18 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
-from fastapi import Cookie, Depends, HTTPException, Request, Response
+from fastapi import Cookie, Depends, Header, HTTPException, Request, Response
 from sqlalchemy import select
 
 from .db import session_scope
-from .db.models import User, UserSession
+from .db.models import ROLES, User, UserSession
 
 SESSION_COOKIE = "offboard_session"
 SESSION_TTL = timedelta(hours=12)
@@ -112,6 +113,11 @@ class Identity:
     @property
     def is_hr(self) -> bool:
         return self.role == "hr"
+
+    @property
+    def is_staff(self) -> bool:
+        """Anyone who works a case, as opposed to being the subject of one."""
+        return self.role in ("hr", "it", "manager")
 
     def as_json(self) -> dict[str, object]:
         return {
@@ -341,13 +347,79 @@ def current_user(
     return user
 
 
+#: Human-readable names for the 403 message. Naming the roles that *would*
+#: work turns "forbidden" into something the reader can act on.
+_ROLE_LABELS = {"hr": "HR", "it": "IT", "manager": "manager", "employee": "employee"}
+
+
+def _forbidden(allowed: tuple[str, ...]) -> HTTPException:
+    names = [_ROLE_LABELS.get(r, r) for r in allowed]
+    if len(names) == 1:
+        who = f"{names[0]} accounts"
+    else:
+        who = ", ".join(names[:-1]) + f" and {names[-1]} accounts"
+    # 403, not 404: the caller is authenticated, just not permitted.
+    return HTTPException(status_code=403, detail=f"This area is for {who}.")
+
+
+def require_roles(*allowed: str) -> Callable[..., Identity]:
+    """Dependency factory: 403 unless the caller holds one of `allowed`.
+
+    Replaces the single `require_hr`. A factory rather than a named-permission
+    table because four roles and ~20 routes do not earn the indirection -- the
+    role set at each route *is* the policy, readable in the signature.
+
+    Unknown role names are rejected at import time rather than silently never
+    matching, which is how a typo'd guard becomes an open route.
+    """
+    unknown = set(allowed) - set(ROLES)
+    if unknown:
+        raise ValueError(f"require_roles got unknown role(s): {sorted(unknown)}")
+
+    def guard(user: Annotated[Identity, Depends(current_user)]) -> Identity:
+        if user.role not in allowed:
+            raise _forbidden(allowed)
+        return user
+
+    return guard
+
+
 def require_hr(user: Annotated[Identity, Depends(current_user)]) -> Identity:
+    """Kept as a named function: `main.py` and the tests reference it directly,
+    and `HRUser` below is by far the most common guard in the app."""
     if not user.is_hr:
-        # 403, not 404: the caller is authenticated, just not permitted.
-        raise HTTPException(status_code=403, detail="This area is for HR accounts.")
+        raise _forbidden(("hr",))
+    return user
+
+
+def csrf_protected(
+    request: Request,
+    user: Annotated[Identity, Depends(current_user)],
+    x_csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> Identity:
+    """Double-submit CSRF check for any state-changing route.
+
+    Previously only the SSE resume route called `verify_csrf`, which left every
+    other mutating endpoint -- create employee, run agent, execute a
+    deprovisioning plan, change password -- relying on `SameSite=Lax` alone.
+    Lax stops a cross-site POST but is a single cookie-attribute away from not
+    doing so, and it is the kind of protection that is easy to lose silently.
+
+    Attached as a router-level dependency rather than remembered per route, so
+    a new mutating endpoint is protected by where it lives, not by its author.
+    """
+    verify_csrf(request, x_csrf_token)
     return user
 
 
 CurrentUser = Annotated[Identity, Depends(current_user)]
 HRUser = Annotated[Identity, Depends(require_hr)]
 OptionalUser = Annotated[Identity | None, Depends(optional_user)]
+
+#: Staff who work cases. Employees are excluded: they are the subject of a
+#: case, not a participant in clearing one.
+StaffUser = Annotated[Identity, Depends(require_roles("hr", "it", "manager"))]
+#: IT owns access revocation; HR is the escalation path over it.
+DeprovUser = Annotated[Identity, Depends(require_roles("hr", "it"))]
+#: Anyone whose queue contains stages (i.e. not an employee).
+QueueUser = StaffUser

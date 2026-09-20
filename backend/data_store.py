@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from .auth import generate_temp_password, hash_password
 from .config import DATA_DIR
+from .policy import stage_key_for_name
 from .db import session_scope
 from .db.models import CaseDocument, CaseStage, Employee, ExitCase, Interview, KTDoc, User
 
@@ -399,7 +400,21 @@ def _insert_case(session: Session, emp: Employee, *,
               "start pending.\n"),
         extra={},
         stages=[
-            CaseStage(ordinal=i, name=name, owner="", status="pending", days_open=0)
+            CaseStage(
+                ordinal=i,
+                name=name,
+                # stage_key is what routes the stage to a role; deriving it
+                # here (rather than leaving the migration's backfill as the
+                # only source) is what stops UI-created cases being invisible
+                # to every work queue.
+                stage_key=stage_key_for_name(name),
+                owner="",
+                status="pending",
+                days_open=0,
+                # Starts the clock. Without it `days_open` stays 0 forever and
+                # the case could never breach SLA -- see policy.effective_days_open.
+                status_changed_at=datetime.now(timezone.utc),
+            )
             for i, name in enumerate(DEFAULT_CLEARANCE_STAGES)
         ],
     )

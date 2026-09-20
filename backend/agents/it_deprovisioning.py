@@ -17,6 +17,7 @@ plan/execute pair straddles a LangGraph interrupt (the approval gate).
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import func, update
@@ -59,6 +60,10 @@ POLICY_EXCERPT = """IT Deprovisioning & Access Revocation Policy (pol-it-002):
 - Where blocked by incomplete Knowledge Transfer, record the dependency and escalate."""
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_day: str = "",
                         case_notes: str = "", case_id: str = "") -> dict[str, Any]:
     """Phase 1: build the plan (LLM) and persist it server-side.
@@ -97,33 +102,93 @@ def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_d
     return plan
 
 
-def execute_plan(plan_id: str, *, approved_by: str = "hr-operator",
+def approve_plan(plan_id: str, *, approved_by: str, approver_user_id: int | None,
+                 note: str = "") -> dict[str, Any]:
+    """Phase 1b: an HR account authorises a drafted plan.
+
+    Deliberately a separate act from executing it. The caller is expected to be
+    HR (the route enforces that); this function enforces the two conditions
+    that must hold regardless of who calls it.
+    """
+    with session_scope() as s:
+        row = s.get(DeprovisioningPlan, plan_id)
+        if row is None:
+            raise LookupError(f"Unknown deprovisioning plan '{plan_id}'.")
+        if row.status == "executed":
+            raise PermissionError("That plan has already been executed.")
+
+        # A plan against someone who is not actually leaving is not a
+        # deprovisioning, it is an account takeover with paperwork. `plan_*`
+        # only checks the employee exists, so this is where it gets caught.
+        case = store.exit_case_for_employee(str(row.employee_id))
+        if case is None:
+            raise PermissionError(
+                f"Employee {row.employee_id} has no exit case. A deprovisioning "
+                "plan can only be approved for someone who is actually leaving."
+            )
+
+        row.status = "approved"
+        row.approved_by = approved_by
+        row.approved_by_user_id = approver_user_id
+        row.approved_at = _now()
+        if note:
+            row.note = note
+        return {
+            "plan_id": plan_id,
+            "status": "approved",
+            "approved_by": approved_by,
+            "case_id": case.meta.get("case_id"),
+        }
+
+
+def execute_plan(plan_id: str, *, executed_by: str, executor_user_id: int | None = None,
                  note: str = "") -> dict[str, Any]:
     """Phase 2: run each approved action through the connectors (no LLM).
 
     Takes the persisted plan's id rather than a client-supplied plan body, and
-    atomically flips it pending->executed inside one transaction (CAS update +
+    atomically flips it approved->executed inside one transaction (CAS update +
     action execution + result write-back), so a retried, double-clicked, or
     replayed call cannot run the connectors twice: a concurrent call on the
     same plan_id blocks on Postgres's row lock until this transaction commits,
     then finds status already 'executed' and returns the cached result.
+
+    Refuses a plan that has not been approved by someone else. That is what
+    makes it safe for IT to hold this button.
     """
     with session_scope() as s:
-        claimed = s.execute(
-            update(DeprovisioningPlan)
-            .where(DeprovisioningPlan.id == plan_id, DeprovisioningPlan.status == "pending")
-            .values(status="executed", approved_by=approved_by, note=note, executed_at=func.now())
-        ).rowcount == 1
         row = s.get(DeprovisioningPlan, plan_id)
         if row is None:
             raise LookupError(f"Unknown deprovisioning plan '{plan_id}'.")
+        if row.status == "executed":
+            return row.execution or {"status": "executed", "executed": 0}
+        if row.status != "approved":
+            raise PermissionError(
+                "This plan has not been approved yet. An HR account must "
+                "approve it before it can be executed."
+            )
+        if (executor_user_id is not None
+                and row.approved_by_user_id == executor_user_id):
+            raise PermissionError(
+                "The person who approved a deprovisioning plan cannot also "
+                "execute it. Ask a colleague to run it."
+            )
+
+        claimed = s.execute(
+            update(DeprovisioningPlan)
+            .where(DeprovisioningPlan.id == plan_id,
+                   DeprovisioningPlan.status == "approved")
+            .values(status="executed", executed_by=executed_by,
+                    executed_by_user_id=executor_user_id, executed_at=func.now())
+        ).rowcount == 1
         if not claimed:
+            s.expire(row)
             return row.execution or {"status": "executed", "executed": 0}
 
         plan = dict(row.plan)
         actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
         emp_id = str(plan.get("employee_id") or "")
         case_id = str(plan.get("case_id") or "")
+        approved_by = row.approved_by or "unknown"
         records = [
             execute_deprovisioning_action(a, employee_id=emp_id, case_id=case_id,
                                           approved_by=approved_by, note=note)
@@ -132,7 +197,8 @@ def execute_plan(plan_id: str, *, approved_by: str = "hr-operator",
         execution = {
             "employee_id": plan.get("employee_id"),
             "approved_by": approved_by,
-            "approval_note": note,
+            "executed_by": executed_by,
+            "approval_note": row.note or note,
             "executed": len(records),
             "audit_log": records,
             "status": "executed" if records else "nothing_to_execute",

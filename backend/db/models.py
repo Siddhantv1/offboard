@@ -239,6 +239,16 @@ class CaseStage(Base):
         UniqueConstraint("case_id", "ordinal", name="uq_case_stage_ordinal"),
         # Serves the SLA-breach query both agents run.
         Index("ix_case_stage_status_days", "status", "days_open"),
+        # Serves the per-role work queue ("every open IT Clearance").
+        Index("ix_case_stage_key_status", "stage_key", "status"),
+        CheckConstraint(
+            "stage_key is null or stage_key in ('it','finance','hr','kt','manager')",
+            name="ck_case_stage_key",
+        ),
+        CheckConstraint(
+            "status in ('pending','in_progress','completed')",
+            name="ck_case_stage_status",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -252,18 +262,117 @@ class CaseStage(Base):
     days_open: Mapped[int] = mapped_column(Integer, default=0)
     extra: Mapped[dict[str, Any]] = mapped_column(DateAwareJSONB, default=dict)
 
+    # -- platform columns (deliberately absent from to_meta) -----------------
+    # Everything below is for the product -- routing work to a role, to a
+    # person, and ageing a stage. None of it is agent context, and none of it
+    # appears in `to_meta()`; see the note on that method.
+
+    #: Which role owns this stage. NULL for a stage whose `name` is outside the
+    #: canonical five, which degrades safely: it matches no role, so only HR
+    #: (the blanket override) can act on it. Nullable rather than NOT NULL
+    #: because nothing constrains `name`, and a migration that aborts on one
+    #: unexpected row is worse than a row only HR can touch.
+    stage_key: Mapped[str | None] = mapped_column(String(32), index=True)
+
+    #: The person this stage is assigned to. NULL means *unclaimed*, which the
+    #: work queues treat as a first-class state rather than an error -- it is
+    #: what lets someone pick up unassigned work. SET NULL on delete: losing an
+    #: account must not delete the compliance record, and `owner` still holds
+    #: the name as text.
+    owner_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+
+    #: When `status` last changed. `days_open` is a stored integer that nothing
+    #: increments -- every case created through the product sits at 0 forever
+    #: and could never breach SLA. `policy.effective_days_open` takes the max of
+    #: the two, so seeded values stay authoritative while new cases age for real.
+    status_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    #: Why this stage is stalled, if it is. Deliberately a separate column
+    #: rather than a fourth `status` value: four consumers
+    #: (`systems.asset_status`, `systems.hrms_status`, `systems.finance_status`,
+    #: `document_collection.document_status`) test
+    #: `status in ("in_progress", "completed")` to mean "started", so a
+    #: `blocked` status would read as *earlier* than in_progress and silently
+    #: regress derived facts -- including making the stage's documents stop
+    #: counting as due, which erases policy_auditor's missing-document
+    #: violations. A blocked stage stays `in_progress`, so SLA keeps counting.
+    blocked_reason: Mapped[str | None] = mapped_column(Text)
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     case: Mapped["ExitCase"] = relationship(back_populates="stages")
 
     def to_meta(self) -> dict[str, Any]:
         # Deliberately not _clean()ed: agents read `stage.get("owner") or
         # "unassigned"`, and test_stages_shape_is_stable asserts all four keys
         # exist even when empty.
+        #
+        # DO NOT add the platform columns above. This dict is the agent-facing
+        # contract: `tests/test_store_contract.py` compares it against
+        # `tests/golden/store_snapshot.json`, and all 19 agents read it. Adding
+        # a key here breaks the golden snapshot AND silently changes what every
+        # agent sees. Anything the product needs, query off the ORM object.
         return {
             "name": self.name,
             "owner": self.owner,
             "status": self.status,
             "days_open": self.days_open,
             **(self.extra or {}),
+        }
+
+
+class CaseStageEvent(Base):
+    """One recorded stage transition. The audit trail behind the work queues.
+
+    The exit case *is* the compliance record, so "who moved this stage, when,
+    from what, and why" has to survive -- including after the account that did
+    it is gone. Hence `actor_label` denormalised alongside `actor_user_id`,
+    matching what `CaseDocument.reviewed_by` and
+    `DeprovisioningAction.approved_by` already do: the FK is for joining, the
+    text is for the auditor.
+
+    `escalated` marks a transition made by someone who does not own the stage
+    type -- in practice HR exercising its blanket override. Without it, HR
+    clearing an IT stage is indistinguishable from IT clearing it, and the
+    trail cannot answer "did the stage owner actually sign this off?".
+    """
+
+    __tablename__ = "case_stage_events"
+    __table_args__ = (
+        Index("ix_case_stage_event_case_time", "case_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("exit_cases.case_id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    stage_key: Mapped[str | None] = mapped_column(String(32), index=True)
+    stage_name: Mapped[str] = mapped_column(Text, nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(16))
+    to_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    # SET NULL, not CASCADE: deleting an account must not delete the evidence
+    # of what that account did.
+    actor_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    actor_label: Mapped[str] = mapped_column(Text, default="")
+    actor_role: Mapped[str | None] = mapped_column(String(16))
+    escalated: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false")
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True)
+
+    def to_meta(self) -> dict[str, Any]:
+        return {
+            "stage": self.stage_name,
+            "stage_key": self.stage_key,
+            "from": self.from_status,
+            "to": self.to_status,
+            "by": self.actor_label or "unknown",
+            "role": self.actor_role,
+            "escalated": self.escalated,
+            "note": self.note,
+            "at": self.created_at,
         }
 
 
@@ -347,17 +456,35 @@ class DeprovisioningAction(Base):
 
 
 class DeprovisioningPlan(Base):
-    """A drafted deprovisioning plan awaiting (or having received) approval.
+    """A drafted deprovisioning plan, its approval, and its execution.
 
     Persisting the plan server-side closes the gap where the execute route
     used to accept an arbitrary client-supplied `plan` body: the client now
-    only ever sends back a `plan_id`. `status` starts 'pending' and moves to
-    'executed' exactly once via a compare-and-swap in `execute_plan()`.
+    only ever sends back a `plan_id`.
+
+    **Approval and execution are separate acts by separate people.** The status
+    ladder is `pending -> approved -> executed`, and `execute_plan()` refuses
+    unless an HR account approved first and that account is not the one
+    executing. Before this split, widening the execute route to IT would have
+    let an IT account draft a revocation plan against anyone -- including an
+    active non-leaver -- run it, and have the audit record name themselves as
+    the approver. The human approval gate would have been decorative, because
+    the direct route carried its entire payload without it.
     """
 
     __tablename__ = "deprovisioning_plans"
     __table_args__ = (
-        CheckConstraint("status in ('pending', 'executed')", name="ck_deprov_plan_status"),
+        CheckConstraint(
+            "status in ('pending', 'approved', 'executed')",
+            name="ck_deprov_plan_status",
+        ),
+        # Whoever executes must not be whoever approved. Enforced in SQL as
+        # well as in Python because it is the whole point of the split.
+        CheckConstraint(
+            "approved_by_user_id is null or executed_by_user_id is null "
+            "or approved_by_user_id <> executed_by_user_id",
+            name="ck_deprov_plan_separate_actors",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
@@ -366,6 +493,12 @@ class DeprovisioningPlan(Base):
     plan: Mapped[dict[str, Any]] = mapped_column(DateAwareJSONB, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False, index=True)
     approved_by: Mapped[str | None] = mapped_column(Text)
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    executed_by: Mapped[str | None] = mapped_column(Text)
+    executed_by_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
     note: Mapped[str] = mapped_column(Text, default="")
     execution: Mapped[dict[str, Any] | None] = mapped_column(DateAwareJSONB)
     created_at: Mapped[datetime] = mapped_column(
@@ -469,11 +602,41 @@ class Interview(Base):
 
 
 # -- identity -----------------------------------------------------------------
-#: The only two roles. An employee sees their own offboarding and nothing else;
-#: HR manages everyone's. Kept as a plain string with a CHECK rather than a
-#: Postgres ENUM, because altering an ENUM in a migration is far more painful
-#: than altering a constraint.
-ROLES = ("hr", "employee")
+#: The four people an exit involves. Each owns part of the five-stage clearance
+#: workflow (see STAGE_KEYS): `it` clears system access, `manager` signs off and
+#: reviews the knowledge transfer, `hr` owns HR and Finance clearance and is the
+#: escalation path over all of them, and `employee` sees only their own case.
+#:
+#: Kept as a plain string with a CHECK rather than a Postgres ENUM, because
+#: altering an ENUM in a migration is far more painful than altering a
+#: constraint -- as widening this from ("hr", "employee") demonstrated.
+ROLES = ("hr", "it", "manager", "employee")
+
+#: Stage types, and which role owns each. `hr` is additionally a blanket
+#: override everywhere (see `auth.may_act_on_stage`): it is the escalation path
+#: when the stage owner is on leave and the last working day is fixed.
+STAGE_KEYS = ("it", "finance", "hr", "kt", "manager")
+
+#: `CaseStage.name` as authored in the corpus -> `stage_key`. The five names are
+#: `data_store.DEFAULT_CLEARANCE_STAGES`; anything else maps to NULL, which
+#: degrades safely (it never matches a role, so only HR can act on it).
+STAGE_KEY_BY_NAME = {
+    "IT Clearance": "it",
+    "Finance Clearance": "finance",
+    "HR Clearance": "hr",
+    "Knowledge Transfer": "kt",
+    "Manager Sign-off": "manager",
+}
+
+#: The statuses the corpus actually uses. `blocked` is deliberately NOT one of
+#: them: four separate consumers (`systems.asset_status`, `systems.hrms_status`,
+#: `systems.finance_status`, `document_collection.document_status`) test
+#: `status in ("in_progress", "completed")` to mean "started", so a fourth value
+#: would read as *earlier* than in_progress and silently regress derived facts --
+#: including making a blocked stage's documents stop counting as due, which
+#: erases `policy_auditor`'s missing-document violations. A stalled stage stays
+#: `in_progress` and carries `blocked_reason` instead, so SLA keeps counting.
+STAGE_STATUSES = ("pending", "in_progress", "completed")
 
 
 class User(Base):
@@ -481,11 +644,18 @@ class User(Base):
 
     `employee_id` is set for employee accounts and links them to the record
     they are allowed to see. It is NULL for HR, who are scoped by role instead.
+
+    It is *optional* for `it` and `manager`: those people may also be on the
+    payroll (Sanya Kapoor is both emp-005 and the IT clearance owner), and
+    linking them means an exiting IT engineer can still see their own case.
+    `ck_employee_has_record` only forces the link for `employee`.
     """
 
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role in ('hr','employee')", name="ck_user_role"),
+        CheckConstraint(
+            "role in ('hr','it','manager','employee')", name="ck_user_role"
+        ),
         # An employee account without a linked record could not be scoped to
         # anything, so it must not exist.
         CheckConstraint(
