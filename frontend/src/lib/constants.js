@@ -39,9 +39,14 @@ export const EMPLOYEE_FIELDS = [
   { name: "manager_email", label: "Manager email", required: false },
   { name: "location", label: "Location", required: false, placeholder: "e.g. Bengaluru, IN" },
   { name: "employment_type", label: "Employment type", required: false, placeholder: "Full-time" },
-  { name: "join_date", label: "Join date", required: false, placeholder: "YYYY-MM-DD" },
-  { name: "tenure_years", label: "Tenure (years)", type: "number", required: false },
-  { name: "performance_rating", label: "Performance rating (1-5)", type: "number", required: false },
+  { name: "join_date", label: "Join date", type: "date", required: false,
+    max: "2100-12-31" },
+  // Bounded because the browser will otherwise take anything, including what
+  // the mouse wheel lands on. 60 years is longer than anyone has worked here.
+  { name: "tenure_years", label: "Tenure (years)", type: "number", required: false,
+    min: 0, max: 60, step: 0.5 },
+  { name: "performance_rating", label: "Performance rating", type: "number",
+    required: false, min: 1, max: 5, step: 1 },
   {
     name: "criticality",
     label: "Role criticality",
@@ -67,8 +72,9 @@ export const EMPLOYEE_FIELDS = [
   {
     name: "last_working_day",
     label: "Last working day",
+    type: "date",
     required: false,
-    placeholder: "YYYY-MM-DD",
+    max: "2100-12-31",
     help: 'Only used if status is "Exiting".',
   },
   {

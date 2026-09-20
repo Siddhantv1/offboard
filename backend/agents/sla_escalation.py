@@ -62,6 +62,7 @@ class SLAEscalationAgent(BaseAgent):
         category="Monitoring",
         fields=[
             Field("threshold_days", "SLA threshold (days)", type="number",
+                  min=1, max=90, step=1,
                   required=False, placeholder=str(SLA_DAYS)),
         ],
     )

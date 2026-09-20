@@ -33,11 +33,18 @@ class Field:
 
     name: str
     label: str
-    type: str = "text"  # text | textarea | select | number | file
+    type: str = "text"  # text | textarea | select | number | date | file
     placeholder: str = ""
     required: bool = True
     options: list[dict[str, str]] = field(default_factory=list)  # for select
     help: str = ""
+    # Bounds for `number`. Declared here rather than left to the UI because an
+    # unbounded number input accepts anything the wheel lands on -- including
+    # negatives -- and the agent is the thing that knows what range makes
+    # sense. `dataclasses.asdict` carries them to the form automatically.
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
 
 
 @dataclass

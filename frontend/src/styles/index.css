@@ -63,6 +63,38 @@
 }
 
 * { box-sizing: border-box; }
+
+/* ---- scrollbars ----
+   One treatment everywhere, driven by the same tokens as everything else, so
+   it follows dark mode without a second rule. Deliberately quiet: a scrollbar
+   is chrome, not content, and the colour budget at the top of this file spends
+   teal on things you can act on. The thumb only picks up teal on hover, which
+   is the moment it *is* something you are acting on.
+
+   `scrollbar-gutter: stable` stops the layout shifting sideways when a page
+   goes from short to long -- the jump you get when a scrollbar appears. */
+html {
+  scrollbar-width: thin;                              /* Firefox */
+  scrollbar-color: var(--line-strong) transparent;
+}
+.content, .sidebar, .chat-thread, .dtable-wrap { scrollbar-gutter: stable; }
+
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  /* Transparent border with background-clip is what insets the thumb without
+     a wrapper element; a plain narrower thumb would sit flush to the edge. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--teal-soft);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active { background: var(--teal); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
 html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--sans);
@@ -75,7 +107,16 @@ body {
 a { color: inherit; }
 
 /* ---- layout ---- */
-.app { display: grid; grid-template-columns: 272px 1fr; height: 100vh; }
+/* `min-height: 0` on the two scrolling descendants is load-bearing, not
+   defensive. Grid and flex items default to `min-height: auto`, which refuses
+   to shrink below the content's intrinsic height -- so a tall page pushed
+   `.main` past 100vh, the grid overflowed the viewport, and `body` grew a
+   SECOND scrollbar that dragged the whole shell (topbar included) instead of
+   just the content. That is the phantom scroll region. */
+.app {
+  display: grid; grid-template-columns: 272px 1fr;
+  height: 100vh; overflow: hidden;
+}
 
 .sidebar {
   background: var(--surface);
@@ -83,6 +124,7 @@ a { color: inherit; }
   display: flex; flex-direction: column;
   padding: 22px 16px;
   overflow-y: auto;
+  min-height: 0;
 }
 .brand { display: flex; align-items: center; gap: 12px; padding: 4px 8px 22px; }
 .brand-mark {
@@ -128,11 +170,12 @@ a { color: inherit; }
 .health.down .dot { background: var(--danger); }
 
 /* ---- main ---- */
-.main { display: flex; flex-direction: column; overflow: hidden; }
+.main { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 34px; border-bottom: 1px solid var(--line);
   background: var(--surface);
+  flex: none;
 }
 .crumb { font-size: 13px; color: var(--muted); }
 .crumb b { color: var(--ink); font-weight: 550; }
@@ -148,7 +191,18 @@ a { color: inherit; }
 .topbar-signout { padding: 6px 14px; font-size: 13px; }
 .topbar-signout-error { color: var(--danger); font-size: 11.5px; white-space: nowrap; }
 
-.content { overflow-y: auto; padding: 34px; }
+/* `position: relative` is not cosmetic here. An absolutely positioned
+   descendant is laid out against its nearest POSITIONED ancestor, and overflow
+   only clips descendants whose containing block is inside the overflowing box.
+   With nothing positioned between them and the document, the visually-hidden
+   upload inputs escaped this scroller entirely and stretched the page itself --
+   which is the second scrollbar that appeared on the employee's case. Making
+   the scroller the containing block fixes that for every such descendant, not
+   just the ones we happen to know about. */
+.content {
+  overflow-y: auto; min-height: 0; flex: 1; padding: 34px;
+  position: relative;
+}
 
 /* ---- auth ---- */
 .auth-screen {
@@ -409,9 +463,23 @@ input:focus, textarea:focus, select:focus {
 .msg-col .chips { margin-top: 0; align-items: center; }
 
 /* typing indicator */
-.sr-only {
+/* Visually hidden, still focusable, still in the tab order.
+   The qualified selectors are not redundant. The base form rules are written
+   as `input[type="file"] { width: 100% }` and friends -- specificity (0,1,1) --
+   which OUTRANKS a bare class (0,1,0). So an unqualified `.sr-only` on a form
+   control silently loses its width and renders full size. That is exactly what
+   happened to the upload inputs: each one stretched to the viewport width, and
+   because they are absolutely positioned with no positioned ancestor they
+   pushed the document out both sideways and down, giving the page a horizontal
+   AND a vertical scrollbar on top of the real one. */
+.sr-only,
+input.sr-only,
+textarea.sr-only,
+select.sr-only,
+input[type="file"].sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0, 0, 0, 0); white-space: nowrap;
+  padding: 0; margin: -1px; border: 0;
 }
 .bubble.typing { display: inline-flex; gap: 4px; padding: 13px 15px; }
 .bubble.typing .dot {
@@ -1262,8 +1330,9 @@ a.back:focus-visible,
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px;
 }
 /* The native file input is unstyleable and reads "No file chosen" forever, so
-   it is hidden and its label does the work. */
-.doc-file {
+   it is hidden and its label does the work. Qualified with the attribute
+   selector so it beats `input[type="file"]` -- see the note on .sr-only. */
+input[type="file"].doc-file {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
@@ -1273,10 +1342,10 @@ a.back:focus-visible,
   background: var(--surface); color: var(--ink);
 }
 .doc-file-label:hover { background: var(--mint); border-color: var(--teal); }
-.doc-file:focus-visible + .doc-file-label {
+input[type="file"].doc-file:focus-visible + .doc-file-label {
   outline: 2px solid var(--teal); outline-offset: 2px;
 }
-.doc-file:disabled + .doc-file-label { opacity: .6; cursor: default; }
+input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: default; }
 .doc-busy { color: var(--muted); font-size: 12.5px; }
 
 .doc-verdict {
@@ -1295,4 +1364,92 @@ a.back:focus-visible,
   background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px;
   color: var(--teal); cursor: pointer; text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* ---- submitted documents ---- */
+.subdoc { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.subdoc:last-child { border-bottom: none; }
+.subdoc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.subdoc-name { font-weight: 550; font-size: 14px; }
+.subdoc-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.subdoc-reason {
+  margin: 8px 0 0; font-size: 13px; color: var(--muted); line-height: 1.5;
+}
+.subdoc-review {
+  margin: 6px 0 0; font-size: 12.5px; padding: 6px 10px;
+  background: var(--inset); border-radius: var(--radius-sm);
+}
+.subdoc-scan { margin-top: 12px; }
+.subdoc-scan img {
+  display: block; max-width: 100%; max-height: 520px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.subdoc-scan .linkish { display: inline-block; margin-top: 8px; font-size: 12.5px; }
+.subdoc-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+}
+.subdoc-note { flex: 1 1 220px; padding: 6px 10px; font-size: 13px; width: auto; }
+.subdoc-actions .btn { padding: 6px 14px; font-size: 13px; }
+
+/* Range hint under a bounded number input. */
+.field-range { font-variant-numeric: tabular-nums; }
+
+/* ---- login ----
+   A form alone on white read as unfinished, so the screen now carries the one
+   thing worth saying before sign-in: what the product tracks. The panel is the
+   real five-stage sequence from the data, not invented chrome -- numbered
+   because it genuinely IS a sequence, which is the only case where numbering
+   earns its place. */
+.auth-screen { position: relative; }
+.auth-toolbar { position: absolute; top: 18px; right: 20px; }
+
+.auth-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 72px; align-items: center;
+  max-width: 940px; width: 100%; padding: 32px;
+}
+
+.auth-story { max-width: 42ch; }
+.auth-story .brand { padding: 0 0 28px; }
+.auth-story-head {
+  font-family: var(--serif); font-size: 30px; font-weight: 500;
+  line-height: 1.22; letter-spacing: -.02em; margin: 0 0 12px;
+}
+.auth-story-sub { color: var(--muted); margin: 0 0 30px; line-height: 1.55; }
+
+.auth-stages { list-style: none; margin: 0; padding: 0; counter-reset: stage; }
+.auth-stages li {
+  counter-increment: stage;
+  display: grid; grid-template-columns: 26px 1fr auto;
+  align-items: center; gap: 12px;
+  padding: 9px 0; border-top: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.auth-stages li:last-child { border-bottom: 1px solid var(--line); }
+.auth-stages li::before {
+  content: counter(stage);
+  font-variant-numeric: tabular-nums; font-size: 12px;
+  color: var(--muted); text-align: right;
+}
+.auth-stage-rule { display: none; }
+.auth-stage-label { font-weight: 450; }
+.auth-stage-owner {
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted);
+}
+
+.auth-card { width: auto; }
+.auth-card-brand { display: none; }
+.auth-foot {
+  font-size: 12px; color: var(--muted); margin: 6px 0 0; line-height: 1.5;
+}
+
+/* Below the split, the story panel would push the form off-screen. The form
+   is the job; the context is not worth a scroll to reach it. */
+@media (max-width: 860px) {
+  .auth-screen { height: auto; min-height: 100vh; padding: 64px 0 40px; }
+  .auth-layout { grid-template-columns: minmax(0, 400px); justify-content: center; gap: 0; }
+  .auth-story { display: none; }
+  .auth-card-brand { display: flex; }
 }

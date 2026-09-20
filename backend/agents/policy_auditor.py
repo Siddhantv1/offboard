@@ -102,6 +102,7 @@ class PolicyAuditorAgent(BaseAgent):
             Field("case_id", "Exit case (blank = audit every case)", type="select", required=False),
             Field(
                 "threshold_days", "SLA threshold (days)", type="number", required=False,
+                min=1, max=90, step=1,
                 placeholder=str(SLA_DAYS),
                 help="Stages open longer than this without completing count as a breach.",
             ),

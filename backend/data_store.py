@@ -96,10 +96,64 @@ def _document_meta(d: CaseDocument) -> dict[str, Any]:
         "reason": d.reason,
         "uploaded_at": d.uploaded_at,
         "uploaded_by": d.uploaded_by,
+        # Whether a scan is actually stored, so the UI can decide whether to
+        # offer "view" rather than linking to a 404.
+        "has_image": d.image is not None,
+        "image_bytes": d.image_bytes,
         "reviewed_by": d.reviewed_by,
         "reviewed_at": d.reviewed_at,
         "review_note": d.review_note,
     }
+
+
+#: Accepted ranges for the numeric employee fields. The form declares the same
+#: bounds, but a form is a suggestion -- anyone can POST past it, and silently
+#: coercing a bad value (the old behaviour: -12 became 0.0, "abc" became None)
+#: writes a wrong record that looks deliberate ever after.
+NUMERIC_BOUNDS: dict[str, tuple[float, float]] = {
+    "tenure_years": (0, 60),
+    "performance_rating": (1, 5),
+}
+
+
+def _as_number(value: Any, field_name: str, *, integer: bool = False,
+               default: Any = None) -> Any:
+    """Parse a bounded number, or raise ValueError naming the field.
+
+    Raising rather than defaulting is the point. `add_employee` is the only
+    write path for these columns, so a value that slips through here is a
+    permanent wrong number on a compliance record.
+    """
+    if value is None or str(value).strip() == "":
+        return default
+    try:
+        parsed = int(value) if integer else float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name.replace('_', ' ')} must be a number.") from None
+
+    low, high = NUMERIC_BOUNDS[field_name]
+    if not (low <= parsed <= high):
+        raise ValueError(
+            f"{field_name.replace('_', ' ')} must be between "
+            f"{low:g} and {high:g} (got {parsed:g})."
+        )
+    return parsed
+
+
+def _require_date(value: Any, field_name: str, *, default: date | None = None) -> date | None:
+    """Like `_as_date`, but refuses an unparseable value instead of falling
+    back to the default -- otherwise a typo'd last working day silently
+    becomes today, and the SLA clock starts from the wrong place."""
+    if value is None or str(value).strip() == "":
+        return default
+    parsed = _as_date(value)
+    if parsed is None:
+        raise ValueError(
+            f"{field_name.replace('_', ' ')} is not a valid date (use YYYY-MM-DD)."
+        )
+    if not (date(1970, 1, 1) <= parsed <= date(2100, 12, 31)):
+        raise ValueError(f"{field_name.replace('_', ' ')} is out of range.")
+    return parsed
 
 
 def _as_date(value: Any, default: date | None = None) -> date | None:
@@ -230,6 +284,22 @@ class DataStore:
             case = s.get(ExitCase, case_id)
             return [_document_meta(d) for d in case.documents] if case else []
 
+    def document_image(self, case_id: str, doc_id: int) -> tuple[bytes, str, str] | None:
+        """The stored scan for one upload: (bytes, content_type, filename).
+
+        Deliberately a separate call from `case_documents`, which is a list
+        view -- these rows hold whole images in BYTEA, and folding them into
+        the listing would send several megabytes to render a table of
+        filenames.
+        """
+        with session_scope() as s:
+            row = s.get(CaseDocument, doc_id)
+            if row is None or row.case_id != case_id or not row.image:
+                return None
+            return (bytes(row.image),
+                    row.content_type or "application/octet-stream",
+                    row.filename or f"document-{doc_id}")
+
     def review_document(
         self, case_id: str, doc_id: int, *, verdict: str, reviewed_by: str, note: str = "",
     ) -> dict[str, Any]:
@@ -308,15 +378,16 @@ class DataStore:
         if not name or not role or not department:
             raise ValueError("name, role, and department are required.")
 
-        try:
-            tenure_years = float(fields.get("tenure_years") or 0)
-        except (TypeError, ValueError):
-            tenure_years = 0.0
-        rating: Any = fields.get("performance_rating")
-        try:
-            rating = int(rating) if rating else None
-        except (TypeError, ValueError):
-            rating = None
+        tenure_years = _as_number(fields.get("tenure_years"), "tenure_years",
+                                  default=0.0)
+        rating = _as_number(fields.get("performance_rating"), "performance_rating",
+                            integer=True)
+        join_date = _require_date(fields.get("join_date"), "join_date",
+                                  default=date.today())
+        last_working_day = _require_date(fields.get("last_working_day"),
+                                         "last_working_day")
+        if last_working_day and join_date and last_working_day < join_date:
+            raise ValueError("Last working day cannot be before the join date.")
 
         notes = str(fields.get("notes") or "").strip()
         status = str(fields.get("status") or "active").strip().lower()
@@ -334,7 +405,7 @@ class DataStore:
                 manager=str(fields.get("manager") or "").strip(),
                 manager_email=str(fields.get("manager_email") or "").strip(),
                 tenure_years=tenure_years,
-                join_date=_as_date(fields.get("join_date"), default=date.today()),
+                join_date=join_date,
                 location=str(fields.get("location") or "").strip(),
                 employment_type=str(fields.get("employment_type") or "Full-time").strip(),
                 performance_rating=rating,
@@ -354,7 +425,7 @@ class DataStore:
             case_doc = None
             credential = None
             if status == "exiting":
-                case = _insert_case(s, emp, last_working_day=fields.get("last_working_day"))
+                case = _insert_case(s, emp, last_working_day=last_working_day)
                 case_doc = _doc(case)
                 if emp.email and not s.scalar(select(User).where(User.email == emp.email)):
                     secret = generate_temp_password()

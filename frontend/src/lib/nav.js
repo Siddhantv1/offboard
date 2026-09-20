@@ -30,7 +30,7 @@ export const NAV = {
   ],
   employee: [
     { to: "/", icon: "◔", label: "My exit case", end: true },
-    { to: "/faq", icon: "⁇", label: "Ask a question" },
+    { to: "/faq", icon: "?", label: "Ask a question" },
   ],
 };
 
