@@ -39,12 +39,16 @@ Answer with JSON only:
 class MultiSystemClearanceAgent(BaseAgent):
     meta = AgentMeta(
         id="multi_system_clearance",
-        name="Multi-System Clearance",
-        tagline="Tool-calling across IT, HRMS, finance",
+        name="Is This Person Actually Cleared?",
+        tagline="Checks the four systems that would know",
         description=(
-            "Queries the IT asset register, identity provider, HRMS and finance "
-            "system as tools, then consolidates clearance status across all of them "
-            "into one verdict with the open items per system."
+            "Asks the four systems that hold the real answer -- the IT asset "
+            "register (is the laptop back?), the identity provider (is their "
+            "login gone?), the HRMS (is the exit interview done?) and finance "
+            "(are their dues settled?) -- and returns one yes/no with the "
+            "outstanding items listed per system. Use it before signing anyone "
+            "off, because the case record says what people *reported*, and this "
+            "says what the systems actually show."
         ),
         icon="⧉",
         category="Monitoring",

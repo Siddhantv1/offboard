@@ -44,13 +44,16 @@ Return JSON: {"to": str, "subject": str, "body": str}"""
 class EndToEndAutomationAgent(BaseAgent):
     meta = AgentMeta(
         id="end_to_end_automation",
-        name="End-to-End Exit Automation",
-        tagline="Runs the whole exit, autonomously",
+        name="Run a Whole Exit",
+        tagline="Does every other agent's job, in order, in one go",
         description=(
-            "Resolves or opens the exit case, checks documents, recommends "
-            "approvers, escalates anything overdue, runs full clearance "
-            "orchestration, and drafts stakeholder communications -- one call, "
-            "start to finish."
+            "Pick a person and this does the entire offboarding in one run: "
+            "finds or opens their exit case, checks which documents are in, "
+            "picks who should approve each stage, chases anything past its SLA, "
+            "runs the full clearance orchestration, and writes the emails to "
+            "send. Use it when you want the whole thing handled and are happy "
+            "to read the result afterwards, rather than driving each step. "
+            "Everything it does is also available as a separate agent."
         ),
         icon="⬢",
         category="Planning",

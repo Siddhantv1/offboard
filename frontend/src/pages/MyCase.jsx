@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DocumentUpload from "../components/DocumentUpload.jsx";
+import SubmittedDocuments from "../components/SubmittedDocuments.jsx";
 import { Badge, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
 import { fetchJSON } from "../lib/api.js";
 
@@ -44,6 +45,12 @@ export default function MyCase() {
     fetchJSON("/api/me/case")
       .then((c) => setState((s) => ({ ...s, data: c })))
       .catch(() => {});
+    // The sent-list is not part of the upload response, so fetch it again --
+    // otherwise the document you just sent is missing from "what you have
+    // sent" until a reload.
+    fetchJSON("/api/me/case/documents")
+      .then((d) => setDocs((cur) => (cur ? { ...cur, uploads: d.uploads } : d)))
+      .catch(() => {});
   }, []);
 
   const { status, data, error } = state;
@@ -65,6 +72,11 @@ export default function MyCase() {
   }
 
   const c = data.case;
+  // `current_stage` deliberately stays put once everything is finished, so
+  // reading it back verbatim would claim the case is still at whichever
+  // stage happened to be last.
+  const allStagesDone = (c.stages || []).length > 0
+    && c.stages.every((s) => s.status === "completed");
 
   return (
     <div className="my-case">
@@ -81,7 +93,9 @@ export default function MyCase() {
       <div className="case-status-row">
         <Badge value={c.overall_status} />
         <span className="muted">
-          Currently at: <b>{c.current_stage}</b>
+          {allStagesDone
+            ? <>All five clearances are <b>complete</b></>
+            : <>Currently at: <b>{c.current_stage}</b></>}
           {c.last_working_day && <> · last working day {c.last_working_day}</>}
         </span>
       </div>
@@ -92,6 +106,15 @@ export default function MyCase() {
             checklist={docs.checklist}
             summary={docs.summary}
             onUploaded={onUploaded}
+          />
+        </Panel>
+      )}
+
+      {!!docs?.uploads?.length && (
+        <Panel title="What you have sent">
+          <SubmittedDocuments
+            documents={docs.uploads}
+            imageUrl={(id) => `/api/me/case/documents/${id}/image`}
           />
         </Panel>
       )}

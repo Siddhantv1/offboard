@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 # Form parts arrive as this class, not fastapi.UploadFile.
 from starlette.datastructures import UploadFile
@@ -122,10 +122,29 @@ def my_case_documents(user: CurrentUser) -> dict[str, Any]:
         "uploads": [
             {k: d.get(k) for k in
              ("id", "document_name", "filename", "verdict", "reason",
-              "uploaded_at", "reviewed_by", "review_note")}
+              "uploaded_at", "reviewed_by", "review_note", "has_image")}
             for d in store.case_documents(str(case.meta.get("case_id")))
         ],
     }
+
+
+@router.get("/me/case/documents/{doc_id}/image")
+def my_document_image(doc_id: int, user: CurrentUser) -> Response:
+    """The caller's own scan. Scoped by resolving their case from the session,
+    so the doc_id alone grants nothing."""
+    case = _my_case(user)
+    found = store.document_image(str(case.meta.get("case_id")), doc_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="No scan is stored for that document.")
+    data, content_type, filename = found
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post("/me/case/documents")
@@ -416,6 +435,33 @@ def list_case_documents(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
     (and override) exactly what the model decided and why."""
     case_id = str(case.meta.get("case_id"))
     return {"case_id": case_id, "documents": store.case_documents(case_id)}
+
+
+@router.get("/cases/{case_id}/documents/{doc_id}/image")
+def case_document_image(case: ScopedCase, doc_id: int, user: StaffUser) -> Response:
+    """The stored scan itself.
+
+    Behind `ScopedCase`, so a manager can only pull images from their own
+    team's cases -- these are people's signed personal paperwork, and a
+    guessable `/documents/287/image` with no case scope would be the easiest
+    possible data leak in the app.
+
+    `inline` rather than `attachment`: the point is to look at it next to the
+    verdict, not to collect a folder of downloads.
+    """
+    found = store.document_image(str(case.meta.get("case_id")), doc_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="No scan is stored for that document.")
+    data, content_type, filename = found
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            # Personal paperwork: never let a shared cache hold it.
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post("/cases/{case_id}/documents/{doc_id}/review")

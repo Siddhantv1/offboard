@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import DocumentCollection from "../components/results/DocumentCollection.jsx";
+import SubmittedDocuments from "../components/SubmittedDocuments.jsx";
 import { Badge, Button, ErrorBox, Panel, PageHead, Skeleton } from "../components/ui.jsx";
 import { fetchJSON, postJSON } from "../lib/api.js";
+import { useAuth } from "../lib/auth.jsx";
 import { humanize } from "../lib/format.js";
 
 /** stage_key -> the display name the corpus uses. */
@@ -135,19 +137,23 @@ function Timeline({ events }) {
 
 export default function CaseDetail() {
   const { caseId } = useParams();
+  const { user } = useAuth();
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [events, setEvents] = useState([]);
+  const [uploads, setUploads] = useState([]);
 
   const load = useCallback(() => {
     let cancelled = false;
     Promise.all([
       fetchJSON(`/api/cases/${caseId}`),
       fetchJSON(`/api/cases/${caseId}/timeline`).catch(() => ({ events: [] })),
+      fetchJSON(`/api/cases/${caseId}/documents`).catch(() => ({ documents: [] })),
     ])
-      .then(([detail, tl]) => {
+      .then(([detail, tl, docs]) => {
         if (cancelled) return;
         setState({ status: "done", data: detail, error: null });
         setEvents(tl.events || []);
+        setUploads(docs.documents || []);
       })
       .catch((e) => !cancelled && setState({ status: "done", data: null, error: e.message }));
     return () => {
@@ -223,9 +229,28 @@ export default function CaseDetail() {
         </Panel>
       )}
 
-      <Panel title="Documents" className="result-panel">
+      <Panel title="Documents outstanding" className="result-panel">
         <DocumentCollection
           result={{ employee: c.employee_name, case_id: c.case_id, status: data.documents }}
+        />
+      </Panel>
+
+      <Panel title="What they have sent">
+        <SubmittedDocuments
+          documents={uploads}
+          imageUrl={(id) => `/api/cases/${caseId}/documents/${id}/image`}
+          // Only HR may overturn a verdict. A manager can read the scan on
+          // their own team's case, which is what they need to sign off, but
+          // accepting paperwork is HR's call and the server enforces that too.
+          onReviewed={user?.role === "hr"
+            ? async (docId, verdict, note) => {
+                await postJSON(
+                  `/api/cases/${caseId}/documents/${docId}/review`,
+                  { verdict, note },
+                );
+                load();
+              }
+            : undefined}
         />
       </Panel>
 

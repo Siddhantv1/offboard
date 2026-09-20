@@ -19,6 +19,7 @@ from .base import AgentMeta, BaseAgent, Field, llm, register
 from ._context import require_case
 from .. import ocr
 from ..data_store import store
+from ..rag import retriever as rag
 from ..db import session_scope
 from ..db.models import CaseDocument
 from ..llm import LLMError
@@ -59,10 +60,23 @@ deadline (their last working day). Keep it under 200 words.
 
 Return JSON: {"to": str, "subject": str, "body": str, "urgency": "low|medium|high"}"""
 
-VALIDATE_SYSTEM = """You validate scanned exit paperwork from OCR text. Decide \
-whether the text is the expected document for the expected employee and whether \
-it appears complete (signed, dated, key fields present). OCR may contain small \
-errors; judge on substance.
+VALIDATE_SYSTEM = """You validate scanned exit paperwork from OCR text.
+
+You are given the company's own policy text for this document type. Judge the \
+scan against THOSE stated requirements, not against your general idea of what \
+the document should contain -- if policy names required sections or fields, \
+check for those specifically and report which are present.
+
+OCR contains small errors. Judge on substance: a garbled character in a name or \
+date is not a missing field. Only call something missing if it genuinely is not \
+there.
+
+Verdicts:
+- "accepted": it is the right document, for the right person, and meets the \
+  stated requirements.
+- "needs_review": probably fine but something is unclear, unreadable, or policy \
+  is silent on it. A human will look.
+- "rejected": it is the wrong document, the wrong person, or plainly incomplete.
 
 Return JSON:
 {
@@ -71,10 +85,47 @@ Return JSON:
   "employee_name_matches": bool,
   "signed": bool,
   "dated": bool,
+  "requirements_met": [str],
   "missing_elements": [str],
   "verdict": "accepted|needs_review|rejected",
   "reason": str
 }"""
+
+
+def _policy_requirements(document_name: str, stage: str = "") -> tuple[str, list[str]]:
+    """What the company's own documents say this form must contain.
+
+    Returns (text_for_the_prompt, source_names).
+
+    Without this the validator was judging a scan against the model's general
+    idea of what, say, a KT document looks like. The company has an actual
+    answer -- `data/process-docs/documents-required.md` names four mandatory KT
+    sections, and the NDA policy states what a Confidentiality Reaffirmation
+    has to reaffirm -- and it is already indexed for the FAQ chatbot. Reusing
+    that index means "is this valid?" is answered against the real rule rather
+    than a plausible-sounding one.
+
+    Failure here is never fatal: a degraded index should cost us grounding, not
+    the upload.
+    """
+    query = f"{document_name} {stage} required contents sections signature".strip()
+    try:
+        passages = rag.retrieve(query, k=3)
+    except Exception as exc:  # noqa: BLE001 - grounding is a bonus, not a gate
+        print(f"[document_collection] policy lookup failed for {document_name!r}: "
+              f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return "", []
+
+    if not passages:
+        return "", []
+
+    blocks = []
+    sources = []
+    for passage in passages:
+        blocks.append(f"[{passage.source} - {passage.heading}]\n{passage.text.strip()}")
+        if passage.source not in sources:
+            sources.append(passage.source)
+    return "\n\n".join(blocks), sources
 
 
 def _norm(s: str) -> str:
@@ -195,15 +246,24 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
 
     case_id = str(case_meta.get("case_id") or "").strip()
 
+    policy_sources: list[str] = []
     if not extracted["text"].strip():
         judgement = {"verdict": "rejected",
                      "reason": "No readable text found in the image."}
     else:
+        stage = next((d["stage"] for d in REQUIRED_DOCUMENTS
+                      if _norm(d["name"]) == _norm(document_name)), "")
+        policy_text, policy_sources = _policy_requirements(document_name, stage)
+
         user = (
             f"Expected document: {document_name or 'unknown'}\n"
             f"Expected employee: {case_meta.get('employee_name', '?')} ({case_meta.get('employee_id', '?')})\n"
             f"Exit case: {case_meta.get('case_id', '?')}\n\n"
-            f"OCR text ({extracted['engine']}"
+            + (f"What company policy requires of this document:\n{policy_text}\n\n"
+               if policy_text else
+               "No policy text was found for this document type; judge on general "
+               "completeness and say so in the reason.\n\n")
+            + f"OCR text ({extracted['engine']}"
             + (f", avg confidence {extracted['confidence']}" if extracted.get("confidence") is not None else "")
             + f"):\n{extracted['text']}"
         )
@@ -224,6 +284,10 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
         "ocr": {k: extracted[k] for k in
                 ("engine", "seconds", "confidence", "image_size", "text")},
         "validation": judgement,
+        # Which policy documents the judgement was grounded in. Shown to the
+        # person who uploaded, so a rejection cites a rule rather than an
+        # opinion.
+        "checked_against": policy_sources,
     }
 
     # An unreadable scan is recorded too: "somebody submitted a blank page" is
@@ -249,23 +313,17 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
 class DocumentCollectionAgent(BaseAgent):
     meta = AgentMeta(
         id="document_collection",
-        name="Document Collection",
-        tagline="Required vs submitted, reminders, OCR checks",
+        name="Document Chaser",
+        tagline="Who still owes what, and a reminder to send",
         description=(
-            "Works out which forms an exit case needs at each stage, checks what has "
-            "been submitted, drafts a reminder for what is missing, and validates an "
-            "uploaded scan with local OCR before a quick model check."
+            "Lists the forms this exit case still needs, works out which are "
+            "actually due yet given where the clearance has got to, and drafts "
+            "one reminder email covering all of them."
         ),
         icon="▤",
         category="Communication",
         fields=[
             Field("case_id", "Exit case", type="select"),
-            Field("document_name", "Document being uploaded", type="select", required=False,
-                  options=[{"value": d["name"], "label": f"{d['name']} · {d['stage']}"}
-                           for d in REQUIRED_DOCUMENTS if not d.get("issued")],
-                  help="Only needed if you attach a scan below."),
-            Field("upload", "Scan or photo of the form", type="file", required=False,
-                  help="PNG/JPEG. Read locally with OCR; the image is not sent to the LLM."),
         ],
     )
 
@@ -280,23 +338,6 @@ class DocumentCollectionAgent(BaseAgent):
             "case_id": meta.get("case_id", case_id),
             "employee": meta.get("employee_name"),
         }
-
-        # Process the upload BEFORE computing status. It may have just
-        # satisfied a requirement, and reporting a document as missing in the
-        # same response that accepted it -- or emailing a reminder for it --
-        # is exactly the confusion this agent exists to prevent.
-        upload = inputs.get("upload")
-        if isinstance(upload, dict) and upload.get("bytes"):
-            result["upload_validation"] = validate_upload(
-                meta,
-                (inputs.get("document_name") or "").strip(),
-                upload["bytes"],
-                filename=str(upload.get("filename", "")),
-                content_type=str(upload.get("content_type", "")),
-            )
-            refreshed = store.exit_case(case_id)
-            if refreshed:
-                meta = refreshed.meta
 
         status = document_status(meta)
         result["status"] = status
