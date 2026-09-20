@@ -19,6 +19,10 @@ winocr; sys_platform == "win32"      # Windows built-in OCR engine (~0.4 s/page,
 rapidocr                             # portable fallback: PP-OCR on ONNX Runtime
 onnxruntime
 
+# Authentication: Argon2id password hashing for the `users` table. OWASP's
+# current first choice, and the library ships sane parameters.
+argon2-cffi
+
 # Persistence: PostgreSQL is the system of record for employees, exit cases,
 # clearance stages, submitted documents, the deprovisioning audit trail, and
 # agent run history. Postgres-native types (JSONB, TEXT[]) are used directly --
@@ -33,3 +37,4 @@ langgraph-checkpoint-postgres
 
 # Tests
 pytest
+httpx                                # required by fastapi.testclient.TestClient

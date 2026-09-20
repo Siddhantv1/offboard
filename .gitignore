@@ -1,6 +1,7 @@
 # Python build artifacts
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # Local secrets and machine-specific config (copy .env.example -> .env)
 .env
@@ -16,6 +17,9 @@ data/.chroma/
 
 # Local scratch
 .tmp/
+
+# Generated knowledge graph (rebuildable; ~3 MB of JSON/HTML)
+graphify-out/
 
 # Frontend build
 frontend/node_modules/
