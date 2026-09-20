@@ -877,3 +877,422 @@ a.back:focus-visible,
   outline: 2px solid var(--teal);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   Four roles: shell, queues, case detail, admin, error pages
+
+   No new hues. The palette comment at the top of this file sets a proportion
+   budget -- white ~85%, ink and hairlines ~10%, teal ~5%, mint ~1% for STATE --
+   and says any off-palette colour is information. Four roles could easily have
+   become four accent colours; they did not. A role is signalled by what is in
+   the nav and by the pill in the topbar, never by repainting the app, because
+   the status hues have to keep meaning "exception" rather than "IT".
+   ============================================================ */
+
+/* ---- primitives ---- */
+.panel-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.panel-head h3 { margin: 0; }
+.panel-actions { display: flex; gap: 8px; }
+
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { filter: brightness(.92); }
+.btn:disabled { opacity: .6; cursor: default; }
+.btn[aria-busy="true"] { display: inline-flex; align-items: center; gap: 8px; }
+.spinner-sm { width: 12px; height: 12px; border-width: 2px; }
+
+.muted { color: var(--muted); }
+.ta-right { text-align: right; font-variant-numeric: tabular-nums; }
+.linkish {
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--teal); text-decoration: underline; text-underline-offset: 2px;
+}
+.linkish:hover { color: var(--deep); }
+.linkish.danger { color: var(--danger); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12.5px; }
+
+.dtable-link { color: var(--teal); text-decoration: none; font-weight: 550; }
+.dtable-link:hover { text-decoration: underline; }
+.dtable-strong { font-weight: 550; }
+
+/* Loading placeholder shaped like the content it replaces, so the page does
+   not jump when data lands. */
+.skeleton { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.skeleton-row {
+  height: 44px; border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--inset) 25%, var(--mint) 37%, var(--inset) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease infinite;
+}
+@keyframes skeleton-sweep { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row { animation: none; }
+}
+
+/* An empty screen is an invitation to act, not a dead end. */
+.empty-state {
+  text-align: center; padding: 56px 24px; max-width: 46ch; margin: 0 auto;
+}
+.empty-state-icon { font-size: 30px; color: var(--teal); line-height: 1; }
+.empty-state h3 {
+  font-family: var(--serif); font-size: 19px; font-weight: 550;
+  margin: 14px 0 6px; letter-spacing: -.01em;
+}
+.empty-state p { color: var(--muted); margin: 0 0 18px; }
+
+/* ---- work queue ---- */
+.queue-count { color: var(--muted); font-size: 12.5px; margin-top: 12px; }
+.queue-blocked { color: var(--warn); font-size: 12px; margin-top: 3px; }
+/* Breach carries a word as well as a colour -- never colour alone. */
+.sla-over { color: var(--danger); font-weight: 550; }
+
+/* ---- case detail ---- */
+.case-status-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: -10px 0 22px;
+}
+.stage-row { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.stage-row:last-child { border-bottom: none; }
+.stage-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stage-name { font-weight: 550; }
+.stage-days { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.stage-owner { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.stage-actions {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px;
+}
+.stage-actions .btn { padding: 6px 14px; font-size: 13px; }
+.stage-note-toggle {
+  background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px;
+  color: var(--muted); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.stage-note-toggle:hover { color: var(--teal); }
+.stage-note { width: 100%; margin-top: 10px; }
+
+/* ---- audit timeline ---- */
+.timeline { list-style: none; margin: 0; padding: 0; }
+.timeline li {
+  padding: 0 0 16px 18px; border-left: 2px solid var(--line);
+  position: relative; margin-left: 4px;
+}
+.timeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
+.timeline li::before {
+  content: ""; position: absolute; left: -5px; top: 5px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--teal);
+}
+.timeline-head { font-size: 13.5px; }
+.timeline-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.timeline-note {
+  margin: 6px 0 0; font-size: 13px; padding: 8px 10px;
+  background: var(--inset); border-radius: var(--radius-sm);
+}
+/* An HR override is legitimate but must be legible in the trail -- otherwise
+   "did the stage owner actually sign this off?" has no answer. */
+.timeline-escalated {
+  font-size: 11px; font-weight: 550; color: var(--warn);
+  background: var(--warn-wash); border: 1px solid #E4CE96;
+  border-radius: 999px; padding: 1px 8px; margin-left: 6px;
+}
+
+/* ---- admin ---- */
+.users-toolbar { margin-bottom: 18px; }
+/* A compact select.
+   The `padding` SHORTHAND is the trap here: the base `select` rule reserves
+   `padding-right: 34px` for the chevron it paints as a background image, and
+   any shorthand silently resets that -- which is what put the arrow on top of
+   the word. Right padding and arrow position are set together, in one place,
+   so the next compact select reuses this instead of re-deriving it. */
+.select-sm,
+.role-select {
+  width: auto;
+  font-size: 12.5px;
+  padding: 4px 26px 4px 8px;
+  background-position: right 8px center;
+  background-size: 10px 7px;
+}
+.credential {
+  border: 1px solid var(--teal-soft); background: var(--mint);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px;
+}
+.credential h4 { margin: 0 0 8px; font-size: 14px; }
+.credential-value {
+  font-size: 18px; letter-spacing: .04em; margin: 0 0 8px;
+  user-select: all; word-break: break-all;
+}
+.credential-note { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+
+/* ---- error pages ---- */
+.error-page { max-width: 52ch; margin: 8vh auto 0; text-align: center; }
+.error-code {
+  font-family: var(--serif); font-size: 64px; line-height: 1;
+  color: var(--teal-soft); letter-spacing: -.03em;
+}
+.error-page h1 {
+  font-family: var(--serif); font-size: 26px; font-weight: 550;
+  letter-spacing: -.02em; margin: 10px 0 14px;
+}
+.error-body { color: var(--muted); margin-bottom: 22px; }
+.error-body p { margin: 0 0 10px; }
+.error-detail {
+  font-size: 12px; background: var(--inset); padding: 10px 12px;
+  border-radius: var(--radius-sm); text-align: left; word-break: break-word;
+}
+
+/* ---- mobile navigation ---- */
+/* The 272px sidebar was a fixed grid column with no breakpoint, so the app was
+   desktop-only. Below 900px it becomes a drawer. */
+.nav-toggle { display: none; }
+.nav-scrim { display: none; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+
+  .nav-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; top: 10px; left: 10px; z-index: 30;
+    width: 40px; height: 40px; font-size: 17px;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; width: 272px; z-index: 25;
+    transform: translateX(-100%); transition: transform .18s ease;
+    box-shadow: 0 0 40px rgba(0, 75, 73, .12);
+  }
+  .app.nav-open .sidebar { transform: translateX(0); }
+
+  .app.nav-open .nav-scrim {
+    display: block; position: fixed; inset: 0; z-index: 20;
+    background: rgba(15, 46, 45, .34);
+  }
+
+  .topbar { padding-left: 60px; }
+  .content { padding: 20px 16px; }
+  .topbar-user-name { display: none; }
+
+  /* Tables reflow to stacked rows, each cell labelled by its column. */
+  .dtable thead { display: none; }
+  .dtable, .dtable tbody, .dtable tr, .dtable td { display: block; width: 100%; }
+  .dtable tr {
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .dtable td { border: none; padding: 4px 0; }
+  .dtable td[data-label]::before {
+    content: attr(data-label) " ";
+    display: block; font-size: 11px; color: var(--muted);
+  }
+  .dtable td:empty { display: none; }
+  .ta-right { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}
+
+/* ============================================================
+   Dark mode
+
+   Every token is redefined; nothing below this point restyles a component.
+   The two status hues were re-derived rather than reused: #946A00 and #A3123C
+   were stepped for colour-vision distance against WHITE, and neither has
+   enough contrast on a dark surface. The replacements keep the same ~10 ΔE
+   separation in deuteranopia that the light pair was chosen for, so an amber
+   warning and a crimson breach stay distinguishable to the ~5% of men who
+   cannot rely on the hue difference.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --deep:       #8FD6D3;
+    --teal:       #5FC4C1;
+    --mint:       #14312F;
+    --surface:    #0C1C1B;
+
+    --inset:      #132726;
+    --ink:        #E6F2F1;
+    --ink-soft:   #E6F2F140;
+    --muted:      #9DB8B6;
+    --line:       #1E3937;
+    --line-strong:#2A4A47;
+    --control-border: #547D7A;
+    --teal-soft:  #2F6360;
+
+    --ok:         #5FC4C1;
+    --ok-wash:    #14312F;
+    --warn:       #E8B860;
+    --warn-wash:  #2E2413;
+    --danger:     #FF8FA8;
+    --danger-wash:#331620;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --deep:       #8FD6D3;
+  --teal:       #5FC4C1;
+  --mint:       #14312F;
+  --surface:    #0C1C1B;
+
+  --inset:      #132726;
+  --ink:        #E6F2F1;
+  --ink-soft:   #E6F2F140;
+  --muted:      #9DB8B6;
+  --line:       #1E3937;
+  --line-strong:#2A4A47;
+  --control-border: #547D7A;
+  --teal-soft:  #2F6360;
+
+  --ok:         #5FC4C1;
+  --ok-wash:    #14312F;
+  --warn:       #E8B860;
+  --warn-wash:  #2E2413;
+  --danger:     #FF8FA8;
+  --danger-wash:#331620;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+
+/* A solid-fill badge needs dark text once the fill itself is light. */
+:root[data-theme="dark"] .badge.b-danger,
+:root[data-theme="dark"] .btn-primary,
+:root[data-theme="dark"] .btn-danger,
+:root[data-theme="dark"] .msg-user .bubble,
+:root[data-theme="dark"] .composer-send { color: #0C1C1B; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge.b-danger,
+  :root:not([data-theme="light"]) .btn-primary,
+  :root:not([data-theme="light"]) .btn-danger,
+  :root:not([data-theme="light"]) .msg-user .bubble,
+  :root:not([data-theme="light"]) .composer-send { color: #0C1C1B; }
+}
+
+/* ---- theme toggle ---- */
+/* A track with both icons always visible and a knob that slides over the
+   inactive one. Showing only the destination icon (the common pattern) means
+   the control never tells you which mode you are actually in. */
+.theme-toggle {
+  background: none; border: 0; padding: 0; cursor: pointer; line-height: 0;
+  border-radius: 999px;
+}
+.theme-toggle-track {
+  position: relative; display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px; border-radius: 999px;
+  background: var(--inset); border: 1px solid var(--line-strong);
+}
+.theme-toggle-icon {
+  position: relative; z-index: 1;
+  width: 22px; height: 20px; display: grid; place-items: center;
+  font-size: 12px; color: var(--muted);
+  transition: color .16s ease;
+  font-variant-emoji: text;
+}
+.theme-toggle-knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 22px; height: 20px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--teal-soft);
+  transition: transform .18s ease;
+}
+/* Knob sits over the mode you are NOT in, so the lit icon is the current one. */
+.theme-toggle-sun { color: var(--teal); }
+:root[data-theme="dark"] .theme-toggle-knob { transform: translateX(26px); }
+:root[data-theme="dark"] .theme-toggle-sun { color: var(--muted); }
+:root[data-theme="dark"] .theme-toggle-moon { color: var(--teal); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle-knob { transform: translateX(26px); }
+  :root:not([data-theme="light"]) .theme-toggle-sun { color: var(--muted); }
+  :root:not([data-theme="light"]) .theme-toggle-moon { color: var(--teal); }
+}
+.theme-toggle:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle-knob { transition: none; }
+}
+
+/* ---- contextual agent actions on a case ---- */
+.case-actions {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px; margin-top: 12px;
+}
+.case-action {
+  display: block; padding: 12px 14px; text-decoration: none; color: inherit;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); transition: border-color .14s ease;
+}
+.case-action:hover { border-color: var(--teal-soft); background: var(--mint); }
+.case-action:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.case-action-label { display: block; font-weight: 550; font-size: 13.5px; }
+.case-action-blurb {
+  display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px;
+  line-height: 1.45;
+}
+
+/* ---- employee document upload ---- */
+.doc-progress { margin-bottom: 20px; }
+.doc-progress-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13.5px; margin-bottom: 6px;
+}
+.doc-progress-pct {
+  font-family: var(--serif); font-size: 17px; font-variant-numeric: tabular-nums;
+}
+.doc-progress .meter { max-width: none; height: 10px; }
+.doc-all-in { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+
+.doc-stage { margin-top: 20px; }
+.doc-stage-name {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
+  color: var(--muted); margin: 0 0 6px;
+}
+
+.doc-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.doc-row:last-child { border-bottom: none; }
+.doc-row-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.doc-name { font-weight: 500; font-size: 14px; }
+.doc-conditional { color: var(--muted); font-size: 12px; }
+
+.doc-row-actions {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px;
+}
+/* The native file input is unstyleable and reads "No file chosen" forever, so
+   it is hidden and its label does the work. */
+.doc-file {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.doc-file-label {
+  display: inline-block; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--control-border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+}
+.doc-file-label:hover { background: var(--mint); border-color: var(--teal); }
+.doc-file:focus-visible + .doc-file-label {
+  outline: 2px solid var(--teal); outline-offset: 2px;
+}
+.doc-file:disabled + .doc-file-label { opacity: .6; cursor: default; }
+.doc-busy { color: var(--muted); font-size: 12.5px; }
+
+.doc-verdict {
+  margin-top: 10px; padding: 10px 12px; font-size: 13px;
+  border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--inset); line-height: 1.5;
+}
+.doc-verdict-accepted { background: var(--ok-wash); border-color: var(--teal-soft); }
+.doc-verdict-needs_review { background: var(--warn-wash); border-color: #E4CE96; }
+.doc-verdict-rejected { background: var(--danger-wash); border-color: var(--danger); }
+.doc-verdict-reason {
+  margin-top: 6px; color: var(--muted); font-size: 12.5px;
+}
+
+.doc-done-toggle {
+  background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px;
+  color: var(--teal); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}

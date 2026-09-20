@@ -1,7 +1,5 @@
-import { Link } from "react-router-dom";
-
 import { useAgents } from "../lib/agents.jsx";
-import { ErrorBox, Loading } from "../components/ui.jsx";
+import { Card, ErrorBox, Loading } from "../components/ui.jsx";
 
 const WORDS = [
   "No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
@@ -11,19 +9,6 @@ const WORDS = [
 // Spelled out from the live count rather than hardcoded, so the intro does not
 // start lying the moment an agent is added.
 const count = (n) => WORDS[n] ?? String(n);
-
-const Card = ({ to, icon, title, tag, children }) => (
-  <Link to={to} className="card">
-    <div className="card-top">
-      <div className="card-icon">{icon}</div>
-      <div>
-        <div className="card-title">{title}</div>
-        <div className="card-tag">{tag}</div>
-      </div>
-    </div>
-    <div className="card-desc">{children}</div>
-  </Link>
-);
 
 export default function Home() {
   const { agents, loading, error } = useAgents();

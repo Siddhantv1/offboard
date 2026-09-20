@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import Chat from "../components/Chat.jsx";
 import ExecuteControls from "../components/ExecuteControls.jsx";
 import Field from "../components/Field.jsx";
 import AgentResult, { hasCustomView } from "../components/results/index.jsx";
 import { ErrorBox, Loading, PageHead } from "../components/ui.jsx";
-import { fetchJSON, postJSON } from "../lib/api.js";
+import { postForm, postJSON } from "../lib/api.js";
 import { useAgent } from "../lib/agents.jsx";
 import { CHAT_PRESETS } from "../lib/constants.js";
 
@@ -23,7 +24,13 @@ export default function AgentPage({ agentId }) {
 
 function AgentForm({ agent }) {
   const formRef = useRef(null);
+  const [params] = useSearchParams();
   const [run, setRun] = useState({ status: "idle", result: null, error: null });
+
+  // `?kt_id=kt-001` preselects that document. This is what makes "Review the
+  // handover" from a case page land on the right record, instead of dropping
+  // the reader on a dropdown and asking them to recognise an employee code.
+  const prefilled = agent.fields.some((f) => params.get(f.name));
 
   async function submit(e) {
     e.preventDefault();
@@ -35,7 +42,7 @@ function AgentForm({ agent }) {
     try {
       let data;
       if (hasFile) {
-        data = await fetchJSON(`/api/agents/${agent.id}/upload`, { method: "POST", body: fd });
+        data = await postForm(`/api/agents/${agent.id}/upload`, fd);
       } else {
         const payload = {};
         fd.forEach((v, k) => {
@@ -57,13 +64,18 @@ function AgentForm({ agent }) {
       <PageHead icon={agent.icon} title={agent.name} description={agent.description} />
 
       <form className="panel" ref={formRef} onSubmit={submit}>
-        <h3>Inputs</h3>
         {agent.fields.length === 0 && (
-          <p className="empty">No inputs needed — this agent analyzes the full dataset.</p>
+          <p className="empty"></p>
         )}
         {agent.fields.map((f) => (
-          <Field key={f.name} field={f} />
+          <Field key={f.name} field={f} initial={params.get(f.name) ?? undefined} />
         ))}
+        {prefilled && (
+          <p className="hint">
+            Filled in from the page you came from. Change it if you meant
+            something else.
+          </p>
+        )}
         <div className="btn-row">
           <button type="submit" className="btn btn-primary" disabled={status === "running"}>
             Run agent

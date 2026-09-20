@@ -12,6 +12,13 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
   },
+  test: {
+    // jsdom rather than the default node environment: these tests render real
+    // components and assert on what a person would see.
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./src/test/setup.js",
+  },
   server: {
     port: 5173,
     proxy: {
