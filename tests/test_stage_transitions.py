@@ -339,3 +339,50 @@ def test_the_trail_survives_the_actor_being_deleted(scratch_case):
     with session_scope() as s:
         row = s.scalar(select(CaseStageEvent).where(CaseStageEvent.case_id == case_id))
         assert row.actor_user_id is None, "FK is SET NULL, not CASCADE"
+
+
+def test_every_seeded_stage_can_be_routed_to_a_role():
+    """A stage with no `stage_key` is invisible to the whole product.
+
+    It matches no role, so `may_act_on_stage` refuses everyone but HR, it never
+    appears in a work queue, and assigning it 404s. The migration backfills the
+    column, but it runs BEFORE the seeder inserts any rows -- so on a fresh
+    bootstrap (migrate, then seed) it catches nothing and every queue in the
+    app is silently empty. The developer's own database hides this, because its
+    rows predate the migration.
+    """
+    from backend.db.models import STAGE_KEYS
+
+    with session_scope() as s:
+        rows = s.scalars(select(CaseStage)).all()
+        assert rows, "no seeded stages to check"
+        orphans = [f"{r.case_id}/{r.name}" for r in rows if not r.stage_key]
+        assert not orphans, (
+            "these stages route to nobody -- the seeder is not setting "
+            f"stage_key: {orphans[:6]}"
+        )
+        bad = {r.stage_key for r in rows} - set(STAGE_KEYS)
+        assert not bad, f"unknown stage_key values: {bad}"
+
+
+def test_a_ui_created_case_is_routable_too():
+    """`_insert_case` is the other writer of stages, and has the same duty."""
+    import uuid as _uuid
+
+    email = f"pytest-routable-{_uuid.uuid4().hex[:8]}@example.com"
+    emp, case, _ = store.add_employee({
+        "name": "Pytest Routable", "role": "Engineer", "department": "Engineering",
+        "email": email, "status": "exiting",
+    })
+    try:
+        with session_scope() as s:
+            rows = s.scalars(select(CaseStage).where(
+                CaseStage.case_id == case.meta["case_id"])).all()
+            assert rows and all(r.stage_key for r in rows), (
+                "a case created through the product must be routable"
+            )
+    finally:
+        with session_scope() as s:
+            s.execute(delete(User).where(User.email == email))
+            s.execute(delete(ExitCase).where(ExitCase.case_id == case.meta["case_id"]))
+            s.execute(delete(Employee).where(Employee.id == emp.meta["id"]))

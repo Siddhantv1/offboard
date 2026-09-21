@@ -11,7 +11,7 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from backend import auth
 from backend.data_store import store
@@ -141,3 +141,70 @@ def test_an_unknown_status_filter_is_refused(client, people):
     _login(client, people["hr"])
     assert client.get("/api/deprovisioning/plans?status=nonsense").status_code == 422
     assert client.get("/api/deprovisioning/plans?status=pending").status_code == 200
+
+
+# -- routing a stage onto someone's queue -------------------------------------
+@pytest.fixture
+def scratch_case():
+    """A throwaway case, because assigning rewrites `CaseStage.owner`.
+
+    An earlier version of these tests assigned a seeded case and left
+    "Pytest IT" on case-001, which `test_store_contract` compares against the
+    golden snapshot -- so it went red on every later run. Anything that writes
+    to a stage builds its own case.
+    """
+    email = f"pytest-assign-{uuid.uuid4().hex[:8]}@example.com"
+    emp, case, _ = store.add_employee({
+        "name": "Pytest Assign Probe", "role": "Engineer",
+        "department": "Engineering", "email": email, "status": "exiting",
+    })
+    yield str(case.meta["case_id"])
+    from backend.db.models import Employee, ExitCase
+    with session_scope() as s:
+        s.execute(delete(User).where(User.email == email))
+        s.execute(delete(ExitCase).where(ExitCase.case_id == case.meta["case_id"]))
+        s.execute(delete(Employee).where(Employee.id == emp.meta["id"]))
+
+
+def test_assigning_a_stage_puts_it_on_that_person_s_queue(client, people, scratch_case):
+    """The whole point of Smart Routing.
+
+    The agent recommended an approver and there was no way to act on it, so the
+    advice went nowhere. Assigning writes `owner_user_id`, which is exactly what
+    "My queue" filters on -- this asserts the two actually meet.
+    """
+    case_id = scratch_case
+
+    with session_scope() as s:
+        it_user = s.scalar(select(User).where(User.email == people["it"]))
+        it_id, it_name = it_user.id, it_user.full_name
+
+    _login(client, people["it"])
+    before = client.get("/api/queue?scope=mine").json()["stages"]
+    assert not any(r["case_id"] == case_id and r["stage_key"] == "it" for r in before)
+
+    _login(client, people["hr"])
+    resp = client.post(f"/api/cases/{case_id}/stages/it/assign", json={"user_id": it_id})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["owner"] == it_name
+
+    _login(client, people["it"])
+    after = client.get("/api/queue?scope=mine").json()["stages"]
+    mine = [r for r in after if r["case_id"] == case_id and r["stage_key"] == "it"]
+    assert mine, "the assigned stage did not reach the assignee's own queue"
+    assert mine[0]["owner"] == it_name
+    assert mine[0]["claimed"] is True
+
+
+def test_a_stage_cannot_be_routed_to_someone_whose_role_does_not_own_it(
+        client, people, scratch_case):
+    """A rota error, not a judgement call, so it is refused rather than warned."""
+    case_id = scratch_case
+    with session_scope() as s:
+        mgr = s.scalar(select(User).where(User.email == people["manager"]))
+        mgr_id = mgr.id
+
+    _login(client, people["hr"])
+    resp = client.post(f"/api/cases/{case_id}/stages/it/assign", json={"user_id": mgr_id})
+    assert resp.status_code == 422
+    assert "does not own this stage" in resp.json()["detail"]

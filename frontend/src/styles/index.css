@@ -1783,3 +1783,10 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
   margin: 0 0 4px;
 }
 .rk-group.is-flagged { box-shadow: inset 2px 0 0 var(--rk); padding-left: 13px; }
+
+/* Confirmation after assigning a stage from a routing result. */
+.rk-assigned {
+  margin: 0; padding: 10px 13px; font-size: 13.5px;
+  background: var(--ok-wash); border: 1px solid var(--teal-soft);
+  border-radius: var(--radius-sm);
+}

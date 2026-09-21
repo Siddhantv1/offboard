@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import DATA_DIR
+from ..policy import stage_key_for_name
 from . import session_scope
 from .models import (CaseDocument, CaseStage, Employee, ExitCase, Interview,
                      KTDoc)
@@ -145,10 +146,18 @@ def _seed_stages(session: Session, case_id: str, stages: Iterable[Any]) -> None:
     for i, stage in enumerate(stages or []):
         if not isinstance(stage, dict):
             continue
+        name = str(stage.get("name") or "?")
         session.add(CaseStage(
             case_id=case_id,
             ordinal=i,
-            name=str(stage.get("name") or "?"),
+            name=name,
+            # Without this every seeded stage lands with a NULL stage_key, and
+            # since that is what routes work to a role, a freshly bootstrapped
+            # database has empty queues for everybody and refuses every
+            # assignment. Migration c3a8d16b42f7 backfills the column, but it
+            # runs before the seeder inserts any rows, so it catches nothing on
+            # a clean install -- only on the developer's existing data.
+            stage_key=stage_key_for_name(name),
             owner=str(stage.get("owner") or ""),
             status=str(stage.get("status") or "pending"),
             days_open=_as_int(stage.get("days_open")) or 0,

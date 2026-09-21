@@ -1,6 +1,76 @@
+import { useState } from "react";
+
 import { Facts, Prose, Section, Tag, toneOf } from "./kit.jsx";
+import { Button, ErrorBox } from "../ui.jsx";
 import { humanize } from "../../lib/format.js";
+import { postJSON } from "../../lib/api.js";
 import GenericResult from "./GenericResult.jsx";
+
+/** Put the recommended person on the stage.
+ *
+ * Without this the agent was advice you had to go and carry out somewhere
+ * else, which is most of why it read as doing nothing. Assigning writes
+ * `owner_user_id`, which is exactly what "My queue" filters on -- so the stage
+ * lands on that person's own page the next time they load it.
+ *
+ * `chosen` is the roster entry the backend resolved from the model's answer.
+ * When the model names somebody outside the roster it comes back null, and we
+ * say so rather than offering a button that cannot work.
+ */
+function AssignAction({ caseId, stageKey, chosen, stageName }) {
+  const [state, setState] = useState({ status: "idle", error: null });
+
+  if (!chosen?.user_id) {
+    return (
+      <p className="rk-empty">
+        {`The model named someone who is not on the roster for ${stageName}, `}
+        so there is nobody to assign. Pick an approver from the table yourself.
+      </p>
+    );
+  }
+  if (!caseId) {
+    return (
+      <p className="rk-empty">
+        Run this again with an exit case selected and you can assign
+        {` ${chosen.name} `}
+        to it from here.
+      </p>
+    );
+  }
+
+  if (state.status === "done") {
+    return (
+      <p className="rk-assigned">
+        {`${chosen.name} now owns ${stageName} on ${caseId}. It is in their queue.`}
+      </p>
+    );
+  }
+
+  async function assign() {
+    setState({ status: "busy", error: null });
+    try {
+      await postJSON(`/api/cases/${caseId}/stages/${stageKey}/assign`,
+                     { user_id: chosen.user_id });
+      setState({ status: "done", error: null });
+    } catch (e) {
+      setState({ status: "idle", error: e.message });
+    }
+  }
+
+  return (
+    <>
+      {state.error && <ErrorBox>{state.error}</ErrorBox>}
+      <div className="btn-row">
+        <Button busy={state.status === "busy"} onClick={assign}>
+          {`Assign ${stageName} to ${chosen.name}`}
+        </Button>
+      </div>
+      <p className="rk-empty">
+        {`Puts it on ${chosen.name}'s queue on ${caseId}. They can be changed later.`}
+      </p>
+    </>
+  );
+}
 
 /** First letters of the first two words. Rosters here mix real names with role
  *  placeholders ("Line Manager"), and both initialise sensibly this way. */
@@ -55,6 +125,18 @@ export default function SmartRouting({ result: r }) {
           </div>
         </div>
       </div>
+
+      <Section
+        title={chosen ? `Put ${chosen} on it` : "Nobody to assign"}
+        note={r.case_id ? `Exit case ${r.case_id}` : undefined}
+      >
+        <AssignAction
+          caseId={r.case_id}
+          stageKey={r.stage_key}
+          chosen={r.chosen}
+          stageName={r.stage || "this stage"}
+        />
+      </Section>
 
       <Facts
         items={[
