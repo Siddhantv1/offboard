@@ -168,3 +168,55 @@ def test_the_orchestrator_is_named_in_the_audit_trail_not_a_person(
     events = timeline(scratch_case)
     assert events, "starting IT Clearance recorded nothing"
     assert events[-1]["by"] == "Exit Process Orchestrator"
+
+
+def test_a_machine_assignment_is_audited_like_a_human_one(
+        apply_decisions, scratch_case, it_person):
+    """Routing wrote the owner columns directly and left no event.
+
+    A machine assignment needs the audit line more than a human one, not less:
+    nobody remembers doing it, and "why is Farhan on this?" has no other
+    answer. The fix for `assign` and `claim` initially missed this third
+    writer.
+    """
+    apply_decisions(_routing_state(scratch_case, it_person))
+
+    events = [e for e in timeline(scratch_case) if e["kind"] == "assignment"]
+    assert events, "the orchestrator assigned a stage and recorded nothing"
+    assert it_person["name"] in events[-1]["note"]
+    assert events[-1]["by"] == "Exit Process Orchestrator"
+
+
+def test_no_writer_sets_the_owner_columns_outside_the_audited_path():
+    """Structural, and parsed rather than grepped.
+
+    `set_stage_owner` writes the two owner columns; `assign_owner` writes them
+    *and* the event saying who decided. Only stages.py may call the former. A
+    fourth call site elsewhere is how this bug comes back in six months,
+    silently -- which is exactly how the orchestrator kept writing unaudited
+    assignments after `assign` and `claim` were fixed.
+
+    AST, not text search: the first version of this test grepped, and tripped
+    over `link_stage_owners.py` naming the function in a docstring.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    offenders = []
+    files = list((root / "backend").rglob("*.py")) + list((root / "scripts").rglob("*.py"))
+    for path in files:
+        if path.name == "stages.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = getattr(fn, "id", None) or getattr(fn, "attr", None)
+            if name == "set_stage_owner":
+                offenders.append(f"{path.relative_to(root)}:{node.lineno}")
+    assert not offenders, (
+        "these write the owner columns without recording who decided it; "
+        "call stages.assign_owner instead: " + ", ".join(offenders)
+    )

@@ -27,6 +27,15 @@ class TransitionError(Exception):
     """The move was refused. The message is safe to show the caller."""
 
 
+class StageClosedError(TransitionError):
+    """The stage is finished, so there is no work to hand to anyone.
+
+    A subclass so existing `except TransitionError` handlers keep catching it,
+    but the routes can map it to 409 (a conflict with the stage's state) rather
+    than 422 (a malformed request), which is what the UI switches on.
+    """
+
+
 #: Which moves are legal, as {from: {to}}.
 #:
 #: `completed -> in_progress` exists because reopening happens (a signature
@@ -231,20 +240,29 @@ def transition(
         # something that happens because HR clicked "complete" on a colleague's
         # behalf. That distinction is the whole of the case-003 bug.
         unowned = stage.owner_user_id is None and not (stage.owner or "").strip()
-        if claim and actor.user_id and unowned:
+        took_ownership = bool(claim and actor.user_id and unowned)
+        if took_ownership:
             set_stage_owner(stage, actor.user_id, actor.full_name or actor.email)
 
         s.add(CaseStageEvent(
             case_id=case.case_id,
             stage_key=stage.stage_key,
             stage_name=stage.name,
+            kind="transition",
             from_status=from_status,
             to_status=to_status,
             actor_user_id=actor.user_id,
             actor_label=actor.full_name or actor.email,
             actor_role=actor.role,
             escalated=escalated,
-            note=(note or "").strip(),
+            # One user action, one event. Picking up an unowned stage while
+            # moving it is part of the same act, so it is said on the
+            # transition rather than filed as a separate assignment the reader
+            # has to correlate by timestamp.
+            note=" ".join(filter(None, [
+                (note or "").strip(),
+                "Took ownership of the stage." if took_ownership else "",
+            ])),
         ))
 
         recompute_case(case, now=now)
@@ -259,6 +277,84 @@ def transition(
             "escalated": escalated,
             "current_stage": case.current_stage,
             "overall_status": case.overall_status,
+        }
+
+
+def assign_owner(*, case_id: str, stage_key: str, assignee_user_id: int | None,
+                 assignee_label: str, actor: Any, note: str = "",
+                 self_claim: bool = False) -> dict[str, Any]:
+    """Put a person on a stage, and record who put them there.
+
+    Assignment decides who is accountable for a clearance, and until now it was
+    the only such decision the audit trail did not capture: `assign` and
+    `claim` wrote `owner`/`owner_user_id` straight onto the row and left no
+    event behind. The case could say Farhan Khan owns IT Clearance and could
+    not say who decided that, when, or who held it before -- on a record whose
+    entire purpose is answering exactly that.
+
+    Both routes come through here so they cannot drift. `claim` is the special
+    case where the assignee is the caller, which reads differently in the
+    trail ("took it") and is the only difference between them.
+    """
+    with session_scope() as s:
+        case = s.get(ExitCase, case_id)
+        if case is None:
+            raise TransitionError(f"Unknown exit case '{case_id}'.")
+
+        stage = next((x for x in case.stages if x.stage_key == stage_key), None)
+        if stage is None:
+            raise TransitionError(f"This case has no '{stage_key}' clearance stage.")
+
+        # Assigning finished work is a no-op that looks like an action: the
+        # write succeeds and the queue, which shows open work only, stays
+        # empty. Refused here rather than in each route.
+        if stage.status == "completed":
+            raise StageClosedError(
+                f"{stage.name} on {case_id} is already completed, so assigning it "
+                "would not put any work on anyone's queue. Reopen the stage first "
+                "if it needs redoing."
+            )
+
+        previous = (stage.owner or "").strip()
+        previous_id = stage.owner_user_id
+        set_stage_owner(stage, assignee_user_id, assignee_label)
+
+        # Nothing changed, so nothing is worth a line in the trail. Recording
+        # it anyway would pad the timeline with re-clicks and make the entries
+        # that do mean something harder to find.
+        unchanged = previous_id == assignee_user_id and previous == assignee_label
+        if not unchanged:
+            if self_claim:
+                what = f"Took {stage.name}."
+            elif previous:
+                what = f"Reassigned {stage.name} from {previous} to {assignee_label}."
+            else:
+                what = f"Assigned {stage.name} to {assignee_label}."
+            s.add(CaseStageEvent(
+                case_id=case.case_id,
+                stage_key=stage.stage_key,
+                stage_name=stage.name,
+                kind="assignment",
+                # An assignment does not move the stage. Equal statuses say so
+                # honestly; `kind` is what stops the UI rendering it as a move.
+                from_status=stage.status,
+                to_status=stage.status,
+                actor_user_id=getattr(actor, "user_id", None),
+                actor_label=getattr(actor, "full_name", None)
+                            or getattr(actor, "email", ""),
+                actor_role=getattr(actor, "role", None),
+                escalated=False,
+                note=(what + (f" {note.strip()}" if note and note.strip() else "")),
+            ))
+        s.flush()
+        return {
+            "case_id": case.case_id,
+            "stage": stage.name,
+            "stage_key": stage.stage_key,
+            "owner": stage.owner,
+            "owner_user_id": stage.owner_user_id,
+            "previous_owner": previous or None,
+            "recorded": not unchanged,
         }
 
 
@@ -326,6 +422,7 @@ def confirm_employee_side(*, case_id: str, stage_key: str, actor: Any,
                 case_id=case.case_id,
                 stage_key=stage.stage_key,
                 stage_name=stage.name,
+                kind="confirmation",
                 from_status=stage.status,
                 to_status=stage.status,
                 actor_user_id=getattr(actor, "user_id", None),
@@ -378,6 +475,7 @@ def record_escalation(*, case_id: str, stage_key: str, actor: Any,
             case_id=case.case_id,
             stage_key=stage.stage_key,
             stage_name=stage.name,
+            kind="escalation",
             from_status=stage.status,
             to_status=stage.status,
             actor_user_id=getattr(actor, "user_id", None),

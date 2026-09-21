@@ -622,35 +622,31 @@ def escalate_stage(case: ScopedCase, stage_key: str, user: StaffUser,
 
 @router.post("/cases/{case_id}/stages/{stage_key}/claim")
 def claim_stage(case: ScopedCase, stage_key: str, user: StaffUser) -> dict[str, Any]:
-    """Take ownership of an unclaimed stage without changing its status."""
-    from sqlalchemy import select
+    """Take ownership of a stage without changing its status.
 
-    from ..db.models import CaseStage
+    Shares `assign_owner` with the assign route below, so both write the owner
+    and the audit event the same way. They used to each set the columns
+    themselves and neither recorded anything.
+    """
     from ..policy import may_act_on_stage
 
     if not may_act_on_stage(user.role, stage_key):
         raise HTTPException(
             status_code=403, detail="Your role does not own this clearance stage."
         )
-    with session_scope() as s:
-        stage = s.scalar(select(CaseStage).where(
-            CaseStage.case_id == str(case.meta.get("case_id")),
-            CaseStage.stage_key == stage_key,
-        ))
-        if stage is None:
-            raise HTTPException(
-                status_code=404, detail=f"This case has no '{stage_key}' stage."
-            )
-        if stage.status == "completed":
-            raise HTTPException(
-                status_code=409,
-                detail=f"{stage.name} is already completed, so there is no work "
-                       "to take. Reopen it first if it needs redoing.",
-            )
-        stage_service.set_stage_owner(
-            stage, user.user_id, user.full_name or user.email)
-        return {"case_id": case.meta.get("case_id"), "stage_key": stage_key,
-                "owner": stage.owner, "owner_user_id": stage.owner_user_id}
+    try:
+        return stage_service.assign_owner(
+            case_id=str(case.meta.get("case_id")),
+            stage_key=stage_key,
+            assignee_user_id=user.user_id,
+            assignee_label=user.full_name or user.email,
+            actor=user,
+            self_claim=True,
+        )
+    except stage_service.StageClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except stage_service.TransitionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/cases/{case_id}/stages/{stage_key}/assign")
@@ -667,9 +663,7 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
     finance clearance to an IT engineer would be a rota error, not a judgement
     call, so it is refused rather than warned about.
     """
-    from sqlalchemy import select
-
-    from ..db.models import CaseStage, User
+    from ..db.models import User
     from ..policy import STAGE_OWNERS, may_act_on_stage
 
     payload = payload or {}
@@ -682,6 +676,8 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
         raise HTTPException(
             status_code=403, detail="Your role does not own this clearance stage.")
 
+    # Resolving the assignee is an authorisation question and stays here; the
+    # write and its audit record belong to the service, shared with `claim`.
     with session_scope() as s:
         assignee = s.get(User, assignee_id)
         if assignee is None or not assignee.is_active:
@@ -694,35 +690,21 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
                 detail=f"{assignee.full_name or assignee.email} is "
                        f"{assignee.role}, which does not own this stage.",
             )
+        label = assignee.full_name or assignee.email
 
-        stage = s.scalar(select(CaseStage).where(
-            CaseStage.case_id == str(case.meta.get("case_id")),
-            CaseStage.stage_key == stage_key,
-        ))
-        if stage is None:
-            raise HTTPException(
-                status_code=404, detail=f"This case has no '{stage_key}' stage.")
-
-        # Assigning finished work is a no-op that looks like an action: the
-        # write succeeds, and the queue -- which shows open work only -- stays
-        # empty, so the assignment appears to have been silently dropped. This
-        # is exactly what happened to IT Clearance on case-006.
-        if stage.status == "completed":
-            raise HTTPException(
-                status_code=409,
-                detail=f"{stage.name} on {case.meta.get('case_id')} is already "
-                       "completed, so assigning it would not put any work on "
-                       "anyone's queue. Reopen the stage first if it needs redoing.",
-            )
-
-        stage_service.set_stage_owner(
-            stage, assignee.id, assignee.full_name or assignee.email)
-        return {
-            "case_id": case.meta.get("case_id"),
-            "stage_key": stage_key,
-            "owner": stage.owner,
-            "owner_user_id": stage.owner_user_id,
-        }
+    try:
+        return stage_service.assign_owner(
+            case_id=str(case.meta.get("case_id")),
+            stage_key=stage_key,
+            assignee_user_id=assignee_id,
+            assignee_label=label,
+            actor=user,
+            note=str(payload.get("note") or ""),
+        )
+    except stage_service.StageClosedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except stage_service.TransitionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/employees")

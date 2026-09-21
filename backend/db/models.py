@@ -334,8 +334,14 @@ class CaseStage(Base):
         }
 
 
+#: What a `case_stage_events` row records. Only `transition` moves a stage;
+#: the rest happen *to* a stage without changing its status, which is why they
+#: are written with `from_status == to_status` and need this to be told apart.
+EVENT_KINDS = ("transition", "assignment", "escalation", "confirmation")
+
+
 class CaseStageEvent(Base):
-    """One recorded stage transition. The audit trail behind the work queues.
+    """One recorded thing that happened to a clearance stage. The audit trail.
 
     The exit case *is* the compliance record, so "who moved this stage, when,
     from what, and why" has to survive -- including after the account that did
@@ -348,11 +354,19 @@ class CaseStageEvent(Base):
     type -- in practice HR exercising its blanket override. Without it, HR
     clearing an IT stage is indistinguishable from IT clearing it, and the
     trail cannot answer "did the stage owner actually sign this off?".
+
+    `kind` says which of the four things this row is. The table began as
+    transitions only and grew three more, each written with
+    `from_status == to_status` and distinguishable only by sniffing other
+    columns. See the `b4c7e9a21f36` migration.
     """
 
     __tablename__ = "case_stage_events"
     __table_args__ = (
         Index("ix_case_stage_event_case_time", "case_id", "created_at"),
+        CheckConstraint(
+            "kind in ('transition','assignment','escalation','confirmation')",
+            name="ck_case_stage_event_kind"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -369,6 +383,9 @@ class CaseStageEvent(Base):
         BigInteger, ForeignKey("users.id", ondelete="SET NULL"), index=True)
     actor_label: Mapped[str] = mapped_column(Text, default="")
     actor_role: Mapped[str | None] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="transition",
+        server_default="transition", index=True)
     escalated: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default="false")
     note: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -383,6 +400,7 @@ class CaseStageEvent(Base):
             "to": self.to_status,
             "by": self.actor_label or "unknown",
             "role": self.actor_role,
+            "kind": self.kind,
             "escalated": self.escalated,
             "note": self.note,
             "at": self.created_at,

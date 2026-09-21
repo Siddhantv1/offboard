@@ -156,6 +156,30 @@ function ExitInterview({ interview, employee }) {
   );
 }
 
+/** What an event did, in words.
+ *
+ * Only a `transition` moves a stage. The other three happen *to* a stage
+ * without changing its status, so they are stored with equal from/to -- and
+ * rendering that as an arrow produced "pending → pending", which reads as a
+ * bug. The `kind` column exists so this can say what actually happened.
+ *
+ * Falls back to the arrow when `kind` is absent, for rows written before the
+ * column existed.
+ */
+function EventWhat({ event: e }) {
+  const moved = e.from && e.from !== e.to;
+  if (e.kind === "assignment") return <span className="muted">reassigned</span>;
+  if (e.kind === "escalation") return <span className="muted">chased</span>;
+  if (e.kind === "confirmation") {
+    return <span className="muted">employee confirmed their side</span>;
+  }
+  return (
+    <span className="muted">
+      {moved ? `${humanize(e.from)} → ` : ""}{humanize(e.to)}
+    </span>
+  );
+}
+
 function Timeline({ events }) {
   if (!events.length) {
     return <p className="empty">No changes recorded yet.</p>;
@@ -166,10 +190,8 @@ function Timeline({ events }) {
         <li key={i}>
           <div className="timeline-head">
             <b>{e.stage}</b>{" "}
-            <span className="muted">
-              {e.from ? `${humanize(e.from)} → ` : ""}{humanize(e.to)}
-            </span>
-            {e.escalated && (
+            <EventWhat event={e} />
+            {e.escalated && e.kind !== "escalation" && (
               <span className="timeline-escalated" title="Actioned by someone who does not own this stage">
                 escalation
               </span>

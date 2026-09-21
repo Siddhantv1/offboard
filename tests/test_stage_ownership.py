@@ -206,3 +206,90 @@ def test_recording_an_escalation_lands_on_the_case_timeline(
     assert "3 days past" in events[0]["note"]
     # An escalation is not a status change; the stage must not have moved.
     assert _stage_row(scratch_case)[2] == "pending"
+
+
+# -- 4. who decided this? -----------------------------------------------------
+def test_assigning_is_recorded_in_the_audit_trail(client, people, scratch_case):
+    """Assignment decides who is accountable, and it left no trace.
+
+    `assign` and `claim` wrote the owner columns straight onto the row. The
+    case could say who owns IT Clearance and could not say who decided that,
+    when, or who held it before -- on a record whose entire purpose is
+    answering exactly that.
+    """
+    it_id, it_name = _user(people["it"])
+    _login(client, people["hr"])
+    assert client.post(f"/api/cases/{scratch_case}/stages/it/assign",
+                       json={"user_id": it_id}).status_code == 200
+
+    events = [e for e in timeline(scratch_case) if e["kind"] == "assignment"]
+    assert events, "assigning a stage recorded nothing"
+    assert it_name in events[-1]["note"]
+    assert events[-1]["role"] == "hr", "the trail must name who decided, not who received"
+
+
+def test_a_reassignment_names_who_held_it_before(client, people, scratch_case):
+    """"Who had this before?" is the question an auditor actually asks."""
+    it_id, it_name = _user(people["it"])
+    hr_id, hr_name = _user(people["hr"])
+
+    _login(client, people["hr"])
+    client.post(f"/api/cases/{scratch_case}/stages/it/assign", json={"user_id": it_id})
+    resp = client.post(f"/api/cases/{scratch_case}/stages/it/assign",
+                       json={"user_id": hr_id})
+    assert resp.status_code == 200
+    assert resp.json()["previous_owner"] == it_name
+
+    note = [e for e in timeline(scratch_case) if e["kind"] == "assignment"][-1]["note"]
+    assert it_name in note and hr_name in note
+
+
+def test_claiming_reads_as_taking_it(client, people, scratch_case):
+    _login(client, people["it"])
+    assert client.post(f"/api/cases/{scratch_case}/stages/it/claim").status_code == 200
+
+    event = [e for e in timeline(scratch_case) if e["kind"] == "assignment"][-1]
+    assert "Took" in event["note"]
+    assert event["role"] == "it"
+
+
+def test_reassigning_to_the_same_person_records_nothing(client, people, scratch_case):
+    """A re-click is not a decision. Recording it would pad the trail with
+    noise and bury the entries that mean something."""
+    it_id, _ = _user(people["it"])
+    _login(client, people["hr"])
+    client.post(f"/api/cases/{scratch_case}/stages/it/assign", json={"user_id": it_id})
+    again = client.post(f"/api/cases/{scratch_case}/stages/it/assign",
+                        json={"user_id": it_id})
+    assert again.status_code == 200
+    assert again.json()["recorded"] is False
+    assert len([e for e in timeline(scratch_case) if e["kind"] == "assignment"]) == 1
+
+
+def test_an_assignment_is_not_recorded_as_a_stage_movement(client, people, scratch_case):
+    """It must not look like a transition to anything reading the trail --
+    including the case page, which used to render these as "pending → pending"."""
+    it_id, _ = _user(people["it"])
+    _login(client, people["hr"])
+    client.post(f"/api/cases/{scratch_case}/stages/it/assign", json={"user_id": it_id})
+
+    event = [e for e in timeline(scratch_case) if e["kind"] == "assignment"][-1]
+    assert event["from"] == event["to"], "an assignment moved the stage"
+    assert event["escalated"] is False
+    assert _stage_row(scratch_case)[2] == "pending"
+
+
+def test_every_event_declares_what_kind_it_is(client, people, scratch_case):
+    """Four things are recorded in one table. Before `kind`, telling them apart
+    meant sniffing `escalated` and the note text."""
+    it_id, _ = _user(people["it"])
+    _login(client, people["hr"])
+    client.post(f"/api/cases/{scratch_case}/stages/it/assign", json={"user_id": it_id})
+    client.post(f"/api/cases/{scratch_case}/stages/it/escalate", json={"note": "late"})
+    client.post(f"/api/cases/{scratch_case}/stages/it/transition",
+                json={"to": "in_progress"})
+
+    kinds = [e["kind"] for e in timeline(scratch_case)]
+    assert set(kinds) == {"assignment", "escalation", "transition"}
+    assert all(k in ("transition", "assignment", "escalation", "confirmation")
+               for k in kinds)

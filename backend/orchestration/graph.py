@@ -330,7 +330,7 @@ def apply_decisions(state: ExitOrchestrationState) -> dict[str, Any]:
     from ..db import session_scope
     from ..db.models import CaseStage
     from ..policy import STAGE_KEY_BY_NAME
-    from ..stages import TransitionError, set_stage_owner, transition
+    from ..stages import TransitionError, assign_owner, transition
 
     applied: list[dict[str, Any]] = []
     case_id = state["case_id"]
@@ -343,6 +343,10 @@ def apply_decisions(state: ExitOrchestrationState) -> dict[str, Any]:
         stage_key = routed.get("stage_key") or STAGE_KEY_BY_NAME.get(stage_name)
         if not (chosen and chosen.get("user_id") and stage_key):
             continue
+        # Read first, then write through `assign_owner` rather than setting the
+        # columns here: that is what records who assigned the stage. A machine
+        # assignment needs the audit line more than a human one, not less --
+        # nobody remembers doing it.
         with session_scope() as s:
             stage = s.scalar(select(CaseStage).where(
                 CaseStage.case_id == case_id, CaseStage.stage_key == stage_key))
@@ -350,7 +354,16 @@ def apply_decisions(state: ExitOrchestrationState) -> dict[str, Any]:
                 continue
             if stage.owner_user_id is not None:
                 continue
-            set_stage_owner(stage, int(chosen["user_id"]), str(chosen.get("name") or ""))
+        try:
+            assign_owner(
+                case_id=case_id, stage_key=stage_key,
+                assignee_user_id=int(chosen["user_id"]),
+                assignee_label=str(chosen.get("name") or ""),
+                actor=_Orchestrator(),
+                note="Routed automatically during an orchestration run.",
+            )
+        except TransitionError:
+            continue
         applied.append({
             "kind": "assigned",
             "stage": stage_name,
