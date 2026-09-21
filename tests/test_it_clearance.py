@@ -189,3 +189,39 @@ def test_an_unconfirmed_stage_shows_as_waiting_rather_than_absent(client, staff,
     _login(client, staff["it"])
     body = client.get(f"/api/cases/{leaver['case_id']}").json()
     assert body["employee_confirmations"]["it"]["confirmed"] is False
+
+
+def test_a_signed_off_stage_offers_the_employee_nothing_to_do(client, staff, leaver):
+    """No dead controls.
+
+    IT can clear the stage from their own records without the employee ever
+    confirming -- Aarav Mehta's case-001 is exactly that shape. The page used
+    to render the confirm button anyway, and pressing it could only ever
+    produce "already signed off". `actionable` is what lets the UI say there is
+    nothing to do instead of offering an action that cannot succeed.
+    """
+    from backend.stages import confirm_employee_side, employee_confirmations
+
+    before = employee_confirmations(leaver["case_id"])["it"]
+    assert before["actionable"] is True
+
+    transition(case_id=leaver["case_id"], stage_key="it", to_status="completed",
+               actor=_identity(staff["hr"], "hr"), note="Cleared without them.")
+
+    after = employee_confirmations(leaver["case_id"])["it"]
+    assert after["actionable"] is False
+    assert after["status"] == "completed"
+
+    # And the route agrees, rather than the flag being cosmetic.
+    _login(client, leaver["email"], leaver["password"])
+    r = client.post("/api/me/case/stages/it/confirm", json={})
+    assert r.status_code == 422
+    assert "already signed off" in r.json()["detail"]
+
+
+def test_confirming_stays_available_while_the_stage_is_open(staff, leaver):
+    from backend.stages import employee_confirmations
+
+    transition(case_id=leaver["case_id"], stage_key="it", to_status="in_progress",
+               actor=_identity(staff["it"], "it"))
+    assert employee_confirmations(leaver["case_id"])["it"]["actionable"] is True

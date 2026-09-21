@@ -120,6 +120,42 @@ function StageRow({ caseId, stage, canAct, confirmation, employee, onChanged }) 
   );
 }
 
+/** The leaver's own answers, once they have sent them.
+ *
+ * Only ever shown submitted: the server does not hand out a draft, because
+ * half an answer to "what did not work" is not something the person has chosen
+ * to say. The waiting state is stated rather than left blank — "no interview"
+ * and "not finished yet" are different facts to a coordinator chasing one.
+ */
+function ExitInterview({ interview, employee }) {
+  if (!interview) return <p className="empty">Not available.</p>;
+  if (!interview.submitted) {
+    return (
+      <p className="stage-waiting">
+        {`${employee || "The employee"} has not sent their exit interview yet. `}
+        It is theirs to fill in, and nothing of it is shown here until they do.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="hint" style={{ marginTop: -6 }}>
+        {`Sent${interview.submitted_at
+          ? ` on ${new Date(interview.submitted_at).toLocaleDateString()}`
+          : ""}. It cannot be edited, by them or by you.`}
+      </p>
+      {(interview.responses || []).map((r) => (
+        <div className="interview-q" key={r.id}>
+          <p className="interview-prompt">{r.prompt}</p>
+          {r.answer
+            ? <p className="interview-answer">{r.answer}</p>
+            : <p className="empty">Left blank.</p>}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function Timeline({ events }) {
   if (!events.length) {
     return <p className="empty">No changes recorded yet.</p>;
@@ -157,6 +193,7 @@ export default function CaseDetail() {
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [events, setEvents] = useState([]);
   const [uploads, setUploads] = useState([]);
+  const [interview, setInterview] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -164,12 +201,17 @@ export default function CaseDetail() {
       fetchJSON(`/api/cases/${caseId}`),
       fetchJSON(`/api/cases/${caseId}/timeline`).catch(() => ({ events: [] })),
       fetchJSON(`/api/cases/${caseId}/documents`).catch(() => ({ documents: [] })),
+      // A sibling endpoint rather than a key on the case detail: the answers
+      // are free text of unbounded length, and every other consumer of that
+      // response would pay for them.
+      fetchJSON(`/api/cases/${caseId}/interview`).catch(() => null),
     ])
-      .then(([detail, tl, docs]) => {
+      .then(([detail, tl, docs, exitInterview]) => {
         if (cancelled) return;
         setState({ status: "done", data: detail, error: null });
         setEvents(tl.events || []);
         setUploads(docs.documents || []);
+        setInterview(exitInterview);
       })
       .catch((e) => !cancelled && setState({ status: "done", data: null, error: e.message }));
     return () => {
@@ -270,6 +312,10 @@ export default function CaseDetail() {
               }
             : undefined}
         />
+      </Panel>
+
+      <Panel title="Exit interview">
+        <ExitInterview interview={interview} employee={c.employee_name} />
       </Panel>
 
       <Panel title="Audit trail">

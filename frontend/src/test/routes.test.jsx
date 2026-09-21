@@ -10,6 +10,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { NAV } from "../lib/nav.js";
 import AppRoutes, { partitionRoutes, ROUTES } from "../routes.jsx";
 
 // The pages themselves fetch; this suite is about which one is chosen.
@@ -74,6 +75,23 @@ describe("routes another role owns", () => {
     renderAt("/deprovisioning", "manager");
     expect(screen.getByText("403")).toBeInTheDocument();
   });
+
+  // The exit interview is the leaver answering questions about their own exit.
+  // Staff read a submitted one from the case page, which is a different thing
+  // in a different place -- this path only ever belongs to one role.
+  it.each(["hr", "it", "manager"])(
+    "tell %s they are forbidden from the exit interview, which is the employee's",
+    (role) => {
+      renderAt("/interview", role);
+      expect(screen.getByText("403")).toBeInTheDocument();
+    },
+  );
+
+  it("lets an employee reach their own exit interview", () => {
+    renderAt("/interview", "employee");
+    expect(screen.queryByText("403")).not.toBeInTheDocument();
+    expect(screen.queryByText("404")).not.toBeInTheDocument();
+  });
 });
 
 describe("the route table", () => {
@@ -98,5 +116,23 @@ describe("the route table", () => {
     for (const route of ROUTES) {
       expect(route.roles.length, `${route.path} has no roles`).toBeGreaterThan(0);
     }
+  });
+
+  it("never puts a path in a role's sidebar that the role cannot reach", () => {
+    // The two tables are edited separately, and a nav entry pointing at a 403
+    // is a dead control the user has no way to tell apart from a broken one.
+    for (const role of ROLES) {
+      const reachable = new Set(partitionRoutes(role).mine.map((r) => r.path));
+      for (const item of NAV[role] ?? []) {
+        expect(reachable.has(item.to), `${role}: nav links ${item.to}`).toBe(true);
+      }
+    }
+  });
+
+  it("keeps the exit interview to the employee alone", () => {
+    const route = ROUTES.find((r) => r.path === "/interview");
+    expect(route, "/interview is missing from the route table").toBeTruthy();
+    expect(route.roles).toEqual(["employee"]);
+    expect(NAV.employee.map((i) => i.to)).toContain("/interview");
   });
 });

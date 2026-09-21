@@ -15,6 +15,7 @@ import CaseDetail from "./pages/CaseDetail.jsx";
 import CaseList from "./pages/CaseList.jsx";
 import Deprovisioning from "./pages/Deprovisioning.jsx";
 import { Forbidden, NotFound } from "./pages/Errors.jsx";
+import ExitInterview from "./pages/ExitInterview.jsx";
 import Home from "./pages/Home.jsx";
 import MyCase from "./pages/MyCase.jsx";
 import Orchestrator from "./pages/Orchestrator.jsx";
@@ -38,6 +39,11 @@ export const ROUTES = [
   { path: "/", roles: ["hr"], element: <Home /> },
   { path: "/", roles: ["it", "manager"], element: <Queue scope="mine" /> },
   { path: "/", roles: ["employee"], element: <MyCase /> },
+
+  // Employee-only, and not merely by convention: the questions are about
+  // this person's own exit and the route it reads resolves the case from the
+  // session, so there is nothing here for another role to look at.
+  { path: "/interview", roles: ["employee"], element: <ExitInterview /> },
 
   { path: "/queue/all", roles: ["it", "manager"], element: <Queue scope="all" /> },
   { path: "/cases", roles: STAFF, element: <CaseList /> },

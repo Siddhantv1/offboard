@@ -275,6 +275,14 @@ def employee_confirmations(case_id: str) -> dict[str, dict[str, Any]]:
                 "note": st.employee_confirmed_note,
                 "confirmed": st.employee_confirmed_at is not None,
                 "asks": EMPLOYEE_CONFIRMABLE[st.stage_key],
+                "status": st.status,
+                # Whether confirming would still do anything. A stage that is
+                # already signed off refuses the confirm call, so without this
+                # the page shows a button whose only outcome is an error --
+                # which is the same dead control that made assigning a
+                # completed stage look like it worked.
+                "actionable": (st.status != "completed"
+                               and st.employee_confirmed_at is None),
             }
             for st in rows
             if needs_employee_confirmation(st.stage_key)

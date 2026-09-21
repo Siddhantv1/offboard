@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DocumentUpload from "../components/DocumentUpload.jsx";
+import Checklist from "../components/results/Checklist.jsx";
 import { Badge, Button, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
 import { fetchJSON, postJSON } from "../lib/api.js";
 import { STAGE_NAMES } from "../lib/stages.js";
@@ -22,6 +23,17 @@ function ConfirmStage({ stageKey, state, onConfirmed }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const name = STAGE_NAMES[stageKey] ?? stageKey;
+
+  /* Already signed off, and they never confirmed -- IT cleared it from their
+     own records, or HR did. Offering the button here would only produce an
+     error, and there is genuinely nothing for this person to do. */
+  if (!state?.confirmed && state?.actionable === false) {
+    return (
+      <p>
+        {`${name} is already signed off. Nothing is needed from you on it.`}
+      </p>
+    );
+  }
 
   if (state?.confirmed) {
     return (
@@ -66,6 +78,72 @@ function ConfirmStage({ stageKey, state, onConfirmed }) {
   );
 }
 
+/** The leaver's own exit checklist.
+ *
+ * The `checklist` agent has always described this person's exit — the assets
+ * they hold, the access they still have, what they have to hand over — and the
+ * only person who could not see it was its subject, because the generic agent
+ * route gates on agent id and `employee` does not have this one. It is read
+ * and generated here through `/api/me/case/checklist`, which takes the
+ * employee id off the session and accepts none from the client.
+ *
+ * `Checklist` is the same component the staff result views use. Its "Draft a
+ * deprovisioning plan" button checks the signed-in role and renders nothing
+ * for an employee, so the one action on it that is not theirs stays hidden.
+ */
+function MyChecklist() {
+  const [state, setState] = useState({ status: "loading", data: null, error: null });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchJSON("/api/me/case/checklist")
+      .then((data) => !cancelled && setState({ status: "done", data, error: null }))
+      .catch((e) => !cancelled
+        && setState({ status: "done", data: null, error: e.message }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function generate() {
+    setBusy(true);
+    setState((s) => ({ ...s, error: null }));
+    try {
+      const body = await postJSON("/api/me/case/checklist", {});
+      setState({ status: "done", data: body, error: null });
+    } catch (e) {
+      setState((s) => ({ ...s, error: e.message }));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const { status, data, error } = state;
+  if (status === "loading") return <Skeleton rows={3} />;
+
+  const result = data?.result;
+
+  return (
+    <>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      {result ? (
+        <Checklist result={result} />
+      ) : (
+        <p className="hint" style={{ marginTop: -6 }}>
+          Nothing generated yet. This lists the assets to return, the access
+          that gets revoked and the topics to hand over, from your own record.
+        </p>
+      )}
+      <div className="btn-row">
+        <Button variant={result ? "ghost" : "primary"} busy={busy} onClick={generate}>
+          {result ? "Generate again" : "Generate my checklist"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
 /** The employee's own exit case: where it stands, and the paperwork they owe.
  *
  * Resolved server-side from the session, so there is no case id to pick and
@@ -76,17 +154,22 @@ function ConfirmStage({ stageKey, state, onConfirmed }) {
 export default function MyCase() {
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [docs, setDocs] = useState(null);
+  const [interview, setInterview] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
     Promise.all([
       fetchJSON("/api/me/case"),
       fetchJSON("/api/me/case/documents"),
+      // Swallowed rather than joined into the rejection: a failure here should
+      // cost the interview line, not the whole page.
+      fetchJSON("/api/me/case/interview").catch(() => null),
     ])
-      .then(([caseData, docData]) => {
+      .then(([caseData, docData, interviewData]) => {
         if (cancelled) return;
         setState({ status: "done", data: caseData, error: null });
         setDocs(docData);
+        setInterview(interviewData);
       })
       .catch((e) => !cancelled && setState({ status: "done", data: null, error: e.message }));
     return () => {
@@ -183,6 +266,34 @@ export default function MyCase() {
           />
         </Panel>
       )}
+
+      {interview && (
+        <Panel title="Exit interview">
+          {interview.submitted ? (
+            <p>
+              <b>Sent.</b>{" "}
+              {`You answered this${interview.submitted_at
+                ? ` on ${new Date(interview.submitted_at).toLocaleDateString()}`
+                : ""}, and it cannot be changed. `}
+              <Link to="/interview">Read what you said</Link>.
+            </p>
+          ) : (
+            <p>
+              <b>Still outstanding.</b>{" "}
+              {interview.outstanding?.length === interview.questions?.length
+                ? `${interview.questions.length} questions about your time here, and none of them answered yet. `
+                : `${interview.outstanding?.length ?? 0} question${
+                    interview.outstanding?.length === 1 ? "" : "s"
+                  } left to answer. `}
+              <Link to="/interview">Answer it now</Link>.
+            </p>
+          )}
+        </Panel>
+      )}
+
+      <Panel title="Your exit checklist">
+        <MyChecklist />
+      </Panel>
 
       <Panel title="Clearance stages">
         <p className="hint" style={{ marginTop: -6 }}>

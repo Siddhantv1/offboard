@@ -1820,3 +1820,21 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .stage-confirmed { color: var(--deep); }
 .stage-waiting { color: var(--warn); }
 .confirm-done p { margin: 0 0 6px; font-size: 14px; line-height: 1.55; }
+
+/* The exit interview -- the leaver's own answers, on their page and on the
+   staff case page. One rule set for both, because a question read back to HR
+   and a question read back to the person who answered it are the same thing
+   and were never going to stay in step as two. */
+.interview-q { padding: 14px 0; border-top: 1px solid var(--line); }
+.interview-q:first-of-type { border-top: 0; padding-top: 2px; }
+.interview-prompt { display: block; margin: 0 0 8px; font-size: 14px;
+                    font-weight: 500; line-height: 1.5; }
+.interview-help { margin: -4px 0 8px; }
+/* pre-wrap: people answer these in paragraphs, and collapsing their line
+   breaks turns a considered reply into a wall. */
+.interview-answer { margin: 0; font-size: 14px; line-height: 1.6;
+                    white-space: pre-wrap; color: var(--deep); }
+.interview-choice { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.interview-option { display: inline-flex; align-items: center; gap: 7px;
+                    font-size: 14px; text-transform: capitalize; cursor: pointer; }
+.interview-option input { margin: 0; accent-color: var(--teal); }

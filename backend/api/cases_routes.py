@@ -8,6 +8,8 @@ Every route that names a case takes `case: ScopedCase` rather than a
 """
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
@@ -22,10 +24,12 @@ from ..auth import CurrentUser, HRUser, Identity, StaffUser
 from ..data_store import store
 from ..db import session_scope
 from ..policy import STAGE_OWNERS, may_run_agent
+from .. import exit_interview
 from .. import stages as stage_service
 from .deps import ScopedCase, visible_cases
 
 router = APIRouter(prefix="/api", tags=["cases"])
+logger = logging.getLogger(__name__)
 
 
 def _stage_keys_for(user: Identity) -> set[str]:
@@ -270,6 +274,132 @@ async def upload_my_document(user: CurrentUser, request: Request) -> dict[str, A
             "all_in": status["all_due_documents_in"],
         },
     }
+
+
+# -- the employee's exit interview -------------------------------------------
+# Same shape as the document routes above and for the same reason: the case is
+# resolved from `user.employee_id` on the session, so these carry no case id
+# and there is nothing for a caller to substitute.
+
+
+@router.get("/me/case/interview")
+def my_exit_interview(user: CurrentUser) -> dict[str, Any]:
+    """The exit interview questions, whatever this person has answered so far,
+    and whether they have sent it."""
+    case = _my_case(user)
+    return exit_interview.state_for(str(case.meta.get("case_id")))
+
+
+@router.post("/me/case/interview")
+def save_my_exit_interview(user: CurrentUser,
+                           payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Save progress, or submit.
+
+    Two operations rather than two endpoints, because the payload is identical
+    and splitting them would mean the page keeping two code paths that must
+    send the same answers. `submitted: true` is the difference.
+    """
+    case = _my_case(user)
+    payload = payload or {}
+    try:
+        return exit_interview.save(
+            case_id=str(case.meta.get("case_id")),
+            employee_id=str(case.meta.get("employee_id") or "") or None,
+            answers=payload.get("answers"),
+            submitted=bool(payload.get("submitted")),
+        )
+    except exit_interview.InterviewLocked as exc:
+        # 409, not 403: the caller is the right person, the record is simply
+        # closed. A 403 would read as "this is not your interview".
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/cases/{case_id}/interview")
+def case_exit_interview(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
+    """The submitted exit interview for a case the caller can already see.
+
+    A sibling endpoint rather than another key on `/api/cases/{case_id}`: the
+    answers are free text of unbounded length and every consumer of the case
+    detail would pay for them on every load, including the ones that only want
+    the stage list.
+
+    `StaffUser` as well as `ScopedCase`, and both matter. `ScopedCase` alone
+    would admit the employee whose case it is -- reading their own answers back
+    is harmless, but it is the /api/me route's job, and keeping this side
+    staff-only means no employee is ever served from a route that takes a case
+    id from the URL.
+    """
+    return exit_interview.submitted_for_case(str(case.meta.get("case_id")))
+
+
+# -- the employee's own exit checklist ----------------------------------------
+
+
+def _latest_checklist_run(employee_id: str) -> dict[str, Any]:
+    """The most recent successful `checklist` run for this employee."""
+    from sqlalchemy import select
+
+    from ..db.models import AgentRun
+
+    with session_scope() as s:
+        row = s.scalar(
+            select(AgentRun)
+            .where(AgentRun.agent_id == "checklist",
+                   AgentRun.employee_id == employee_id,
+                   AgentRun.error.is_(None),
+                   AgentRun.result.is_not(None))
+            # started_at then id: two runs in the same second would otherwise
+            # come back in whatever order the planner chose.
+            .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
+            .limit(1)
+        )
+        return {
+            "employee_id": employee_id,
+            "result": row.result if row else None,
+            "generated_at": row.finished_at if row else None,
+        }
+
+
+@router.get("/me/case/checklist")
+def my_exit_checklist(user: CurrentUser) -> dict[str, Any]:
+    """This person's own exit checklist, if one has been generated.
+
+    The `checklist` agent describes the employee's own exit -- assets they hold,
+    access they still have, what they have to hand over -- and until now the
+    only person who could not see it was its subject, because `ROLE_AGENTS`
+    gates the generic run route by agent id.
+    """
+    _my_case(user)
+    return _latest_checklist_run(str(user.employee_id))
+
+
+@router.post("/me/case/checklist")
+def run_my_exit_checklist(user: CurrentUser) -> dict[str, Any]:
+    """Generate this person's exit checklist.
+
+    Takes no payload at all. `checklist` is not in `ROLE_AGENTS["employee"]`
+    precisely so that an employee cannot aim it, and accepting an employee_id
+    here -- even one that is then checked -- would put the id back in the
+    client's hands and make this route the thing that has to get the check
+    right. There is no id to get wrong: it comes off the session.
+    """
+    _my_case(user)
+    from ..agents import REGISTRY
+
+    agent = REGISTRY["checklist"]
+    try:
+        result = agent.execute({"employee_id": str(user.employee_id)})
+    except LLMError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("the employee exit checklist failed")
+        raise HTTPException(
+            status_code=500, detail="Something went wrong generating your checklist."
+        ) from exc
+    return {"employee_id": user.employee_id, "result": result,
+            "generated_at": datetime.now(timezone.utc)}
 
 
 @router.get("/cases")

@@ -164,6 +164,19 @@ describe("Checklist: drafting the deprovisioning plan", () => {
     expect(screen.queryByRole("button", { name: /deprovisioning/i })).toBeNull();
   });
 
+  it("is not offered to the employee the checklist is about", () => {
+    // The same component now renders on My exit case, so the leaver sees their
+    // own checklist. Revoking their own access is emphatically not theirs to
+    // start, and the server refuses it -- this pins that the button is gone
+    // rather than merely doomed.
+    authUser.current = { role: "employee", email: "e@example.com" };
+    draw(<Checklist result={list} />);
+    expect(screen.queryByRole("button", { name: /deprovisioning/i })).toBeNull();
+    // ...and the checklist itself still renders, which is the point of showing
+    // it to them at all.
+    expect(document.body.textContent).toMatch(/AWS IAM/);
+  });
+
   it("is not offered for a checklist generated from a role rather than a person", () => {
     const { employee_id, ...anonymous } = list;
     draw(<Checklist result={anonymous} />);

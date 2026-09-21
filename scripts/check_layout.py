@@ -26,13 +26,16 @@ PASSWORD = "offboard-demo-2026"
 #: skipped rather than failed -- a 403 page is a valid render.
 ROLES = [
     ("hr", "hr@perficient.com",
-     ["/", "/cases", "/orchestrator", "/employees/new", "/admin/users", "/settings"]),
+     ["/", "/cases", "/orchestrator", "/employees/new", "/settings"]),
+    # /admin/users is IT's now, not HR's -- account administration is access
+    # management. Swept under the role that can actually reach it, or the sweep
+    # would only ever be measuring the 403 page.
     ("it", "sanya.kapoor@perficient.com",
-     ["/", "/queue/all", "/deprovisioning", "/settings"]),
+     ["/", "/queue/all", "/deprovisioning", "/admin/users", "/settings"]),
     ("manager", "vikram.sharma@perficient.com",
      ["/", "/queue/all", "/cases", "/settings"]),
     ("employee", "aarav.mehta@perficient.com",
-     ["/", "/faq", "/settings"]),
+     ["/", "/faq", "/interview", "/settings"]),
 ]
 
 VIEWPORTS = [("desktop", 1440, 900), ("laptop", 1180, 760), ("phone", 390, 844)]

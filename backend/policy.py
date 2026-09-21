@@ -48,10 +48,22 @@ ROLE_AGENTS: dict[str, object] = {
     "hr": "*",
     "it": frozenset({
         "it_deprovisioning", "multi_system_clearance", "compliance", "faq_chatbot",
+        # IT is asked "what does this person still have" on every exit, and the
+        # checklist's access-to-revoke list is the input to the deprovisioning
+        # plan they already draft. Withholding it made them start from the
+        # employee record by hand.
+        "checklist",
     }),
     "manager": frozenset({
         "kt_reviewer", "risk_assessment", "checklist", "faq_chatbot",
     }),
+    # Stays at one entry. An employee can now read and generate their own exit
+    # checklist, but through `/api/me/case/checklist`, which takes the
+    # employee_id from the session. Granting `checklist` here instead would put
+    # it in their agent catalogue as a form with an employee picker and free
+    # role/department fields -- a general-purpose tool pointed at whoever the
+    # caller names, gated only by `assert_inputs_in_scope`. The dedicated route
+    # has no id to supply, so there is nothing to scope.
     "employee": frozenset({"faq_chatbot"}),
 }
 

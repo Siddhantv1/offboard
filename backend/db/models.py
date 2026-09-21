@@ -519,6 +519,45 @@ class DeprovisioningPlan(Base):
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ExitInterviewResponse(Base):
+    """What the leaver answered, to the fixed question set in
+    `backend/exit_interview.py`.
+
+    Not to be confused with `Interview` below, which is a transcript of an
+    interview that happened elsewhere and is read-only reference data. This is
+    the employee writing, and it is the only table in the schema they author.
+
+    One row per case holding a map of question id to answer; that trade is
+    argued in the `backend/exit_interview` module docstring. `submitted_at` is
+    the lock -- NULL means a draft the employee may still change, and a
+    timestamp means the record is closed to further edits.
+
+    Deliberately has no `to_meta()` and hangs no relationship off `ExitCase`:
+    the case meta shape is pinned by `tests/golden/store_snapshot.json` and
+    read by nineteen agents.
+    """
+
+    __tablename__ = "exit_interview_responses"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Unique, not merely indexed: one interview per exit. Without the
+    # constraint a double-submit from two tabs writes two rows and the second
+    # one is invisible behind the first for ever.
+    case_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("exit_cases.case_id", ondelete="CASCADE"),
+        nullable=False, unique=True)
+    # Denormalised from the case so an agent summarising these does not have to
+    # join back through exit_cases to find whose answers they are.
+    employee_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    answers: Mapped[dict[str, Any]] = mapped_column(
+        DateAwareJSONB, default=dict, nullable=False)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class AgentRun(Base):
     """Execution history for every agent.
 
