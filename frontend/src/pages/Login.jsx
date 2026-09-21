@@ -58,11 +58,10 @@ export default function Login() {
           </div>
 
           <h2 className="auth-story-head">
-            Every exit runs through five clearances.
+            Offboard Management System
           </h2>
           <p className="auth-story-sub">
-            This is where they are tracked, chased and signed off — with a
-            record of who did what.
+            Unified platform for complete offboarding process.
           </p>
 
           <ol className="auth-stages">
@@ -87,9 +86,9 @@ export default function Login() {
             </div>
           </div>
 
-          <h1>Sign in</h1>
+          <h1>Log in</h1>
           <p className="auth-note">
-            Use your work email. Your role decides what you land on.
+            Use your work email to sign into the portal.
           </p>
 
           <label className="auth-field">
@@ -121,7 +120,7 @@ export default function Login() {
           </button>
 
           <p className="auth-foot">
-            Locked out or never received a password? Ask HR to reissue one.
+            Forgot password or locked out? Please reach out to HR for recovery.
           </p>
         </form>
       </div>
