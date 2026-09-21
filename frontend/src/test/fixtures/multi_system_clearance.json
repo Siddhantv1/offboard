@@ -1,0 +1,151 @@
+{
+  "case_id": "case-001",
+  "tool_trace": [
+    {
+      "tool": "asset_status",
+      "result": {
+        "assets": [
+          {
+            "asset": "MacBook Pro 16\"",
+            "returned": true
+          },
+          {
+            "asset": "iPhone 14",
+            "returned": true
+          },
+          {
+            "asset": "YubiKey",
+            "returned": true
+          },
+          {
+            "asset": "Dell 27\" Monitor",
+            "returned": true
+          }
+        ],
+        "system": "IT Asset Management",
+        "employee_id": "emp-001",
+        "outstanding": [],
+        "stage_owner": "Sanya Kapoor",
+        "stage_status": "completed"
+      },
+      "arguments": {
+        "case_id": "case-001"
+      }
+    },
+    {
+      "tool": "access_status",
+      "result": {
+        "system": "Identity & Access",
+        "accounts": [
+          {
+            "active": false,
+            "system": "GitHub",
+            "privileged": true
+          },
+          {
+            "active": false,
+            "system": "AWS",
+            "privileged": true
+          },
+          {
+            "active": false,
+            "system": "Jira",
+            "privileged": false
+          },
+          {
+            "active": false,
+            "system": "Confluence",
+            "privileged": false
+          },
+          {
+            "active": false,
+            "system": "VPN",
+            "privileged": false
+          }
+        ],
+        "days_open": 8,
+        "still_active": [],
+        "policy_breaches": [],
+        "privileged_still_active": [],
+        "deprovisioning_actions_executed": 0
+      },
+      "arguments": {
+        "case_id": "case-001"
+      }
+    },
+    {
+      "tool": "hrms_status",
+      "result": {
+        "system": "HRMS",
+        "employee_id": "emp-001",
+        "stage_owner": "Meera Krishnan",
+        "stage_status": "completed",
+        "last_working_day": "2026-09-30",
+        "employment_status": "exiting",
+        "relieving_letter_issued": true,
+        "exit_interview_completed": true,
+        "nda_reaffirmation_signed": true
+      },
+      "arguments": {
+        "case_id": "case-001"
+      }
+    },
+    {
+      "tool": "finance_status",
+      "result": {
+        "system": "Finance",
+        "employee_id": "emp-001",
+        "fnf_settled": true,
+        "stage_owner": "Pooja Shah",
+        "stage_status": "completed",
+        "advances_outstanding": false,
+        "no_dues_declaration_received": true
+      },
+      "arguments": {
+        "case_id": "case-001"
+      }
+    }
+  ],
+  "consolidated": {
+    "overall": "clear",
+    "summary": "Aarav Mehta's offboarding for exit case case-001 is clear across all systems. All IT assets have been returned, and system accounts, including privileged ones, have been deprovisioned. HR and Finance processes, including NDA reaffirmation, exit interview, relieving letter issuance, no-dues declaration, and full-and-final settlement, are all completed.",
+    "systems": [
+      {
+        "owner": "Sanya Kapoor",
+        "status": "clear",
+        "system": "IT Asset Management",
+        "summary": "All assigned hardware has been returned.",
+        "open_items": []
+      },
+      {
+        "owner": null,
+        "status": "clear",
+        "system": "Identity & Access",
+        "summary": "All system accounts have been deprovisioned, including privileged ones.",
+        "open_items": []
+      },
+      {
+        "owner": "Meera Krishnan",
+        "status": "clear",
+        "system": "HRMS",
+        "summary": "NDA reaffirmation signed, exit interview completed, and relieving letter issued.",
+        "open_items": []
+      },
+      {
+        "owner": "Pooja Shah",
+        "status": "clear",
+        "system": "Finance",
+        "summary": "No-dues declaration received, no outstanding advances, and full-and-final settlement completed.",
+        "open_items": []
+      }
+    ],
+    "policy_flags": [],
+    "blocking_items": []
+  },
+  "systems_called": [
+    "access_status",
+    "asset_status",
+    "finance_status",
+    "hrms_status"
+  ]
+}

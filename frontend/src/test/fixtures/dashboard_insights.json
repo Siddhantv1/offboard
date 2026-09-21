@@ -1,0 +1,58 @@
+{
+  "report": {
+    "headline": "Weekly Offboarding Report: Process Stable, Key Stages Nearing SLA Thresholds",
+    "narrative": "We currently have 6 active offboarding cases, all of which remain on track and within the 5-day SLA. The majority of cases this week are from Engineering (4), followed by Sales (2).\n\nWhile all cases are on schedule, we observe that the \"Knowledge Transfer\" stage averages 4.7 days, closely approaching the 5-day SLA. \"IT Clearance\" also shows a significant average of 4.0 days. Other stages like Finance and HR Clearance average 1.5 days.\n\nExit interview sentiment is largely positive, with 3 positive responses and 1 negative response recorded this week. The negative feedback warrants further review to identify potential systemic issues.",
+    "watch_list": [
+      "Knowledge Transfer Stage",
+      "IT Clearance Stage",
+      "Engineering Department (due to highest case volume)"
+    ],
+    "bottlenecks": [
+      {
+        "where": "Knowledge Transfer Stage",
+        "detail": "Average duration of 4.7 days, nearing the 5-day SLA. This stage poses a potential risk for future SLA breaches."
+      },
+      {
+        "where": "IT Clearance Stage",
+        "detail": "Average duration of 4.0 days, indicating potential for efficiency improvements to reduce overall offboarding time."
+      }
+    ],
+    "recommendations": [
+      {
+        "action": "Review Knowledge Transfer procedures to optimize process and ensure timely completion within SLA.",
+        "impact": "high"
+      },
+      {
+        "action": "Investigate factors contributing to the 4-day average for IT Clearance to identify efficiency gains.",
+        "impact": "medium"
+      },
+      {
+        "action": "Conduct a follow-up on the negative exit interview feedback to understand and address underlying concerns.",
+        "impact": "high"
+      }
+    ]
+  },
+  "metrics": {
+    "sla_days": 5,
+    "overdue_stages": [],
+    "cases_by_status": {
+      "on_track": 6
+    },
+    "total_active_cases": 6,
+    "cases_by_department": {
+      "Sales": 2,
+      "Engineering": 4
+    },
+    "avg_days_open_by_stage": {
+      "HR Clearance": 1.5,
+      "IT Clearance": 4.0,
+      "Manager Sign-off": 0.0,
+      "Finance Clearance": 1.5,
+      "Knowledge Transfer": 4.7
+    },
+    "interview_sentiment_tally": {
+      "negative": 1,
+      "positive": 3
+    }
+  }
+}

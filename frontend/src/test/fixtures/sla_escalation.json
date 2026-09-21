@@ -1,0 +1,90 @@
+{
+  "threshold_days": 5,
+  "breaches_found": 6,
+  "escalations": [
+    {
+      "case_id": "case-001",
+      "employee": "Aarav Mehta",
+      "stage": "IT Clearance",
+      "days_open": 8,
+      "owner": "Sanya Kapoor",
+      "message": {
+        "to": "sanya.kapoor@company.com",
+        "cc": "sanya.kapoor.manager@company.com",
+        "subject": "CRITICAL: Overdue IT Clearance for Aarav Mehta (case-001) - Security Risk",
+        "body": "Sanya,\n\nIT Clearance for Aarav Mehta (case-001) is 3 days overdue against its 5-day SLA. Continued active IT access for a departed employee poses a critical security vulnerability and data integrity risk, delaying final offboarding. Immediate action is required to revoke all access and finalize this stage. Provide an urgent update and resolution.",
+        "severity": "critical"
+      }
+    },
+    {
+      "case_id": "case-001",
+      "employee": "Aarav Mehta",
+      "stage": "Knowledge Transfer",
+      "days_open": 9,
+      "owner": "Vikram Sharma",
+      "message": {
+        "to": "vikram.sharma@company.com",
+        "cc": "vikram.sharma.manager@company.com",
+        "subject": "URGENT: Overdue Knowledge Transfer for Aarav Mehta (case-001)",
+        "body": "The Knowledge Transfer stage for Aarav Mehta (case-001), assigned to you, is 4 days overdue (SLA 5 days, currently 9 days open). Further delay risks critical institutional knowledge loss, disruption to ongoing projects, and unmitigated dependencies. Immediate action required to complete this transfer.",
+        "severity": "high"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "employee": "Dev Patel",
+      "stage": "IT Clearance",
+      "days_open": 11,
+      "owner": "Sanya Kapoor",
+      "message": {
+        "to": "Sanya Kapoor",
+        "cc": "Manager, IT Department",
+        "subject": "URGENT: Critical Delay - IT Clearance for Dev Patel (case-003) - 6 Days Overdue",
+        "body": "Immediate action is required on the IT Clearance for Dev Patel (case-003), owned by you. This stage is 6 days overdue against its 5-day SLA. Further delay directly impacts final pay processing, equipment recovery, and data security, leading to potential compliance breaches and financial penalties. Provide an immediate resolution plan and estimated completion time.",
+        "severity": "critical"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "employee": "Dev Patel",
+      "stage": "Finance Clearance",
+      "days_open": 7,
+      "owner": "Pooja Shah",
+      "message": {
+        "to": "Pooja Shah",
+        "cc": "Pooja.Manager@example.com",
+        "subject": "URGENT: Overdue Finance Clearance for Dev Patel (case-003) - Action Required",
+        "body": "Pooja, Finance Clearance for Dev Patel (case-003) is 2 days overdue (7 days open vs. 5-day SLA). This delay directly impacts final pay processing, benefits reconciliation, and poses significant compliance risks. Immediate action is required to complete this clearance by EOD today. Please provide an urgent update or resolution.",
+        "severity": "critical"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "employee": "Dev Patel",
+      "stage": "HR Clearance",
+      "days_open": 6,
+      "owner": "Meera Krishnan",
+      "message": {
+        "to": "Meera Krishnan",
+        "cc": "Meera's Manager",
+        "subject": "URGENT: Overdue HR Clearance for Dev Patel (Case: case-003)",
+        "body": "The HR Clearance stage for Dev Patel (Case: case-003) is 1 day overdue against its 5-day SLA. This critical stage, owned by you, is blocking final offboarding procedures. Continued delay risks compliance violations, affects final pay/benefits, and can lead to reputational damage. Please prioritize and complete this immediately.",
+        "severity": "high"
+      }
+    },
+    {
+      "case_id": "case-003",
+      "employee": "Dev Patel",
+      "stage": "Knowledge Transfer",
+      "days_open": 12,
+      "owner": "Vikram Sharma",
+      "message": {
+        "to": "Vikram Sharma",
+        "cc": "Manager, [Department of Vikram Sharma]",
+        "subject": "CRITICAL: Overdue Knowledge Transfer - Dev Patel (case-003)",
+        "body": "This is an urgent escalation regarding the Knowledge Transfer clearance for Dev Patel (case-003). This stage, owned by you, is 7 days past its 5-day SLA. Continued delay poses a high risk of critical operational disruption, loss of vital project knowledge, and will severely impact ongoing team productivity. Immediate completion is required to mitigate these risks.",
+        "severity": "critical"
+      }
+    }
+  ]
+}

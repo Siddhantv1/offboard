@@ -1,0 +1,1024 @@
+{
+  "case_id": "case-001",
+  "employee": "Aarav Mehta",
+  "timeline": [
+    "Found existing exit case case-001.",
+    "Checked required vs. submitted documents.",
+    "Drafted routing recommendations for 0 unowned stage(s).",
+    "Proactively escalated 0 overdue stage(s).",
+    "Ran full clearance orchestration -- result: error.",
+    "Drafted final stakeholder summary."
+  ],
+  "documents": {
+    "status": {
+      "missing": [
+        {
+          "stage": "Knowledge Transfer",
+          "status": "missing",
+          "document": "Successor acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "IT Clearance",
+          "status": "missing",
+          "document": "Device handover acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "IT Clearance",
+          "status": "missing",
+          "document": "VPN/MFA deactivation confirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "No-dues declaration",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "Advance/loan settlement confirmation",
+          "conditional": true,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "Bank account confirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "Exit interview form",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "Confidentiality Reaffirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "ID badge return acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "PF transfer/withdrawal form",
+          "conditional": false,
+          "case_stage_status": "completed"
+        }
+      ],
+      "documents": [
+        {
+          "stage": "Resignation / Notice",
+          "status": "submitted",
+          "document": "Resignation letter",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        },
+        {
+          "stage": "Resignation / Notice",
+          "status": "submitted",
+          "document": "Notice acknowledgement",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        },
+        {
+          "stage": "Resignation / Notice",
+          "status": "submitted",
+          "document": "Personal contact details",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        },
+        {
+          "stage": "Knowledge Transfer",
+          "status": "submitted",
+          "document": "KT document",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Knowledge Transfer",
+          "status": "missing",
+          "document": "Successor acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "IT Clearance",
+          "status": "submitted",
+          "document": "Asset Return Checklist",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "IT Clearance",
+          "status": "missing",
+          "document": "Device handover acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "IT Clearance",
+          "status": "missing",
+          "document": "VPN/MFA deactivation confirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "No-dues declaration",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "Advance/loan settlement confirmation",
+          "conditional": true,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Finance Clearance",
+          "status": "missing",
+          "document": "Bank account confirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "Exit interview form",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "Confidentiality Reaffirmation",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "ID badge return acknowledgement",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "HR Clearance",
+          "status": "missing",
+          "document": "PF transfer/withdrawal form",
+          "conditional": false,
+          "case_stage_status": "completed"
+        },
+        {
+          "stage": "Final Sign-off",
+          "status": "to_be_issued",
+          "document": "Relieving letter",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        },
+        {
+          "stage": "Final Sign-off",
+          "status": "to_be_issued",
+          "document": "Experience letter",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        },
+        {
+          "stage": "Final Sign-off",
+          "status": "to_be_issued",
+          "document": "Full-and-final settlement statement",
+          "conditional": false,
+          "case_stage_status": "n/a"
+        }
+      ],
+      "completion_pct": 33,
+      "submitted_count": 5,
+      "missing_by_stage": {
+        "HR Clearance": [
+          "Exit interview form",
+          "Confidentiality Reaffirmation",
+          "ID badge return acknowledgement",
+          "PF transfer/withdrawal form"
+        ],
+        "IT Clearance": [
+          "Device handover acknowledgement",
+          "VPN/MFA deactivation confirmation"
+        ],
+        "Finance Clearance": [
+          "No-dues declaration",
+          "Advance/loan settlement confirmation",
+          "Bank account confirmation"
+        ],
+        "Knowledge Transfer": [
+          "Successor acknowledgement"
+        ]
+      },
+      "collectable_total": 15,
+      "required_now_count": 15,
+      "all_due_documents_in": false
+    },
+    "case_id": "case-001",
+    "employee": "Aarav Mehta",
+    "reminder": {
+      "to": "aarav.mehta@perficient.com",
+      "body": "Hi Aarav,\n\nHope you're doing well. \n\nAs your last working day, September 30, 2026, approaches, this is a friendly reminder regarding a few pending exit formalities. Completing these ensures a smooth transition for you and our team. Please submit the following by your last working day:\n\nKnowledge Transfer:\n- Successor acknowledgement: Ensures project continuity.\n\nIT Clearance:\n- Device handover acknowledgement, VPN/MFA deactivation confirmation: For security and asset management.\n\nFinance Clearance:\n- No-dues declaration, Advance/loan settlement confirmation, Bank account confirmation: For final financial closure.\n\nHR Clearance:\n- Exit interview form, Confidentiality Reaffirmation, ID badge return acknowledgement, PF transfer/withdrawal form: Important for compliance, feedback, and benefits processing.\n\nYour timely submission is greatly appreciated. Please reach out if you have any questions.\n\nBest regards,\nHR Operations",
+      "subject": "Reminder: Pending Exit Formalities – Aarav Mehta",
+      "urgency": "medium"
+    }
+  },
+  "final_status": "error",
+  "orchestration": {
+    "log": [
+      "load_case: case-001 -> employee emp-001",
+      "checklist: done",
+      "multi_system_clearance: done",
+      "deprov_plan: 13 action(s) drafted, awaiting approval",
+      "document_collection: done",
+      "risk_assessment: done",
+      "smart_routing: 0 open stage(s)",
+      "approval_gate: approved by api (auto)",
+      "deprov_execute: failed"
+    ],
+    "risk": {
+      "employee": "Aarav Mehta",
+      "assessment": {
+        "drivers": [
+          {
+            "detail": "Aarav is the primary maintainer of the Payments Orchestration Service and architect/maintainer of the Acme Retail Client Portal since inception. These are business-critical applications.",
+            "factor": "Sole ownership of critical systems",
+            "impact": "high"
+          },
+          {
+            "detail": "With 5.2 years tenure, Aarav possesses extensive historical context and architectural decisions for core platforms that are likely not fully documented or shared.",
+            "factor": "Deep, undocumented institutional knowledge",
+            "impact": "high"
+          },
+          {
+            "detail": "He led a significant migration to microservices, cutting latency by 38%, and architected a key client-facing portal. This expertise is hard to replace quickly.",
+            "factor": "Complex system design expertise",
+            "impact": "high"
+          },
+          {
+            "detail": "Payments platform and a client portal used by 2,000+ operators are vital business functions; disruption here has high impact.",
+            "factor": "Criticality of affected services",
+            "impact": "high"
+          }
+        ],
+        "risk_level": "critical",
+        "risk_score": 95,
+        "mitigations": [
+          {
+            "owner": "Vikram Sharma (Manager)",
+            "action": "Immediate, structured knowledge transfer for Payments Orchestration Service",
+            "urgency": "immediate"
+          },
+          {
+            "owner": "Vikram Sharma (Manager)",
+            "action": "Immediate, structured knowledge transfer for Acme Retail Client Portal (React FE & BFF)",
+            "urgency": "immediate"
+          },
+          {
+            "owner": "Engineering Team/Aarav",
+            "action": "Review and update all relevant system documentation (architecture, runbooks, FAQs)",
+            "urgency": "immediate"
+          },
+          {
+            "owner": "Vikram Sharma (Manager)",
+            "action": "Cross-train other Senior Software Engineers on Aarav's key systems",
+            "urgency": "immediate"
+          },
+          {
+            "owner": "Vikram Sharma (Manager)/HR",
+            "action": "Identify potential internal successors or begin external hiring process for a replacement",
+            "urgency": "immediate"
+          }
+        ],
+        "single_points_of_failure": [
+          "Core Payments Orchestration Service expertise",
+          "Acme Retail Client Portal architecture and maintenance knowledge"
+        ]
+      }
+    },
+    "errors": [
+      "deprov_execute: execute_plan() got an unexpected keyword argument 'approved_by'"
+    ],
+    "status": "error",
+    "case_id": "case-001",
+    "retries": 0,
+    "routing": {},
+    "approval": {
+      "by": "api (auto)",
+      "note": "auto-approve",
+      "decision": "approve",
+      "decided_at": "2026-09-20T18:32:42+00:00",
+      "actions_reviewed": 13
+    },
+    "case_meta": {
+      "stages": [
+        {
+          "name": "IT Clearance",
+          "owner": "Sanya Kapoor",
+          "status": "completed",
+          "days_open": 8
+        },
+        {
+          "name": "Finance Clearance",
+          "owner": "Pooja Shah",
+          "status": "completed",
+          "days_open": 0
+        },
+        {
+          "name": "HR Clearance",
+          "owner": "Meera Krishnan",
+          "status": "completed",
+          "days_open": 0
+        },
+        {
+          "name": "Knowledge Transfer",
+          "owner": "Vikram Sharma",
+          "status": "completed",
+          "days_open": 9
+        },
+        {
+          "name": "Manager Sign-off",
+          "owner": "Vikram Sharma",
+          "status": "completed",
+          "days_open": 0
+        }
+      ],
+      "case_id": "case-001",
+      "exit_type": "resignation",
+      "employee_id": "emp-001",
+      "current_stage": "Finance Clearance",
+      "employee_name": "Aarav Mehta",
+      "initiated_date": "2026-08-25",
+      "overall_status": "on_track",
+      "last_working_day": "2026-09-30",
+      "documents_submitted": [
+        "Resignation letter",
+        "Notice acknowledgement",
+        "Personal contact details",
+        "KT document",
+        "Asset Return Checklist"
+      ]
+    },
+    "checklist": {
+      "checklist": {
+        "employee": "Aarav Mehta / Senior Software Engineer",
+        "kt_topics": [
+          {
+            "why": "Aarav is the primary maintainer; critical for business operations.",
+            "topic": "Payment Orchestration Service ownership and maintenance"
+          },
+          {
+            "why": "Aarav architected it; essential for future development and support.",
+            "topic": "Acme Retail Client Portal architecture (React & BFF)"
+          },
+          {
+            "why": "Aarav led the migration; critical to understand platform evolution.",
+            "topic": "Payments Microservices Platform architecture and key decisions"
+          },
+          {
+            "why": "Ensures continuity for this active client project.",
+            "topic": "Current project status and upcoming tasks for Acme Retail Client Portal"
+          }
+        ],
+        "other_tasks": [
+          {
+            "task": "Inform relevant project teams (Acme Retail, Payments) of Aarav's departure.",
+            "owner": "Vikram Sharma"
+          },
+          {
+            "task": "Reassign open tasks and code ownership on Jira/GitHub.",
+            "owner": "Vikram Sharma"
+          },
+          {
+            "task": "Schedule and conduct exit interview.",
+            "owner": "HR Department"
+          },
+          {
+            "task": "Ensure all outstanding expense reports are submitted.",
+            "owner": "Aarav Mehta"
+          },
+          {
+            "task": "Remove Aarav from all team-specific communication channels (e.g., Slack, Teams).",
+            "owner": "Vikram Sharma"
+          },
+          {
+            "task": "Backup personal files from company devices.",
+            "owner": "Aarav Mehta"
+          }
+        ],
+        "access_to_revoke": [
+          {
+            "owner": "IT Department",
+            "system": "GitHub",
+            "priority": "high"
+          },
+          {
+            "owner": "IT Department",
+            "system": "AWS",
+            "priority": "high"
+          },
+          {
+            "owner": "IT Department",
+            "system": "Jira",
+            "priority": "high"
+          },
+          {
+            "owner": "IT Department",
+            "system": "Confluence",
+            "priority": "high"
+          },
+          {
+            "owner": "IT Department",
+            "system": "VPN",
+            "priority": "high"
+          }
+        ],
+        "assets_to_return": [
+          {
+            "item": "MacBook Pro 16\"",
+            "notes": "Ensure data wiped and device prepared for re-issuance.",
+            "owner": "IT Department"
+          },
+          {
+            "item": "iPhone 14",
+            "notes": "Ensure data wiped and device prepared for re-issuance.",
+            "owner": "IT Department"
+          },
+          {
+            "item": "YubiKey",
+            "notes": "Deactivate credentials associated with key.",
+            "owner": "IT Department"
+          },
+          {
+            "item": "Dell 27\" Monitor",
+            "notes": "Collect from workstation.",
+            "owner": "IT Department"
+          }
+        ]
+      }
+    },
+    "clearance": {
+      "case_id": "case-001",
+      "tool_trace": [
+        {
+          "tool": "asset_status",
+          "result": {
+            "assets": [
+              {
+                "asset": "MacBook Pro 16\"",
+                "returned": true
+              },
+              {
+                "asset": "iPhone 14",
+                "returned": true
+              },
+              {
+                "asset": "YubiKey",
+                "returned": true
+              },
+              {
+                "asset": "Dell 27\" Monitor",
+                "returned": true
+              }
+            ],
+            "system": "IT Asset Management",
+            "employee_id": "emp-001",
+            "outstanding": [],
+            "stage_owner": "Sanya Kapoor",
+            "stage_status": "completed"
+          },
+          "arguments": {
+            "case_id": "case-001"
+          }
+        },
+        {
+          "tool": "access_status",
+          "result": {
+            "system": "Identity & Access",
+            "accounts": [
+              {
+                "active": false,
+                "system": "GitHub",
+                "privileged": true
+              },
+              {
+                "active": false,
+                "system": "AWS",
+                "privileged": true
+              },
+              {
+                "active": false,
+                "system": "Jira",
+                "privileged": false
+              },
+              {
+                "active": false,
+                "system": "Confluence",
+                "privileged": false
+              },
+              {
+                "active": false,
+                "system": "VPN",
+                "privileged": false
+              }
+            ],
+            "days_open": 8,
+            "still_active": [],
+            "policy_breaches": [],
+            "privileged_still_active": [],
+            "deprovisioning_actions_executed": 0
+          },
+          "arguments": {
+            "case_id": "case-001"
+          }
+        },
+        {
+          "tool": "hrms_status",
+          "result": {
+            "system": "HRMS",
+            "employee_id": "emp-001",
+            "stage_owner": "Meera Krishnan",
+            "stage_status": "completed",
+            "last_working_day": "2026-09-30",
+            "employment_status": "exiting",
+            "relieving_letter_issued": true,
+            "exit_interview_completed": true,
+            "nda_reaffirmation_signed": true
+          },
+          "arguments": {
+            "case_id": "case-001"
+          }
+        },
+        {
+          "tool": "finance_status",
+          "result": {
+            "system": "Finance",
+            "employee_id": "emp-001",
+            "fnf_settled": true,
+            "stage_owner": "Pooja Shah",
+            "stage_status": "completed",
+            "advances_outstanding": false,
+            "no_dues_declaration_received": true
+          },
+          "arguments": {
+            "case_id": "case-001"
+          }
+        }
+      ],
+      "consolidated": {
+        "overall": "clear",
+        "summary": "Aarav Mehta's offboarding for exit case case-001 is clear across all systems. All IT assets have been returned, and system access has been fully deprovisioned. HR requirements, including NDA reaffirmation, exit interview, and relieving letter, are complete, and financial clearances, including no-dues declaration and full-and-final settlement, are finalized.",
+        "systems": [
+          {
+            "owner": "Sanya Kapoor",
+            "status": "clear",
+            "system": "IT Asset Management",
+            "summary": "All assigned hardware has been returned.",
+            "open_items": []
+          },
+          {
+            "owner": "N/A",
+            "status": "clear",
+            "system": "Identity & Access",
+            "summary": "All system accounts, including privileged ones, have been deprovisioned.",
+            "open_items": []
+          },
+          {
+            "owner": "Meera Krishnan",
+            "status": "clear",
+            "system": "HRMS",
+            "summary": "NDA reaffirmation signed, exit interview completed, and relieving letter issued.",
+            "open_items": []
+          },
+          {
+            "owner": "Pooja Shah",
+            "status": "clear",
+            "system": "Finance",
+            "summary": "No-dues declaration received, no outstanding advances, and full-and-final settlement completed.",
+            "open_items": []
+          }
+        ],
+        "policy_flags": [],
+        "blocking_items": []
+      },
+      "systems_called": [
+        "access_status",
+        "asset_status",
+        "finance_status",
+        "hrms_status"
+      ]
+    },
+    "documents": {
+      "status": {
+        "missing": [
+          {
+            "stage": "Knowledge Transfer",
+            "status": "missing",
+            "document": "Successor acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "IT Clearance",
+            "status": "missing",
+            "document": "Device handover acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "IT Clearance",
+            "status": "missing",
+            "document": "VPN/MFA deactivation confirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "No-dues declaration",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "Advance/loan settlement confirmation",
+            "conditional": true,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "Bank account confirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "Exit interview form",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "Confidentiality Reaffirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "ID badge return acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "PF transfer/withdrawal form",
+            "conditional": false,
+            "case_stage_status": "completed"
+          }
+        ],
+        "documents": [
+          {
+            "stage": "Resignation / Notice",
+            "status": "submitted",
+            "document": "Resignation letter",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          },
+          {
+            "stage": "Resignation / Notice",
+            "status": "submitted",
+            "document": "Notice acknowledgement",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          },
+          {
+            "stage": "Resignation / Notice",
+            "status": "submitted",
+            "document": "Personal contact details",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          },
+          {
+            "stage": "Knowledge Transfer",
+            "status": "submitted",
+            "document": "KT document",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Knowledge Transfer",
+            "status": "missing",
+            "document": "Successor acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "IT Clearance",
+            "status": "submitted",
+            "document": "Asset Return Checklist",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "IT Clearance",
+            "status": "missing",
+            "document": "Device handover acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "IT Clearance",
+            "status": "missing",
+            "document": "VPN/MFA deactivation confirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "No-dues declaration",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "Advance/loan settlement confirmation",
+            "conditional": true,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Finance Clearance",
+            "status": "missing",
+            "document": "Bank account confirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "Exit interview form",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "Confidentiality Reaffirmation",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "ID badge return acknowledgement",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "HR Clearance",
+            "status": "missing",
+            "document": "PF transfer/withdrawal form",
+            "conditional": false,
+            "case_stage_status": "completed"
+          },
+          {
+            "stage": "Final Sign-off",
+            "status": "to_be_issued",
+            "document": "Relieving letter",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          },
+          {
+            "stage": "Final Sign-off",
+            "status": "to_be_issued",
+            "document": "Experience letter",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          },
+          {
+            "stage": "Final Sign-off",
+            "status": "to_be_issued",
+            "document": "Full-and-final settlement statement",
+            "conditional": false,
+            "case_stage_status": "n/a"
+          }
+        ],
+        "completion_pct": 33,
+        "submitted_count": 5,
+        "missing_by_stage": {
+          "HR Clearance": [
+            "Exit interview form",
+            "Confidentiality Reaffirmation",
+            "ID badge return acknowledgement",
+            "PF transfer/withdrawal form"
+          ],
+          "IT Clearance": [
+            "Device handover acknowledgement",
+            "VPN/MFA deactivation confirmation"
+          ],
+          "Finance Clearance": [
+            "No-dues declaration",
+            "Advance/loan settlement confirmation",
+            "Bank account confirmation"
+          ],
+          "Knowledge Transfer": [
+            "Successor acknowledgement"
+          ]
+        },
+        "collectable_total": 15,
+        "required_now_count": 15,
+        "all_due_documents_in": false
+      },
+      "case_id": "case-001",
+      "employee": "Aarav Mehta",
+      "reminder": {
+        "to": "aarav.mehta@perficient.com",
+        "body": "Hi Aarav,\n\nHope you're having a good week.\n\nAs your last day with us approaches (September 30, 2026), this is a friendly reminder about a few outstanding documents needed to finalize your exit process smoothly. Completing these ensures proper handover and timely processing of your final settlements.\n\nKindly ensure the following are submitted by your last working day, September 30, 2026:\n\n*   Knowledge Transfer: Successor acknowledgement (for seamless responsibility transition).\n*   IT Clearance: Device handover acknowledgement, VPN/MFA deactivation confirmation (for security and asset management).\n*   Finance Clearance: No-dues declaration, Advance/loan settlement confirmation, Bank account confirmation (for accurate final payroll and settlements).\n*   HR Clearance: Exit interview form, Confidentiality Reaffirmation, ID badge return acknowledgement, PF transfer/withdrawal form (for records, compliance, and provident fund processing).\n\nIf you have any questions or need assistance, please don't hesitate to reach out to HR Operations.\n\nWe wish you all the best in your future endeavors!\n\nBest regards,\nHR Operations",
+        "subject": "Important Reminder: Outstanding Exit Documents - Aarav Mehta",
+        "urgency": "medium"
+      }
+    },
+    "case_notes": "# Exit Case case-001 — Aarav Mehta (emp-001)\n\n## Timeline Notes\n- **2026-08-25** — Resignation accepted; exit case created. LWD set 2026-09-30.\n- **2026-08-29** — IT Clearance opened. Payment orchestration service holds\n  production AWS access; deprovisioning blocked pending KT completion.\n- **2026-08-28** — Knowledge Transfer initiated (kt-001). Draft submitted but\n  gaps flagged; review still open.\n- **OVERDUE** — Both IT Clearance (8 days) and Knowledge Transfer (9 days)\n  exceed the 5-business-day SLA. Escalation to department head recommended.\n- Finance, HR, and Manager Sign-off stages are queued behind KT completion.\n\n**Status: AT RISK** — high-criticality resource with two overdue stages.",
+    "deprov_plan": {
+      "actions": [
+        {
+          "step": 1,
+          "type": "rotate_credential",
+          "when": "upon KT completion, by 2026-09-30",
+          "owner": "IT Security",
+          "detail": "Rotate AWS production credentials/API keys for payment orchestration service (blocked by KT)",
+          "target": "Payments Microservices Platform",
+          "privileged": true
+        },
+        {
+          "step": 2,
+          "type": "disable_account",
+          "when": "by 2026-09-30",
+          "owner": "IT Security",
+          "detail": "Disable Aarav Mehta's AWS IAM user account",
+          "target": "AWS IAM (emp-001)",
+          "privileged": true
+        },
+        {
+          "step": 3,
+          "type": "rotate_credential",
+          "when": "by 2026-09-30",
+          "owner": "IT Security",
+          "detail": "Rotate deploy keys for Payments Microservices Platform & Client Portal Revamp",
+          "target": "GitHub (emp-001) / Critical Repos",
+          "privileged": true
+        },
+        {
+          "step": 4,
+          "type": "revoke_access",
+          "when": "by 2026-09-30",
+          "owner": "IT Operations",
+          "detail": "Remove Aarav Mehta from all GitHub teams/organizations",
+          "target": "GitHub Organization",
+          "privileged": true
+        },
+        {
+          "step": 5,
+          "type": "revoke_access",
+          "when": "by 2026-09-30",
+          "owner": "IT Security",
+          "detail": "Revoke Aarav Mehta's VPN certificate",
+          "target": "VPN",
+          "privileged": true
+        },
+        {
+          "step": 6,
+          "type": "disable_account",
+          "when": "by 2026-09-30",
+          "owner": "IT Security",
+          "detail": "Deactivate Aarav Mehta's YubiKey from all associated systems",
+          "target": "YubiKey (emp-001)",
+          "privileged": true
+        },
+        {
+          "step": 7,
+          "type": "disable_account",
+          "when": "by 2026-09-30",
+          "owner": "IT Operations",
+          "detail": "Disable Aarav Mehta's Okta/SSO user account",
+          "target": "Okta/SSO (emp-001)",
+          "privileged": false
+        },
+        {
+          "step": 8,
+          "type": "revoke_access",
+          "when": "by 2026-09-30",
+          "owner": "IT Operations",
+          "detail": "Revoke Aarav Mehta's access to Jira",
+          "target": "Jira (emp-001)",
+          "privileged": false
+        },
+        {
+          "step": 9,
+          "type": "revoke_access",
+          "when": "by 2026-09-30",
+          "owner": "IT Operations",
+          "detail": "Revoke Aarav Mehta's access to Confluence",
+          "target": "Confluence (emp-001)",
+          "privileged": false
+        },
+        {
+          "step": 10,
+          "type": "archive_data",
+          "when": "by 2026-09-30",
+          "owner": "IT Operations",
+          "detail": "Forward email to shared mailbox for 30 days, then archive",
+          "target": "aarav.mehta@perficient.com",
+          "privileged": false
+        },
+        {
+          "step": 11,
+          "type": "recover_asset",
+          "when": "by 2026-09-30",
+          "owner": "HR/IT",
+          "detail": "Recover and log hardware asset",
+          "target": "MacBook Pro 16\" (emp-001)",
+          "privileged": false
+        },
+        {
+          "step": 12,
+          "type": "recover_asset",
+          "when": "by 2026-09-30",
+          "owner": "HR/IT",
+          "detail": "Recover and log hardware asset",
+          "target": "iPhone 14 (emp-001)",
+          "privileged": false
+        },
+        {
+          "step": 13,
+          "type": "recover_asset",
+          "when": "by 2026-09-30",
+          "owner": "HR/IT",
+          "detail": "Recover and log hardware asset",
+          "target": "Dell 27\" Monitor (emp-001)",
+          "privileged": false
+        }
+      ],
+      "case_id": "case-001",
+      "plan_id": "dep-00bb76a0",
+      "summary": "Deprovisioning plan for Aarav Mehta (emp-001), a high-criticality engineer, by his last working day (2026-09-30). This plan addresses privileged access, standard system revocation, and asset recovery, pending critical Knowledge Transfer.",
+      "urgency": "by_last_working_day",
+      "employee": "Aarav Mehta",
+      "employee_id": "emp-001",
+      "dependencies": [
+        "Completion of Knowledge Transfer (kt-001) for Payments Microservices Platform, specifically regarding production AWS access and associated secrets/credentials."
+      ],
+      "risks_if_delayed": [
+        "Unauthorized access to production AWS environment (payment orchestration service)",
+        "Compromise of critical application/service credentials",
+        "Operational disruption due to incomplete knowledge transfer for high-criticality systems",
+        "Failure to meet policy SLAs for deprovisioning"
+      ],
+      "requires_approval": true
+    },
+    "employee_id": "emp-001",
+    "deprov_execution": {
+      "reason": "execute_plan() got an unexpected keyword argument 'approved_by'",
+      "status": "error",
+      "executed": 0
+    }
+  },
+  "exception_handling": null,
+  "stakeholder_summary": {
+    "to": "HR Team; Aarav Mehta",
+    "body": "Hi HR Team and Aarav,\n\nThis is an automated summary for Aarav Mehta's exit process (case-001).\n\nOur system automatically checked required documents, routed tasks to approvers, and proactively managed any escalations. We also attempted to complete all final clearance verifications and initiate IT account deprovisioning.\n\nUnfortunately, the automated process encountered an error during the final clearance and IT deprovisioning step. This means these actions could not be completed automatically.\n\nAdditionally, only 33% of the required exit documents have been submitted.\n\n**Next Steps:**\n*   **HR Team:** Please investigate the clearance error and manually complete IT deprovisioning. Also, follow up with Aarav regarding missing documents.\n*   **Aarav:** Please submit all outstanding exit documents promptly.\n\nYour prompt attention to these items is appreciated for a smooth offboarding.",
+    "subject": "Aarav Mehta Exit Process Update - Case 001"
+  },
+  "proactive_escalations": [],
+  "routing_recommendations": {}
+}

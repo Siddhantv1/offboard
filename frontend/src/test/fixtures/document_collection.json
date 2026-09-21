@@ -1,0 +1,237 @@
+{
+  "status": {
+    "missing": [
+      {
+        "stage": "Knowledge Transfer",
+        "status": "missing",
+        "document": "Successor acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "IT Clearance",
+        "status": "missing",
+        "document": "Device handover acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "IT Clearance",
+        "status": "missing",
+        "document": "VPN/MFA deactivation confirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "No-dues declaration",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "Advance/loan settlement confirmation",
+        "conditional": true,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "Bank account confirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "Exit interview form",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "Confidentiality Reaffirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "ID badge return acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "PF transfer/withdrawal form",
+        "conditional": false,
+        "case_stage_status": "completed"
+      }
+    ],
+    "documents": [
+      {
+        "stage": "Resignation / Notice",
+        "status": "submitted",
+        "document": "Resignation letter",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      },
+      {
+        "stage": "Resignation / Notice",
+        "status": "submitted",
+        "document": "Notice acknowledgement",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      },
+      {
+        "stage": "Resignation / Notice",
+        "status": "submitted",
+        "document": "Personal contact details",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      },
+      {
+        "stage": "Knowledge Transfer",
+        "status": "submitted",
+        "document": "KT document",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Knowledge Transfer",
+        "status": "missing",
+        "document": "Successor acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "IT Clearance",
+        "status": "submitted",
+        "document": "Asset Return Checklist",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "IT Clearance",
+        "status": "missing",
+        "document": "Device handover acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "IT Clearance",
+        "status": "missing",
+        "document": "VPN/MFA deactivation confirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "No-dues declaration",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "Advance/loan settlement confirmation",
+        "conditional": true,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Finance Clearance",
+        "status": "missing",
+        "document": "Bank account confirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "Exit interview form",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "Confidentiality Reaffirmation",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "ID badge return acknowledgement",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "HR Clearance",
+        "status": "missing",
+        "document": "PF transfer/withdrawal form",
+        "conditional": false,
+        "case_stage_status": "completed"
+      },
+      {
+        "stage": "Final Sign-off",
+        "status": "to_be_issued",
+        "document": "Relieving letter",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      },
+      {
+        "stage": "Final Sign-off",
+        "status": "to_be_issued",
+        "document": "Experience letter",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      },
+      {
+        "stage": "Final Sign-off",
+        "status": "to_be_issued",
+        "document": "Full-and-final settlement statement",
+        "conditional": false,
+        "case_stage_status": "n/a"
+      }
+    ],
+    "completion_pct": 33,
+    "submitted_count": 5,
+    "missing_by_stage": {
+      "HR Clearance": [
+        "Exit interview form",
+        "Confidentiality Reaffirmation",
+        "ID badge return acknowledgement",
+        "PF transfer/withdrawal form"
+      ],
+      "IT Clearance": [
+        "Device handover acknowledgement",
+        "VPN/MFA deactivation confirmation"
+      ],
+      "Finance Clearance": [
+        "No-dues declaration",
+        "Advance/loan settlement confirmation",
+        "Bank account confirmation"
+      ],
+      "Knowledge Transfer": [
+        "Successor acknowledgement"
+      ]
+    },
+    "collectable_total": 15,
+    "required_now_count": 15,
+    "all_due_documents_in": false
+  },
+  "case_id": "case-001",
+  "employee": "Aarav Mehta",
+  "reminder": {
+    "to": "aarav.mehta@perficient.com",
+    "body": "Hi Aarav,\n\nHope you're doing well. As your last working day, September 30, 2026, approaches, please help us finalize your exit process by submitting the following documents by this date:\n\n**Knowledge Transfer:**\n*   Successor acknowledgement: Ensures a smooth handover of your responsibilities.\n\n**IT Clearance:**\n*   Device handover acknowledgement: Confirms company asset return.\n*   VPN/MFA deactivation confirmation: Crucial for system security.\n\n**Finance Clearance:**\n*   No-dues declaration: For complete financial closure.\n*   Advance/loan settlement confirmation: To clear any outstanding balances.\n*   Bank account confirmation: Guarantees accurate final payment processing.\n\n**HR Clearance:**\n*   Exit interview form: Your valuable feedback helps us improve.\n*   Confidentiality Reaffirmation: Protects company information.\n*   ID badge return acknowledgement: Essential for campus security.\n*   PF transfer/withdrawal form: To process your provident fund benefits.\n\nYour prompt completion helps ensure a seamless offboarding. Please reach out if you need any assistance.\n\nThanks,\nHR Operations",
+    "subject": "Important Reminder: Outstanding Exit Documents - Aarav Mehta",
+    "urgency": "high"
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "kt_id": "kt-001",
+  "review": {
+    "gaps": [
+      {
+        "why": "No information on system access, credential management, or access handover procedures for systems, databases, or cloud.",
+        "risk": "high",
+        "topic": "Access & credentials handover"
+      },
+      {
+        "why": "Explicitly stated as missing in the document. No details on build, deploy, rollback, monitoring, or operational procedures.",
+        "risk": "high",
+        "topic": "Deployment / runbook & operations"
+      },
+      {
+        "why": "No clear list of regular duties, maintenance, reporting, or compliance tasks. The 'Business Logic Caveats' are more constraints than recurring tasks.",
+        "risk": "medium",
+        "topic": "Recurring tasks & responsibilities"
+      },
+      {
+        "why": "No links or references to code repositories, design documents, API specs, or other relevant internal documentation (e.g., Confluence).",
+        "risk": "high",
+        "topic": "Documentation & repo locations"
+      }
+    ],
+    "verdict": "needs_work",
+    "coverage": [
+      {
+        "notes": "High-level system architecture, service components, communication patterns (REST, Kafka), data storage (PostgreSQL, Redis), and core logic (orchestrator, idempotency) are well described.",
+        "topic": "System / architecture overview",
+        "covered": true
+      },
+      {
+        "notes": "",
+        "topic": "Access & credentials handover",
+        "covered": false
+      },
+      {
+        "notes": "",
+        "topic": "Deployment / runbook & operations",
+        "covered": false
+      },
+      {
+        "notes": "Specific JIRA tickets (PAY-1423, PAY-1451, PAY-1460) and their current status/impact are listed.",
+        "topic": "Pending tickets & in-flight work",
+        "covered": true
+      },
+      {
+        "notes": "Product PM, client integration team, and PagerDuty rotation mentioned.",
+        "topic": "Key contacts & stakeholders",
+        "covered": true
+      },
+      {
+        "notes": "",
+        "topic": "Recurring tasks & responsibilities",
+        "covered": false
+      },
+      {
+        "notes": "PAY-1423 (known issue), PAY-1451 (tech debt/improvement), and operational caveats are mentioned.",
+        "topic": "Known issues & tech debt",
+        "covered": true
+      },
+      {
+        "notes": "",
+        "topic": "Documentation & repo locations",
+        "covered": false
+      }
+    ],
+    "completeness_score": 50,
+    "suggested_additions": [
+      "Section on how to obtain access (e.g., JIRA tickets, permissions matrix, vault locations) for all critical systems (DBs, AWS, internal tools).",
+      "Detailed runbooks for building, deploying (CI/CD pipelines), rolling back, monitoring (dashboard links, alert explanations), and common troubleshooting steps for each service.",
+      "List of recurring tasks, such as specific reports, compliance checks, or maintenance jobs, with frequency and ownership.",
+      "Links to all relevant code repositories, key design documents, API documentation, and any internal wiki pages (e.g., Confluence)."
+    ]
+  }
+}

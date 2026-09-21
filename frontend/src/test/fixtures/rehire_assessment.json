@@ -1,0 +1,25 @@
+{
+  "employee": "Karthik Nair",
+  "assessment": {
+    "score": 88,
+    "concerns": [
+      "Employee felt compensation was below market and staffing was thin",
+      "Medium criticality role with need for ownership reassignment"
+    ],
+    "reasoning": "Karthik was a good performer (rating 4) with positive manager feedback and explicitly stated they would recommend the company. Their departure was for market-driven reasons (compensation, remote work) and not due to performance or direct negative experiences. No policy or conduct issues were noted. Although they expressed concerns about company-wide compensation and staffing, these do not disqualify them for rehire and highlight areas for potential improvement if they were to return. The submitted KT document mitigates immediate critical impact.",
+    "conditions": [
+      "Ensure compensation and role structure aligns with their expectations if rehired",
+      "Assess fit for a remote role, if applicable, given their reason for leaving"
+    ],
+    "confidence": "high",
+    "rehire_eligible": true,
+    "positive_signals": [
+      "Strong performance rating (4/5)",
+      "Positive manager feedback (Vikram was supportive and fair)",
+      "Would recommend the company to others",
+      "Departure due to compensation/commute, not performance or direct team issues",
+      "Submitted knowledge transfer documentation"
+    ]
+  },
+  "interviews_considered": 1
+}

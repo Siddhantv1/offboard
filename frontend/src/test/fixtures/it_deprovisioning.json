@@ -1,0 +1,185 @@
+{
+  "plan": {
+    "actions": [
+      {
+        "step": 1,
+        "type": "revoke_access",
+        "when": "4 hours",
+        "owner": "DevOps",
+        "detail": "Revoke Aarav Mehta's AWS IAM access and permissions, specifically for production environments and the Payments Microservices Platform.",
+        "target": "AWS IAM",
+        "privileged": true
+      },
+      {
+        "step": 2,
+        "type": "rotate_credential",
+        "when": "4 hours",
+        "owner": "DevOps",
+        "detail": "Rotate any AWS keys (access keys, secret keys, assume role credentials) known or used by Aarav Mehta for privileged access.",
+        "target": "AWS Keys",
+        "privileged": true
+      },
+      {
+        "step": 3,
+        "type": "revoke_access",
+        "when": "4 hours",
+        "owner": "Engineering Lead",
+        "detail": "Revoke Aarav Mehta's GitHub access to critical repositories and CI/CD configurations, particularly for Payments Microservices Platform and Client Portal Revamp.",
+        "target": "GitHub",
+        "privileged": true
+      },
+      {
+        "step": 4,
+        "type": "rotate_credential",
+        "when": "4 hours",
+        "owner": "Engineering Lead",
+        "detail": "Rotate all GitHub deploy keys and other secrets associated with repositories Aarav Mehta worked on.",
+        "target": "GitHub Deploy Keys",
+        "privileged": true
+      },
+      {
+        "step": 5,
+        "type": "disable_account",
+        "when": "4 hours",
+        "owner": "IT Operations",
+        "detail": "Deactivate Aarav Mehta's YubiKey and associated MFA configurations.",
+        "target": "YubiKey",
+        "privileged": true
+      },
+      {
+        "step": 6,
+        "type": "rotate_credential",
+        "when": "24 hours",
+        "owner": "Engineering Lead",
+        "detail": "Rotate any shared secrets, service-account passwords, or API keys for the Payments Microservices Platform known to Aarav Mehta.",
+        "target": "Shared Secrets",
+        "privileged": true
+      },
+      {
+        "step": 7,
+        "type": "rotate_credential",
+        "when": "24 hours",
+        "owner": "Engineering Lead",
+        "detail": "Rotate any shared secrets, service-account passwords, or API keys for the Client Portal Revamp known to Aarav Mehta.",
+        "target": "Shared Secrets",
+        "privileged": true
+      },
+      {
+        "step": 8,
+        "type": "disable_account",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Disable Aarav Mehta's Okta/SSO account.",
+        "target": "Okta/SSO",
+        "privileged": false
+      },
+      {
+        "step": 9,
+        "type": "revoke_access",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Revoke all active Okta/SSO sessions for Aarav Mehta.",
+        "target": "Okta/SSO Sessions",
+        "privileged": false
+      },
+      {
+        "step": 10,
+        "type": "revoke_access",
+        "when": "by_2026-09-30",
+        "owner": "DevOps",
+        "detail": "Remove Aarav Mehta from GitHub organization.",
+        "target": "GitHub",
+        "privileged": false
+      },
+      {
+        "step": 11,
+        "type": "revoke_access",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Remove Aarav Mehta's access from Jira.",
+        "target": "Jira",
+        "privileged": false
+      },
+      {
+        "step": 12,
+        "type": "revoke_access",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Remove Aarav Mehta's access from Confluence.",
+        "target": "Confluence",
+        "privileged": false
+      },
+      {
+        "step": 13,
+        "type": "revoke_access",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Revoke Aarav Mehta's VPN certificate.",
+        "target": "VPN",
+        "privileged": false
+      },
+      {
+        "step": 14,
+        "type": "recover_asset",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Recover assigned MacBook Pro 16\" from Aarav Mehta.",
+        "target": "MacBook Pro 16\"",
+        "privileged": false
+      },
+      {
+        "step": 15,
+        "type": "archive_data",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Backup and wipe the MacBook Pro 16\" after backup confirmation.",
+        "target": "MacBook Pro 16\"",
+        "privileged": false
+      },
+      {
+        "step": 16,
+        "type": "recover_asset",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Recover assigned iPhone 14 from Aarav Mehta.",
+        "target": "iPhone 14",
+        "privileged": false
+      },
+      {
+        "step": 17,
+        "type": "recover_asset",
+        "when": "by_2026-09-30",
+        "owner": "IT Operations",
+        "detail": "Recover assigned Dell 27\" Monitor from Aarav Mehta.",
+        "target": "Dell 27\" Monitor",
+        "privileged": false
+      },
+      {
+        "step": 18,
+        "type": "archive_data",
+        "when": "30 days post LWD",
+        "owner": "IT Operations",
+        "detail": "Forward Aarav Mehta's email to a shared mailbox for 30 days, then archive.",
+        "target": "Email",
+        "privileged": false
+      }
+    ],
+    "case_id": "case-001",
+    "plan_id": "dep-3c19fa37",
+    "summary": "Deprovisioning plan for Aarav Mehta, Senior Software Engineer, due to resignation. Focus on privileged access and knowledge transfer for critical systems.",
+    "urgency": "by_last_working_day",
+    "employee": "Aarav Mehta",
+    "employee_id": "emp-001",
+    "dependencies": [
+      "Completion of knowledge transfer for Payment Orchestration Service ownership."
+    ],
+    "risks_if_delayed": [
+      "Security vulnerability if privileged access and shared secrets are not revoked/rotated promptly.",
+      "Operational disruption or service outage for Payments Microservices Platform due to incomplete knowledge transfer.",
+      "Compliance failure if access revocation timelines are not met.",
+      "Data exfiltration risk if device wipe is not performed."
+    ],
+    "requires_approval": true
+  },
+  "awaiting_approval": true
+}

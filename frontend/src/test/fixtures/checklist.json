@@ -1,0 +1,98 @@
+{
+  "checklist": {
+    "employee": "Aarav Mehta / Senior Software Engineer",
+    "kt_topics": [
+      {
+        "why": "Aarav is the primary maintainer; critical for business operations.",
+        "topic": "Payment Orchestration Service ownership and maintenance"
+      },
+      {
+        "why": "Aarav architected it; essential for future development and support.",
+        "topic": "Acme Retail Client Portal architecture (React & BFF)"
+      },
+      {
+        "why": "Aarav led the migration; critical to understand platform evolution.",
+        "topic": "Payments Microservices Platform architecture and key decisions"
+      },
+      {
+        "why": "Ensures continuity for this active client project.",
+        "topic": "Current project status and upcoming tasks for Acme Retail Client Portal"
+      }
+    ],
+    "other_tasks": [
+      {
+        "task": "Inform relevant project teams (Acme Retail, Payments) of Aarav's departure.",
+        "owner": "Vikram Sharma"
+      },
+      {
+        "task": "Reassign open tasks and code ownership on Jira/GitHub.",
+        "owner": "Vikram Sharma"
+      },
+      {
+        "task": "Schedule and conduct exit interview.",
+        "owner": "HR Department"
+      },
+      {
+        "task": "Ensure all outstanding expense reports are submitted.",
+        "owner": "Aarav Mehta"
+      },
+      {
+        "task": "Remove Aarav from all team-specific communication channels (e.g., Slack, Teams).",
+        "owner": "Vikram Sharma"
+      },
+      {
+        "task": "Backup personal files from company devices.",
+        "owner": "Aarav Mehta"
+      }
+    ],
+    "access_to_revoke": [
+      {
+        "owner": "IT Department",
+        "system": "GitHub",
+        "priority": "high"
+      },
+      {
+        "owner": "IT Department",
+        "system": "AWS",
+        "priority": "high"
+      },
+      {
+        "owner": "IT Department",
+        "system": "Jira",
+        "priority": "high"
+      },
+      {
+        "owner": "IT Department",
+        "system": "Confluence",
+        "priority": "high"
+      },
+      {
+        "owner": "IT Department",
+        "system": "VPN",
+        "priority": "high"
+      }
+    ],
+    "assets_to_return": [
+      {
+        "item": "MacBook Pro 16\"",
+        "notes": "Ensure data wiped and device prepared for re-issuance.",
+        "owner": "IT Department"
+      },
+      {
+        "item": "iPhone 14",
+        "notes": "Ensure data wiped and device prepared for re-issuance.",
+        "owner": "IT Department"
+      },
+      {
+        "item": "YubiKey",
+        "notes": "Deactivate credentials associated with key.",
+        "owner": "IT Department"
+      },
+      {
+        "item": "Dell 27\" Monitor",
+        "notes": "Collect from workstation.",
+        "owner": "IT Department"
+      }
+    ]
+  }
+}

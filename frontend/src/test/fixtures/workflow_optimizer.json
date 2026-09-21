@@ -1,0 +1,275 @@
+{
+  "metrics": {
+    "per_case": [
+      {
+        "case": "case-001",
+        "exit_type": "resignation",
+        "department": "Engineering",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 0
+      },
+      {
+        "case": "case-002",
+        "exit_type": "resignation",
+        "department": "Sales",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 5
+      },
+      {
+        "case": "case-003",
+        "exit_type": "termination",
+        "department": "Engineering",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 0
+      },
+      {
+        "case": "case-004",
+        "exit_type": "resignation",
+        "department": "Sales",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 5
+      },
+      {
+        "case": "case-005",
+        "exit_type": "resignation",
+        "department": "Engineering",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 4
+      },
+      {
+        "case": "case-006",
+        "exit_type": "resignation",
+        "department": "Engineering",
+        "overall_status": "on_track",
+        "overdue_stages": [],
+        "open_days_total": 0
+      }
+    ],
+    "sla_days": 5,
+    "exit_types": {
+      "resignation": {
+        "n": 25,
+        "avg_days": 1.4,
+        "max_days": 9
+      },
+      "termination": {
+        "n": 5,
+        "avg_days": 7.2,
+        "max_days": 12
+      }
+    },
+    "departments": {
+      "Sales": {
+        "n": 10,
+        "avg_days": 1.3,
+        "max_days": 3
+      },
+      "Engineering": {
+        "n": 20,
+        "avg_days": 2.9,
+        "max_days": 12
+      }
+    },
+    "cases_analyzed": 6,
+    "current_workflow": [
+      "IT Clearance",
+      "Finance Clearance",
+      "HR Clearance",
+      "Knowledge Transfer",
+      "Manager Sign-off"
+    ],
+    "owner_overdue_stages": {},
+    "owner_open_stage_load": {
+      "Pooja Shah": 3,
+      "unassigned": 4,
+      "Sanya Kapoor": 2,
+      "Vikram Sharma": 3,
+      "Karan Malhotra": 3,
+      "Meera Krishnan": 3
+    },
+    "sla_breaches_by_stage": {},
+    "completed_count_by_stage": {
+      "HR Clearance": 2,
+      "IT Clearance": 4,
+      "Manager Sign-off": 1,
+      "Finance Clearance": 2,
+      "Knowledge Transfer": 3
+    },
+    "sla_breaches_by_department": {},
+    "stages_ranked_by_avg_days_open": [
+      {
+        "n": 6,
+        "stage": "Knowledge Transfer",
+        "avg_days": 4.7,
+        "max_days": 12
+      },
+      {
+        "n": 6,
+        "stage": "IT Clearance",
+        "avg_days": 4.0,
+        "max_days": 11
+      },
+      {
+        "n": 6,
+        "stage": "Finance Clearance",
+        "avg_days": 1.5,
+        "max_days": 7
+      },
+      {
+        "n": 6,
+        "stage": "HR Clearance",
+        "avg_days": 1.5,
+        "max_days": 6
+      },
+      {
+        "n": 6,
+        "stage": "Manager Sign-off",
+        "avg_days": 0.0,
+        "max_days": 0
+      }
+    ],
+    "cases_with_stages_queued_behind_kt": 1
+  },
+  "proposal": {
+    "headline": "Streamlined Employee Offboarding: Reducing Cycle Time and Enhancing Security",
+    "quick_wins": [
+      "Assign clear owners to all 'unassigned' offboarding tasks immediately.",
+      "Formally decouple 'IT Clearance' from 'Knowledge Transfer' completion via a policy update.",
+      "Implement an automated notification/confirmation for 'Manager Sign-off' instead of a blocking stage."
+    ],
+    "bottlenecks": [
+      {
+        "where": "Knowledge Transfer (KT) stage",
+        "evidence": "Highest average completion time (4.7 days) and maximum duration (12 days), frequently exceeding the 5-day SLA.",
+        "severity": "high"
+      },
+      {
+        "where": "IT Clearance stage",
+        "evidence": "Second highest average completion time (4.0 days) and maximum duration (11 days). Explicitly stated to often wait for KT to finish ('cases_with_stages_queued_behind_kt': 1).",
+        "severity": "high"
+      },
+      {
+        "where": "Sequential workflow dependencies",
+        "evidence": "IT Clearance waiting for KT is a critical dependency. Finance and HR clearances are also sequential by convention, not necessity, leading to inflated total cycle times.",
+        "severity": "high"
+      },
+      {
+        "where": "Unassigned tasks",
+        "evidence": "4 tasks are currently 'unassigned', indicating a lack of clear ownership and potential for tasks to stall.",
+        "severity": "medium"
+      },
+      {
+        "where": "Termination exit type processing",
+        "evidence": "Termination cases take significantly longer on average (7.2 days) compared to resignations (1.4 days), despite often requiring more urgent processing for security and compliance.",
+        "severity": "medium"
+      },
+      {
+        "where": "Manager Sign-off stage tracking/value",
+        "evidence": "Average and maximum completion time are 0.0 days. This suggests the stage is either not truly active, automated, or tracked incorrectly, potentially adding no real value or hiding issues if signed off prematurely.",
+        "severity": "low"
+      }
+    ],
+    "reconfigurations": [
+      {
+        "risk": "Requires robust communication and coordination across departments. IT deprovisioning must be capable of independent execution, potentially requiring policy clarification on access during KT.",
+        "change": "Parallelize IT, Finance, HR Clearance, and Knowledge Transfer stages.",
+        "effort": "medium",
+        "rationale": "These stages are largely independent and can be executed concurrently without requiring prior stage completion. This eliminates artificial waiting times and allows critical security actions (IT Clearance) to commence immediately.",
+        "expected_gain": "Reduces total workflow duration by approximately 7 days on average (from 11.7 days sequential sum to 4.7 days for the longest parallel task) and up to 24 days in worst-case scenarios. Improves security by allowing IT deprovisioning to start immediately."
+      },
+      {
+        "risk": "Ensuring any data access required for KT is handled securely without delaying IT clearance.",
+        "change": "Decouple IT Clearance from Knowledge Transfer completion via policy adjustment.",
+        "effort": "low",
+        "rationale": "IT deprovisioning is a critical security function and should not be dependent on internal knowledge transfer. The current dependency is a primary blocker.",
+        "expected_gain": "Allows IT Clearance to begin immediately upon offboarding notification, significantly reducing security exposure and contributing to the overall cycle time reduction from parallelization."
+      },
+      {
+        "risk": "Departments may need to re-prioritize resources to consistently meet tighter SLAs for critical stages.",
+        "change": "Adjust SLAs for IT, Finance, and HR Clearance to 3 business days and Manager Sign-off to 1 day; maintain KT at 5 days.",
+        "effort": "low",
+        "rationale": "Based on current average completion times (Finance/HR 1.5 days, IT 4.0 days), 3 days is an achievable, yet aggressive target when parallelized. KT's 4.7-day average justifies maintaining its 5-day SLA. Manager Sign-off's 0-day average makes 1 day a reasonable target for final closure.",
+        "expected_gain": "Reduces the total workflow SLA from 25 business days to 6 business days (maximum of parallel stages + Manager Sign-off)."
+      },
+      {
+        "risk": "None.",
+        "change": "Mandate clear ownership for all offboarding stages and address 'unassigned' tasks.",
+        "effort": "low",
+        "rationale": "4 'unassigned' tasks indicate ambiguity which can lead to delays and a lack of accountability for process progression.",
+        "expected_gain": "Eliminates potential delays due to lack of ownership, improves process accountability and tracking."
+      },
+      {
+        "risk": "Requires careful design to ensure the manager's oversight function for final review is still effectively met.",
+        "change": "Automate or streamline Manager Sign-off into a final notification/confirmation step.",
+        "effort": "low",
+        "rationale": "The 0-day average for Manager Sign-off suggests it's a quick or pre-emptive step. It can be streamlined into an automated notification after all other clearances are complete, or a single-click approval, reducing its nominal impact on flow.",
+        "expected_gain": "Further reduces nominal workflow duration and ensures managers are confirming after *all* steps, not before. Improves process clarity and reduces manual intervention."
+      },
+      {
+        "risk": "Requires additional resources or specific protocols for handling urgent termination cases.",
+        "change": "Establish differentiated workflows or accelerated SLAs for 'termination' exit types.",
+        "effort": "medium",
+        "rationale": "Termination cases have a significantly higher average duration (7.2 days vs 1.4 days for resignation) and typically require more urgent processing for security, compliance, and legal reasons.",
+        "expected_gain": "Reduces the processing time for high-priority termination cases, mitigating risks associated with extended access or delays. Expected to bring termination cases closer to the new 6-day SLA target."
+      }
+    ],
+    "proposed_workflow": [
+      {
+        "order": 1,
+        "owner": "IT",
+        "stage": "IT Clearance",
+        "sla_days": 3,
+        "runs_in_parallel_with": [
+          "Finance Clearance",
+          "HR Clearance",
+          "Knowledge Transfer"
+        ]
+      },
+      {
+        "order": 1,
+        "owner": "Finance",
+        "stage": "Finance Clearance",
+        "sla_days": 3,
+        "runs_in_parallel_with": [
+          "IT Clearance",
+          "HR Clearance",
+          "Knowledge Transfer"
+        ]
+      },
+      {
+        "order": 1,
+        "owner": "HR",
+        "stage": "HR Clearance",
+        "sla_days": 3,
+        "runs_in_parallel_with": [
+          "IT Clearance",
+          "Finance Clearance",
+          "Knowledge Transfer"
+        ]
+      },
+      {
+        "order": 1,
+        "owner": "Manager/Employee",
+        "stage": "Knowledge Transfer",
+        "sla_days": 5,
+        "runs_in_parallel_with": [
+          "IT Clearance",
+          "Finance Clearance",
+          "HR Clearance"
+        ]
+      },
+      {
+        "order": 2,
+        "owner": "Manager",
+        "stage": "Manager Sign-off",
+        "sla_days": 1,
+        "runs_in_parallel_with": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "email": {
+    "body": "Hi Aarav,\n\nHope you're having a good week! \n\nJust a friendly reminder about finalizing your Knowledge Transfer (KT) documentation before your last working day. Your contributions, especially with the 'Client Portal Revamp' and 'Payments Microservices Platform', are incredibly valuable, and a thorough KT ensures a smooth transition for your projects.\n\nPlease aim to have this completed at your earliest convenience. If you need any support or have questions, don't hesitate to reach out.\n\nThanks so much for your cooperation!\n\nBest regards,\nHR Team",
+    "subject": "Friendly Reminder: Knowledge Transfer for a Smooth Handover",
+    "recipient": "aarav.mehta@perficient.com"
+  },
+  "stage": "kt_reminder"
+}

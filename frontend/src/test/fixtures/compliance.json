@@ -1,0 +1,34 @@
+{
+  "case_id": "case-004",
+  "verification": {
+    "blockers": [
+      "Relieving letter not issued",
+      "Full-and-final settlement pending"
+    ],
+    "next_actions": [
+      "Coordinate with HR (Meera Krishnan) to issue the relieving letter.",
+      "Coordinate with Finance (Pooja Shah) to finalize full-and-final settlement."
+    ],
+    "requirements": [
+      {
+        "name": "Asset return",
+        "status": "pass",
+        "blocking": false,
+        "evidence": "All assigned hardware (MacBook Air 13\", iPhone 13) has been returned, as confirmed by IT Asset Management system."
+      },
+      {
+        "name": "NDA acknowledgment",
+        "status": "pass",
+        "blocking": false,
+        "evidence": "HRMS system confirms NDA reaffirmation is complete, despite 'Confidentiality Reaffirmation' document being listed as missing."
+      },
+      {
+        "name": "Access revocation",
+        "status": "pass",
+        "blocking": false,
+        "evidence": "Post-execution identity check confirms no active or privileged access, superseding earlier clearance snapshot."
+      }
+    ],
+    "final_verdict": "blocked"
+  }
+}

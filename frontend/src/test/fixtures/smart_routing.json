@@ -1,0 +1,19 @@
+{
+  "stage": "Manager Sign-off",
+  "roster": [
+    {
+      "name": "Line Manager",
+      "delegate": "Skip-level Manager",
+      "workload": 7,
+      "available": true,
+      "ooo_until": null
+    }
+  ],
+  "routing": {
+    "reason": "Line Manager is available and no other options are presented for workload comparison.",
+    "fallback": null,
+    "confidence": "high",
+    "reroute_from": null,
+    "chosen_approver": "Line Manager"
+  }
+}

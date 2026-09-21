@@ -1472,3 +1472,298 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
   .auth-story { display: none; }
   .auth-card-brand { display: flex; }
 }
+
+/* ============================================================
+   Agent result kit
+
+   Each agent answers a different question and gets a view shaped to it, but
+   they are built from these pieces so the second one you read is already
+   familiar. Colour follows the budget at the top of this file: teal is the
+   brand and the positive case, amber and crimson are exceptions only, and no
+   tone is ever the only signal -- every one ships with a word.
+   ============================================================ */
+.t-ok      { --rk: var(--ok);      --rk-wash: var(--ok-wash); }
+.t-warn    { --rk: var(--warn);    --rk-wash: var(--warn-wash); }
+.t-danger  { --rk: var(--danger);  --rk-wash: var(--danger-wash); }
+.t-neutral { --rk: var(--muted);   --rk-wash: var(--inset); }
+
+.rk-tag {
+  display: inline-block; font-size: 11px; font-weight: 550;
+  letter-spacing: .03em; padding: 2px 9px; border-radius: 999px;
+  color: var(--rk); background: var(--rk-wash);
+  border: 1px solid color-mix(in srgb, var(--rk) 34%, transparent);
+  white-space: nowrap;
+}
+
+/* ---- verdict ---- */
+.rk-verdict {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 16px 18px; margin-bottom: 22px;
+  border-radius: var(--radius); background: var(--rk-wash);
+  border: 1px solid color-mix(in srgb, var(--rk) 30%, transparent);
+  border-left: 3px solid var(--rk);
+}
+.rk-verdict-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.rk-verdict-word {
+  font-family: var(--serif); font-size: 23px; font-weight: 550;
+  letter-spacing: -.01em; color: var(--rk); line-height: 1.1;
+}
+.rk-verdict-detail { margin: 0; color: var(--ink); font-size: 13.5px; line-height: 1.55; }
+
+/* ---- score ---- */
+.rk-score { display: flex; align-items: center; gap: 20px; margin-bottom: 22px; }
+.rk-score-track { fill: none; stroke: var(--inset); stroke-width: 10; }
+.rk-score-arc {
+  fill: none; stroke: var(--rk); stroke-width: 10; stroke-linecap: round;
+  transition: stroke-dasharray .5s ease;
+}
+.rk-score-num {
+  font-family: var(--serif); font-size: 30px; font-weight: 550; fill: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.rk-score-band {
+  font-family: var(--serif); font-size: 18px; font-weight: 550; color: var(--rk);
+}
+.rk-score-caption {
+  margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; max-width: 48ch;
+}
+@media (prefers-reduced-motion: reduce) { .rk-score-arc { transition: none; } }
+
+/* ---- sentiment ---- */
+.rk-sentiment { margin-bottom: 22px; max-width: 460px; }
+.rk-sentiment-head { display: flex; justify-content: space-between; align-items: baseline; }
+.rk-sentiment-label { font-family: var(--serif); font-size: 18px; color: var(--rk); }
+.rk-sentiment-num {
+  font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted);
+}
+.rk-sentiment-track {
+  position: relative; height: 10px; margin-top: 8px;
+  background: var(--inset); border-radius: 999px;
+}
+.rk-sentiment-centre {
+  position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px;
+  background: var(--ink-soft);
+}
+.rk-sentiment-fill {
+  position: absolute; top: 0; bottom: 0; background: var(--rk); border-radius: 999px;
+}
+.rk-sentiment-scale {
+  display: flex; justify-content: space-between; margin-top: 5px;
+  font-size: 11px; color: var(--muted);
+}
+
+/* ---- checklist ---- */
+.rk-checks { list-style: none; margin: 0; padding: 0; }
+.rk-check { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.rk-check:last-child { border-bottom: none; }
+.rk-check-mark {
+  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  color: var(--rk); background: var(--rk-wash);
+  border: 1px solid color-mix(in srgb, var(--rk) 34%, transparent);
+}
+.rk-check-body { min-width: 0; }
+.rk-check-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.rk-check-name { font-weight: 550; font-size: 14px; }
+.rk-check-evidence {
+  margin: 5px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55;
+}
+
+/* ---- ledger ---- */
+.rk-ledger {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 4px;
+}
+.rk-ledger-head {
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--rk); margin: 0 0 8px;
+  padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--rk) 28%, transparent);
+}
+.rk-ledger-col ul { margin: 0; padding-left: 18px; }
+.rk-ledger-col li { font-size: 13.5px; line-height: 1.55; margin-bottom: 7px; }
+@media (max-width: 720px) { .rk-ledger { grid-template-columns: 1fr; gap: 18px; } }
+
+/* ---- steps ---- */
+.rk-steps { list-style: none; margin: 0; padding: 0; }
+.rk-steps li { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.rk-steps li:last-child { border-bottom: none; }
+.rk-steps li.is-privileged { box-shadow: inset 3px 0 0 var(--danger); padding-left: 12px; }
+.rk-step-n {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11.5px; font-variant-numeric: tabular-nums;
+  background: var(--inset); color: var(--muted); border: 1px solid var(--line-strong);
+}
+.rk-step-body { min-width: 0; }
+.rk-step-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.rk-step-title { font-weight: 550; font-size: 14px; }
+.rk-step-target {
+  font-size: 12.5px; color: var(--teal); background: var(--mint);
+  border-radius: var(--radius-sm); padding: 1px 8px;
+}
+.rk-step-detail { margin: 5px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.rk-step-meta {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 5px;
+  font-size: 12px; color: var(--muted);
+}
+
+/* ---- tasks ---- */
+.rk-tasks { list-style: none; margin: 0; padding: 0; }
+.rk-tasks li { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rk-tasks li:last-child { border-bottom: none; }
+.rk-task-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.rk-task-text { font-size: 13.5px; font-weight: 450; }
+.rk-task-note {
+  margin: 4px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5;
+}
+.rk-task-owner {
+  margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  background: var(--inset); border: 1px solid var(--line-strong); font-size: 11.5px;
+}
+
+/* ---- email ---- */
+.rk-email {
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
+}
+.rk-email-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 13px 16px; border-bottom: 1px solid var(--line); background: var(--inset);
+}
+.rk-email-subject { font-weight: 600; font-size: 14.5px; }
+.rk-email-addr {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  padding: 10px 16px; border-bottom: 1px solid var(--line);
+  font-size: 12.5px; color: var(--muted);
+}
+.rk-email-addr b { color: var(--ink); font-weight: 550; margin-right: 4px; }
+.rk-email-body {
+  padding: 16px; white-space: pre-wrap; line-height: 1.62; font-size: 14px;
+  max-width: 72ch;
+}
+.rk-email-foot { padding: 0 16px 14px; }
+
+/* ---- layout bits ---- */
+.rk-section { margin-top: 26px; }
+.rk-section-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .055em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 0 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--line);
+}
+.rk-section-note {
+  text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px;
+}
+.rk-bullets { margin: 0; padding-left: 19px; }
+.rk-bullets li { font-size: 13.5px; line-height: 1.6; margin-bottom: 6px; }
+.rk-bullets.t-danger li::marker { color: var(--danger); }
+.rk-bullets.t-warn li::marker { color: var(--warn); }
+.rk-empty { color: var(--muted); font-size: 13px; margin: 0; }
+.rk-prose { max-width: 70ch; }
+.rk-prose p { margin: 0 0 11px; line-height: 1.62; font-size: 14px; }
+
+.rk-facts {
+  display: flex; flex-wrap: wrap; gap: 26px; margin: 0 0 20px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--line);
+}
+.rk-facts div { display: flex; flex-direction: column; gap: 2px; }
+.rk-facts dt {
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+}
+.rk-facts dd {
+  margin: 0; font-family: var(--serif); font-size: 17px; font-weight: 550;
+  font-variant-numeric: tabular-nums; color: var(--rk, var(--ink));
+}
+
+/* ---- routing decision ---- */
+.rk-route { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rk-route-person {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: var(--radius);
+  background: var(--mint); border: 1px solid var(--teal-soft);
+}
+.rk-route-initials {
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); border: 1px solid var(--teal-soft);
+  font-family: var(--serif); font-size: 14px; color: var(--teal);
+}
+.rk-route-name { font-weight: 600; font-size: 15px; }
+.rk-route-role { font-size: 12px; color: var(--muted); }
+.rk-route-arrow { color: var(--muted); font-size: 18px; }
+.rk-route-from {
+  padding: 10px 14px; border-radius: var(--radius);
+  border: 1px dashed var(--line-strong); color: var(--muted); font-size: 13px;
+}
+
+/* ---- run timeline (end-to-end) ---- */
+.rk-run { list-style: none; margin: 0; padding: 0; }
+.rk-run li {
+  display: grid; grid-template-columns: 18px 1fr; gap: 12px;
+  padding: 9px 0; align-items: start;
+}
+.rk-run-dot {
+  width: 9px; height: 9px; border-radius: 50%; margin-top: 5px;
+  background: var(--rk, var(--teal));
+}
+.rk-run-text { font-size: 13.5px; line-height: 1.5; }
+
+/* Collapsed raw state. Useful when debugging a failed run, noise otherwise. */
+.rk-raw { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 14px; }
+.rk-raw > summary {
+  cursor: pointer; font-size: 12.5px; color: var(--muted);
+  list-style: none; display: inline-flex; align-items: center; gap: 6px;
+}
+.rk-raw > summary::before { content: "▸"; font-size: 10px; }
+.rk-raw[open] > summary::before { content: "▾"; }
+.rk-raw > summary:hover { color: var(--teal); }
+.rk-raw > summary::-webkit-details-marker { display: none; }
+.rk-raw > *:not(summary) { margin-top: 14px; }
+
+/* ---- per-view additions (from the result-view build) ---- */
+/* Multi-system clearance: a system's open items live inside its own checklist
+   row, so they need to read as that row's detail rather than as a new list.
+   Everything else in that block reuses .rk-check*, which already exists. */
+.rk-sys-open { margin-top: 8px; }
+.rk-sys-open-head {
+  display: block; margin-bottom: 5px;
+  font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted);
+}
+.rk-sys-open .rk-bullets li { margin-bottom: 4px; }
+
+/* Group 4 — Policy Auditor and Predictive Attrition.
+   One block per case or per person: a tone rule down the side, its problem and
+   its fix underneath. Mirrors .rk-steps li.is-privileged, which already marks a
+   row this way, so the two read as the same language. */
+.rk-block {
+  box-shadow: inset 3px 0 0 var(--rk);
+  background: var(--rk-wash);
+  border-radius: var(--radius);
+  padding: 13px 16px;
+  margin-bottom: 12px;
+}
+.rk-block:last-child { margin-bottom: 0; }
+
+/* Nothing wrong with this one. It still has to be listed — an audit that hides
+   the clean cases cannot be checked — but it must not compete with the cases
+   that need attention. */
+.rk-block.is-quiet {
+  box-shadow: inset 3px 0 0 var(--line);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.rk-block-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.rk-block-title { font-family: var(--serif); font-size: 16px; font-weight: 600; }
+.rk-block-note { font-size: 12px; color: var(--muted); }
+
+.rk-block-label {
+  margin: 13px 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* The problem list is the one that carries a tone; the fix below it stays
+   neutral so the two are told apart by more than their order. */
+.rk-block-label.t-danger { color: var(--rk); }

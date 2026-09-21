@@ -1,0 +1,60 @@
+{
+  "employee": "Aarav Mehta",
+  "assessment": {
+    "drivers": [
+      {
+        "detail": "Aarav is the primary maintainer of the Payments Orchestration Service and architect/maintainer of the Acme Retail Client Portal since inception. These are business-critical applications.",
+        "factor": "Sole ownership of critical systems",
+        "impact": "high"
+      },
+      {
+        "detail": "With 5.2 years tenure, Aarav possesses extensive historical context and architectural decisions for core platforms that are likely not fully documented or shared.",
+        "factor": "Deep, undocumented institutional knowledge",
+        "impact": "high"
+      },
+      {
+        "detail": "He led a significant migration to microservices, cutting latency by 38%, and architected a key client-facing portal. This expertise is hard to replace quickly.",
+        "factor": "Complex system design expertise",
+        "impact": "high"
+      },
+      {
+        "detail": "Payments platform and a client portal used by 2,000+ operators are vital business functions; disruption here has high impact.",
+        "factor": "Criticality of affected services",
+        "impact": "high"
+      }
+    ],
+    "risk_level": "critical",
+    "risk_score": 95,
+    "mitigations": [
+      {
+        "owner": "Vikram Sharma (Manager)",
+        "action": "Immediate, structured knowledge transfer for Payments Orchestration Service",
+        "urgency": "immediate"
+      },
+      {
+        "owner": "Vikram Sharma (Manager)",
+        "action": "Immediate, structured knowledge transfer for Acme Retail Client Portal (React FE & BFF)",
+        "urgency": "immediate"
+      },
+      {
+        "owner": "Engineering Team/Aarav",
+        "action": "Review and update all relevant system documentation (architecture, runbooks, FAQs)",
+        "urgency": "immediate"
+      },
+      {
+        "owner": "Vikram Sharma (Manager)",
+        "action": "Cross-train other Senior Software Engineers on Aarav's key systems",
+        "urgency": "immediate"
+      },
+      {
+        "owner": "Vikram Sharma (Manager)/HR",
+        "action": "Identify potential internal successors or begin external hiring process for a replacement",
+        "urgency": "immediate"
+      }
+    ],
+    "single_points_of_failure": [
+      "Core Payments Orchestration Service expertise",
+      "Acme Retail Client Portal architecture and maintenance knowledge"
+    ]
+  }
+}

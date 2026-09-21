@@ -1,0 +1,32 @@
+{
+  "report": {
+    "cases": [
+      {
+        "risk": "high",
+        "case_id": "case-001",
+        "violations": [
+          "Missing document: 'Successor acknowledgement' (Knowledge Transfer)",
+          "Missing document: 'Device handover acknowledgement' (IT Clearance)",
+          "Missing document: 'VPN/MFA deactivation confirmation' (IT Clearance)",
+          "Missing document: 'No-dues declaration' (Finance Clearance)",
+          "Missing document: 'Advance/loan settlement confirmation' (Finance Clearance)",
+          "Missing document: 'Bank account confirmation' (Finance Clearance)",
+          "Missing document: 'Exit interview form' (HR Clearance)",
+          "Missing document: 'Confidentiality Reaffirmation' (HR Clearance)",
+          "Missing document: 'ID badge return acknowledgement' (HR Clearance)",
+          "Missing document: 'PF transfer/withdrawal form' (HR Clearance)"
+        ],
+        "recommended_actions": [
+          "Collaborate with Knowledge Transfer owner to secure 'Successor acknowledgement'.",
+          "Coordinate with IT Department to obtain 'Device handover acknowledgement' and 'VPN/MFA deactivation confirmation'.",
+          "Liaise with Finance Department to collect 'No-dues declaration', 'Advance/loan settlement confirmation', and 'Bank account confirmation'.",
+          "Work with HR Department to secure 'Exit interview form', 'Confidentiality Reaffirmation', 'ID badge return acknowledgement', and 'PF transfer/withdrawal form'."
+        ]
+      }
+    ],
+    "summary": "Multiple critical documents are missing across various clearance stages for case-001, indicating significant procedural non-compliance and potential liabilities.",
+    "overall_risk": "high"
+  },
+  "cases_scanned": 1,
+  "cases_with_violations": 1
+}

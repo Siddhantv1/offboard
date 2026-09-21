@@ -1,0 +1,154 @@
+{
+  "signals": {
+    "active_employees": [
+      {
+        "name": "Ishaan Gupta",
+        "manager": "Anjali Desai",
+        "department": "Finance",
+        "criticality": "medium",
+        "employee_id": "emp-002",
+        "tenure_years": 2.8,
+        "performance_rating": 3
+      },
+      {
+        "name": "Meera Krishnan",
+        "manager": "Neha Iyer",
+        "department": "HR",
+        "criticality": "high",
+        "employee_id": "emp-003",
+        "tenure_years": 6.5,
+        "performance_rating": 5
+      },
+      {
+        "name": "Sanya Kapoor",
+        "manager": "Sunil Rao",
+        "department": "IT",
+        "criticality": "high",
+        "employee_id": "emp-005",
+        "tenure_years": 4.0,
+        "performance_rating": 4
+      },
+      {
+        "name": "Pooja Shah",
+        "manager": "Anjali Desai",
+        "department": "Finance",
+        "criticality": "high",
+        "employee_id": "emp-009",
+        "tenure_years": 7.1,
+        "performance_rating": 5
+      },
+      {
+        "name": "Aditya Rao",
+        "manager": "Neha Iyer",
+        "department": "HR",
+        "criticality": "low",
+        "employee_id": "emp-010",
+        "tenure_years": 2.0,
+        "performance_rating": 3
+      },
+      {
+        "name": "Farhan Khan",
+        "manager": "Sunil Rao",
+        "department": "IT",
+        "criticality": "medium",
+        "employee_id": "emp-011",
+        "tenure_years": 5.8,
+        "performance_rating": 4
+      },
+      {
+        "name": "Tara Menon",
+        "manager": "Karan Malhotra",
+        "department": "Sales",
+        "criticality": "medium",
+        "employee_id": "emp-012",
+        "tenure_years": 4.6,
+        "performance_rating": 4
+      }
+    ],
+    "department_summary": [
+      {
+        "department": "Engineering",
+        "recent_exits": 4,
+        "active_headcount": 0,
+        "exit_interviews_recorded": 2,
+        "negative_sentiment_count": 0,
+        "would_not_recommend_count": 0
+      },
+      {
+        "department": "Finance",
+        "recent_exits": 0,
+        "active_headcount": 2,
+        "exit_interviews_recorded": 0,
+        "negative_sentiment_count": 0,
+        "would_not_recommend_count": 0
+      },
+      {
+        "department": "HR",
+        "recent_exits": 0,
+        "active_headcount": 2,
+        "exit_interviews_recorded": 0,
+        "negative_sentiment_count": 0,
+        "would_not_recommend_count": 0
+      },
+      {
+        "department": "IT",
+        "recent_exits": 0,
+        "active_headcount": 2,
+        "exit_interviews_recorded": 0,
+        "negative_sentiment_count": 0,
+        "would_not_recommend_count": 0
+      },
+      {
+        "department": "Sales",
+        "recent_exits": 2,
+        "active_headcount": 1,
+        "exit_interviews_recorded": 2,
+        "negative_sentiment_count": 1,
+        "would_not_recommend_count": 2
+      }
+    ]
+  },
+  "interventions": {
+    "interventions": [
+      {
+        "name": "Tara Menon",
+        "actions": [
+          "Manager to conduct a confidential 'stay interview' with Tara this week, focusing on her specific challenges, career aspirations, and what would significantly improve her daily experience and commitment to the team.",
+          "HR Partner to review Tara's recent performance feedback and current workload to identify any immediate stressors or imbalances, and proactively offer support resources.",
+          "Manager to facilitate a team debrief in Sales to address recent changes and openly discuss team morale, inviting anonymous feedback on areas for improvement."
+        ],
+        "priority": "high",
+        "employee_id": "emp-012"
+      }
+    ],
+    "org_level_recommendations": [
+      "Initiate an immediate, comprehensive departmental review of the Sales team culture, leadership, and operational practices, given the high exit rate and negative sentiment.",
+      "Implement 'stay interview' training for all managers, focusing on active listening and actionable follow-up, starting with high-risk departments.",
+      "Analyze exit interview data for actionable themes beyond sentiment, focusing on common triggers for departure across all departments, and develop a plan to address top 3 recurring issues."
+    ]
+  },
+  "risk_analysis": {
+    "at_risk": [
+      {
+        "name": "Tara Menon",
+        "reasons": [
+          "Department has high recent exits (2 exits for 1 active employee).",
+          "100% of recorded exit interviews from Sales showed negative sentiment and would not recommend."
+        ],
+        "department": "Sales",
+        "risk_level": "high",
+        "employee_id": "emp-012"
+      }
+    ],
+    "department_hotspots": [
+      {
+        "concern": "High recent exits (4) in a department that currently has no active employees, indicating significant past turnover.",
+        "department": "Engineering"
+      },
+      {
+        "concern": "High recent exits (2 exits for 1 active employee) and highly negative exit interview sentiment (100% would not recommend).",
+        "department": "Sales"
+      }
+    ]
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "alerts": [],
+  "answer": "## Longitudinal Trend Analysis: 2026-Q3 Exit Interviews\n\nThis analysis reviews exit interviews from Q3 2026, highlighting recurring themes, sentiment, and manager-specific signals across the Sales and Engineering departments.\n\n### Sales Department Observations\n\nThe Sales department shows a consistent pattern of negative sentiment and dissatisfaction among departing employees during this quarter.\n\n*   **Negative Sentiment & Low Recommendation:** Both Sales interviews (interview-001, interview-002) reflect negative or mixed-negative sentiment and a reluctance to recommend the Sales organization to others.\n*   **Aggressive Quotas & Unrealistic Targets:** A prominent concern is the setting of aggressive or unrealistic sales quotas and targets without adequate support or resources. This is cited as a primary reason for burnout and frustration.\n    *   _Evidence:_ \"Quotas were raised twice in one year without any change in territory support or lead flow. I felt set up to fail regardless of effort.\" (interview-001); \"Unrealistic call/quota targets and little visibility into how to actually get promoted.\" (interview-002).\n*   **Poor Management & Leadership Style:** Both employees criticize the sales leadership for top-down target setting, pressure-driven environments, and a lack of constructive coaching. Pipeline reviews are described as blame sessions rather than supportive.\n    *   _Evidence:_ \"Sales management is the biggest issue. Targets are set top-down with no input, pipeline reviews turned into blame sessions, and there was constant pressure but little coaching.\" (interview-001); \"leadership sets aggressive targets without enough lead support, and the pressure is relentless. Feedback in pipeline reviews felt more like criticism than coaching.\" (interview-002).\n*   **Burnout & High Workload:** The aggressive targets and high-pressure environment contribute to feelings of burnout and being on a \"treadmill.\"\n    *   _Evidence:_ \"Primarily burnout and frustration with sales leadership.\" (interview-001); \"the SDR role here felt like a treadmill. Unrealistic call/quota targets and little visibility into how to actually get promoted.\" (interview-002).\n*   **Lack of Career Development & Support:** Employees report a lack of one-on-one support, career conversations, and micromanagement focused on activity metrics rather than genuine development.\n    *   _Evidence:_ \"Very little one-on-one support or career development. Micromanaged on activity metrics while ignoring actual deal blockers.\" (interview-001); \"One-on-ones were often cancelled and career conversations never really happened. The activity-metric focus felt demotivating.\" (interview-002).\n*   **Manager-Specific Signal: Karan Malhotra:** Both Sales leavers were managed by Karan Malhotra and provided similar negative feedback regarding his management style, indicating a pattern.\n    *   _Evidence:_ \"My manager (Karan) is under pressure himself and passes it straight down.\" (interview-001); \"Karan is knowledgeable but stretched thin. One-on-ones were often cancelled and career",
+  "signals": {
+    "timeline": [
+      {
+        "date": "2026-09-02",
+        "quarter": "2026-Q3",
+        "sentiment": "positive",
+        "department": "Engineering",
+        "interview_id": "interview-003"
+      },
+      {
+        "date": "2026-09-04",
+        "quarter": "2026-Q3",
+        "sentiment": "mixed",
+        "department": "Engineering",
+        "interview_id": "interview-004"
+      },
+      {
+        "date": "2026-09-05",
+        "quarter": "2026-Q3",
+        "sentiment": "negative",
+        "department": "Sales",
+        "interview_id": "interview-001"
+      },
+      {
+        "date": "2026-09-06",
+        "quarter": "2026-Q3",
+        "sentiment": "mixed_negative",
+        "department": "Sales",
+        "interview_id": "interview-002"
+      }
+    ],
+    "by_quarter": {
+      "2026-Q3": 4
+    },
+    "by_department": {
+      "Sales": 2,
+      "Engineering": 2
+    },
+    "interviews_total": 4,
+    "sentiment_by_department": {
+      "Sales": {
+        "negative": 1,
+        "mixed_negative": 1
+      },
+      "Engineering": {
+        "mixed": 1,
+        "positive": 1
+      }
+    },
+    "would_recommend_by_department": {
+      "Sales": {
+        "false": 2
+      },
+      "Engineering": {
+        "true": 2
+      }
+    },
+    "recurring_themes_by_department": {
+      "Sales": [
+        {
+          "theme": "quota / targets",
+          "interviews": 2
+        },
+        {
+          "theme": "management / leadership",
+          "interviews": 2
+        },
+        {
+          "theme": "burnout / workload",
+          "interviews": 2
+        },
+        {
+          "theme": "career growth",
+          "interviews": 2
+        },
+        {
+          "theme": "coaching / feedback",
+          "interviews": 2
+        },
+        {
+          "theme": "positive culture",
+          "interviews": 2
+        },
+        {
+          "theme": "compensation",
+          "interviews": 1
+        },
+        {
+          "theme": "tooling / process",
+          "interviews": 1
+        }
+      ],
+      "Engineering": [
+        {
+          "theme": "management / leadership",
+          "interviews": 2
+        },
+        {
+          "theme": "compensation",
+          "interviews": 2
+        },
+        {
+          "theme": "coaching / feedback",
+          "interviews": 2
+        },
+        {
+          "theme": "positive culture",
+          "interviews": 2
+        },
+        {
+          "theme": "career growth",
+          "interviews": 1
+        },
+        {
+          "theme": "tooling / process",
+          "interviews": 1
+        }
+      ]
+    },
+    "managers_of_leavers_by_department": {
+      "Sales": {
+        "Karan Malhotra": 2
+      },
+      "Engineering": {
+        "Vikram Sharma": 2
+      }
+    }
+  },
+  "sources": [
+    {
+      "source": "interview-003",
+      "heading": "Engineering · 2026-09-02"
+    },
+    {
+      "source": "interview-004",
+      "heading": "Engineering · 2026-09-04"
+    },
+    {
+      "source": "interview-001",
+      "heading": "Sales · 2026-09-05"
+    },
+    {
+      "source": "interview-002",
+      "heading": "Sales · 2026-09-06"
+    }
+  ]
+}

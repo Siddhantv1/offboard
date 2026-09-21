@@ -1,0 +1,61 @@
+{
+  "analysis": {
+    "summary": "Nisha Reddy left for clearer growth opportunities, finding the SDR role's targets unrealistic and progression unclear, despite appreciating the team environment and initial learning. She noted a prevalent issue within the Sales Development team regarding aggressive targets and insufficient leadership support.",
+    "key_themes": [
+      {
+        "theme": "Career Progression & Growth",
+        "evidence": "unrealistic call/quota targets and little visibility into how to actually get promoted; career conversations never really happened.",
+        "sentiment": "negative"
+      },
+      {
+        "theme": "Workload & Targets",
+        "evidence": "unrealistic call/quota targets; pressure is relentless; aggressive targets without enough lead support.",
+        "sentiment": "negative"
+      },
+      {
+        "theme": "Management Support & Feedback",
+        "evidence": "leadership sets aggressive targets without enough lead support; Feedback in pipeline reviews felt more like criticism than coaching; One-on-ones were often cancelled; activity-metric focus felt demotivating.",
+        "sentiment": "negative"
+      },
+      {
+        "theme": "Team Environment",
+        "evidence": "Great onboarding buddy and a friendly SDR pod.",
+        "sentiment": "positive"
+      },
+      {
+        "theme": "Training & Tools",
+        "evidence": "learned a lot about outbound in a short time and the tooling (Salesforce) was solid.",
+        "sentiment": "positive"
+      }
+    ],
+    "rehire_signal": "neutral",
+    "recommendations": [
+      {
+        "owner": "Sales Leadership",
+        "action": "Review and adjust sales targets/quotas for SDRs to be more realistic.",
+        "priority": "high"
+      },
+      {
+        "owner": "Sales Leadership",
+        "action": "Provide more leadership support and coaching to the SDR team, focusing on constructive feedback over criticism.",
+        "priority": "high"
+      },
+      {
+        "owner": "HR/Sales Leadership",
+        "action": "Support managers (e.g., Karan) to ensure they have capacity for regular 1:1s and career development discussions.",
+        "priority": "medium"
+      },
+      {
+        "owner": "Sales Leadership",
+        "action": "Address the 'activity-metric focus' to improve team motivation.",
+        "priority": "medium"
+      }
+    ],
+    "sentiment_score": -30,
+    "overall_sentiment": "mixed",
+    "reasons_for_leaving": [
+      "Received an offer with clearer growth opportunities.",
+      "SDR role felt like a treadmill due to unrealistic targets and lack of promotion visibility."
+    ]
+  }
+}
