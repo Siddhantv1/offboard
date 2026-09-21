@@ -1,7 +1,70 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
 import { EmailPreview, Facts, Section, Verdict, bySeverity } from "./kit.jsx";
+import { Button, ErrorBox } from "../ui.jsx";
+import { postJSON } from "../../lib/api.js";
+import { STAGE_KEY_BY_NAME } from "../../lib/stages.js";
 import GenericResult from "./GenericResult.jsx";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Record that this stage was chased.
+ *
+ * The draft above is the whole output of this agent, and until now that was
+ * where it stopped: you copied the text into your mail client and the system
+ * never learned that anyone had pushed. So the next sweep re-drafted the same
+ * chase, and the case could not answer "has anybody actually chased this?".
+ *
+ * Recording writes the one durable fact the draft implies -- this stage, this
+ * person, this moment -- onto the case's own audit trail, where the timeline
+ * already renders escalations distinctly. It does not send anything, and it
+ * says so: quietly mailing somebody from a results page would be worse than
+ * doing nothing.
+ */
+function RecordEscalation({ caseId, stageName, severity }) {
+  const [state, setState] = useState({ status: "idle", error: null });
+  const stageKey = STAGE_KEY_BY_NAME[stageName];
+
+  if (!caseId || !stageKey) return null;
+
+  if (state.status === "done") {
+    return (
+      <p className="rk-assigned">
+        {"Chase recorded against "}
+        <Link to={`/cases/${caseId}`} className="linkish">{caseId}</Link>
+        {". It is on the case timeline with your name and the time."}
+      </p>
+    );
+  }
+
+  async function record() {
+    setState({ status: "busy", error: null });
+    try {
+      await postJSON(`/api/cases/${caseId}/stages/${stageKey}/escalate`, {
+        note: `Chased ${stageName}${severity ? ` (${severity})` : ""} after the SLA breach.`,
+      });
+      setState({ status: "done", error: null });
+    } catch (e) {
+      setState({ status: "idle", error: e.message });
+    }
+  }
+
+  return (
+    <>
+      {state.error && <ErrorBox>{state.error}</ErrorBox>}
+      <div className="btn-row">
+        <Button busy={state.status === "busy"} onClick={record}>
+          Record this chase
+        </Button>
+      </div>
+      <p className="rk-empty">
+        Adds it to the case timeline. Nothing is emailed — send the message above
+        yourself.
+      </p>
+    </>
+  );
+}
 
 /** SLA Escalation.
  *
@@ -87,6 +150,11 @@ export default function SlaEscalation({ result: r }) {
           >
             <EmailPreview
               to={m.to} cc={m.cc} subject={m.subject} body={m.body} severity={m.severity}
+            />
+            <RecordEscalation
+              caseId={e.case_id}
+              stageName={e.stage}
+              severity={m.severity}
             />
           </Section>
         );

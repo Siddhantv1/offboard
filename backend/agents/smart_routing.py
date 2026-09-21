@@ -76,6 +76,24 @@ def approver_roster(stage_name: str) -> list[dict[str, Any]]:
 def _roster_for(stage: str) -> list[dict[str, Any]]:
     return approver_roster(stage)
 
+
+def stage_state(case_id: str, stage_key: str | None) -> str | None:
+    """The current status of that stage on that case, or None if there is none.
+
+    The recommendation is only actionable while the stage is still open. A
+    completed stage can be assigned -- the write succeeds -- but the work
+    queues show open work only, so the assignment lands nowhere and the reader
+    is told it worked. Knowing the status here lets the result say "already
+    done" instead of offering a button whose promise the queue will not keep.
+    """
+    if not (case_id and stage_key):
+        return None
+    with session_scope() as s:
+        return s.scalar(
+            select(CaseStage.status).where(
+                CaseStage.case_id == case_id, CaseStage.stage_key == stage_key)
+        )
+
 SYSTEM = """You are a workflow routing agent. Choose the single best approver for \
 a clearance stage. Rules, in priority order:
 1. Never route to someone who is out-of-office; use their delegate instead.
@@ -137,9 +155,12 @@ class SmartRoutingAgent(BaseAgent):
         chosen = next(
             (a for a in roster if a["name"].strip().lower() == chosen_name), None)
 
+        stage_key = STAGE_KEY_BY_NAME.get(stage)
+        status = stage_state(case_id, stage_key)
+
         return {
             "stage": stage,
-            "stage_key": STAGE_KEY_BY_NAME.get(stage),
+            "stage_key": stage_key,
             "case_id": case_id or None,
             "routing": result,
             "roster": roster,
@@ -147,5 +168,11 @@ class SmartRoutingAgent(BaseAgent):
             # itself worth showing rather than silently assigning the wrong
             # person.
             "chosen": chosen,
-            "assignable": bool(chosen and case_id),
+            "stage_status": status,
+            # Every condition that has to hold for the assign button to do
+            # something real. Computed here rather than in the view so the two
+            # cannot drift: the view was offering the action whenever a case was
+            # picked, and on a finished stage that was a lie.
+            "assignable": bool(chosen and case_id and status
+                               and status != "completed"),
         }

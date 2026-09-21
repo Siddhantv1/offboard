@@ -7,18 +7,7 @@ import { Badge, Button, ErrorBox, Panel, PageHead, Skeleton } from "../component
 import { fetchJSON, postJSON } from "../lib/api.js";
 import { useAuth } from "../lib/auth.jsx";
 import { humanize } from "../lib/format.js";
-
-/** stage_key -> the display name the corpus uses. */
-const STAGE_NAMES = {
-  it: "IT Clearance",
-  finance: "Finance Clearance",
-  hr: "HR Clearance",
-  kt: "Knowledge Transfer",
-  manager: "Manager Sign-off",
-};
-const KEY_BY_NAME = Object.fromEntries(
-  Object.entries(STAGE_NAMES).map(([k, v]) => [v, k]),
-);
+import { STAGE_KEY_BY_NAME as KEY_BY_NAME } from "../lib/stages.js";
 
 /** What you can move a stage to from where it is now. Mirrors
  *  `backend/stages.py:LEGAL` -- the server is authoritative and will refuse

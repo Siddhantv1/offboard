@@ -67,4 +67,7 @@ class ChecklistAgent(BaseAgent):
         result = llm.complete_json(
             SYSTEM, f"Employee profile:\n\n{context}\n\nGenerate the exit checklist."
         )
-        return {"checklist": result}
+        # Carried through so the result can act on itself: the "access to
+        # revoke" list is the input to a deprovisioning plan, and without the
+        # id the reader had to go and find this person again by hand.
+        return {"checklist": result, "employee_id": emp_id or None}

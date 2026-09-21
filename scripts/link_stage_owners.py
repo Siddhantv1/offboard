@@ -3,6 +3,7 @@
     python -m scripts.link_stage_owners            # link what can be linked
     python -m scripts.link_stage_owners --dry-run  # show, change nothing
     python -m scripts.link_stage_owners --show     # current assignment state
+    python -m scripts.link_stage_owners --repair   # also fix mis-routed rows
 
 `CaseStage.owner` is a free-text name ("Sanya Kapoor") inherited from the
 Markdown corpus. `owner_user_id` is the real link the work queues run on. This
@@ -20,14 +21,21 @@ demo-data script breaks that contract invisibly.
 
 Safe to re-run at any time, and worth re-running after adding an account.
 
-**It only ever fills blanks.** A row whose `owner_user_id` is already set was
-assigned by a person through the UI, and a name-matching heuristic must never
-overrule that.
+**By default it only ever fills blanks.** A row whose `owner_user_id` is
+already set was assigned by a person through the UI, and a name-matching
+heuristic must never overrule that.
+
+**`--repair` is the one exception, and it is narrow.** It touches only rows
+where the owner *name* and the owner *id* are different people. Those cannot
+be produced by any current write path -- `backend.stages.set_stage_owner` sets
+both columns together -- so such a row is not somebody's decision, it is
+damage. See `mismatches()` for where the damage came from.
 """
 from __future__ import annotations
 
 import argparse
 import sys
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -103,6 +111,77 @@ def link(session, *, dry_run: bool = False) -> tuple[int, list[str]]:
                     for n, c in sorted(unmatched.items())]
 
 
+def mismatches(session) -> list[dict[str, Any]]:
+    """Stages whose owner *name* and owner *id* are different people.
+
+    `backend.stages.set_stage_owner` writes both columns together, so every
+    assignment and every claim leaves them agreeing. A row where they disagree
+    can therefore only have come from code that bypassed it -- which is what
+    the old claim-on-transition did, stamping the actor's id onto a stage while
+    leaving the previous owner's name in place. Those rows display one person
+    and queue for another, and nothing surfaces the contradiction.
+
+    Being able to state that invariant is what makes this repair safe: it is
+    not guessing which column is right, it is finding rows that no legitimate
+    write path can produce.
+    """
+    lookup = _candidates(session)
+    users = {u.id: u for u in session.scalars(select(User)).all()}
+
+    out: list[dict[str, Any]] = []
+    rows = session.scalars(
+        select(CaseStage).where(
+            CaseStage.owner_user_id.isnot(None),
+            func.trim(CaseStage.owner) != "",
+        ).order_by(CaseStage.case_id, CaseStage.ordinal)
+    ).all()
+
+    for stage in rows:
+        name = (stage.owner or "").strip()
+        linked = users.get(stage.owner_user_id)
+        linked_name = (linked.full_name or linked.email or "") if linked else ""
+        if name.lower() == linked_name.strip().lower():
+            continue                                   # consistent, leave alone
+
+        correct = lookup.get(name.lower())
+        out.append({
+            "stage": stage,
+            "name": name,
+            "linked_to": linked_name or f"user {stage.owner_user_id}",
+            "correct_id": correct,
+        })
+    return out
+
+
+def repair(session, *, dry_run: bool = False) -> list[str]:
+    """Point every mismatched row back at the person it names.
+
+    Where that name has no account the id is *cleared* rather than left
+    pointing at the wrong person. An unrouted stage is a state the queue
+    already handles -- it shows as unclaimed and anyone with the role can pick
+    it up -- whereas a wrongly routed one is invisible to the person
+    accountable for it and silently present in somebody else's queue.
+    """
+    notes = []
+    for m in mismatches(session):
+        stage, name = m["stage"], m["name"]
+        where = f"{stage.case_id} {stage.stage_key}"
+        if m["correct_id"] is not None:
+            if not dry_run:
+                stage.owner_user_id = m["correct_id"]
+            notes.append(f"{where}: {name} was routing to {m['linked_to']} "
+                         f"-> relinked to {name}")
+        else:
+            if not dry_run:
+                stage.owner_user_id = None
+            notes.append(f"{where}: {name} was routing to {m['linked_to']} "
+                         f"-> cleared ({name} has no account)")
+
+    if dry_run:
+        session.expunge_all()
+    return notes
+
+
 def show(session) -> None:
     total = session.scalar(select(func.count()).select_from(CaseStage)) or 0
     assigned = session.scalar(
@@ -129,12 +208,24 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true", help="report, change nothing")
     ap.add_argument("--show", action="store_true", help="current state, then exit")
+    ap.add_argument("--repair", action="store_true",
+                    help="also re-point rows whose owner name and owner id are "
+                         "different people")
     args = ap.parse_args()
 
     with session_scope() as s:
         if args.show:
             show(s)
             return 0
+
+        if args.repair:
+            notes = repair(s, dry_run=args.dry_run)
+            verb = "would repair" if args.dry_run else "repaired"
+            print(f"\n  {verb} {len(notes)} mis-routed stage(s).")
+            for n in notes:
+                print(f"    - {n}")
+            if not notes:
+                print("    Every stage routes to the person it names.")
 
         linked, unmatched = link(s, dry_run=args.dry_run)
 

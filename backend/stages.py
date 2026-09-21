@@ -42,6 +42,26 @@ LEGAL: dict[str, frozenset[str]] = {
 HR_ONLY_FROM = frozenset({"completed"})
 
 
+def set_stage_owner(stage: CaseStage, user_id: int | None, label: str) -> None:
+    """Point both owner columns at one person. Never write just one.
+
+    `owner` is the name people read on the case page and in every agent's
+    context; `owner_user_id` is the foreign key the work queues route on. They
+    are two halves of a single fact, and they used to be written separately --
+    the id unconditionally, the name only when it was blank. So moving a stage
+    that already named somebody took the routing and left their name behind,
+    and the stage then displayed one person while queueing for another. Seven
+    rows in the live database drifted apart that way, including a live manager
+    sign-off that sat in HR's queue.
+
+    Writing both together is also what makes a drift *detectable*: any row
+    whose name and id disagree can only have come from code that bypassed this,
+    so `scripts/link_stage_owners.py --repair` can safely correct it.
+    """
+    stage.owner_user_id = user_id
+    stage.owner = label
+
+
 def assert_may_transition(
     *, role: str, stage_key: str | None, from_status: str, to_status: str,
     actor_employee_id: str | None = None, case_employee_id: str | None = None,
@@ -182,10 +202,15 @@ def transition(
             stage.blocked_reason = None
             stage.blocked_at = None
 
-        if claim and actor.user_id:
-            stage.owner_user_id = actor.user_id
-            if not (stage.owner or "").strip():
-                stage.owner = actor.full_name or actor.email
+        # Claiming here is a *side effect* of moving the stage -- the case page
+        # sends it on every transition -- so it only ever picks up work nobody
+        # holds. Taking a stage that already names someone is a handover, and a
+        # handover is a deliberate act with its own route (`assign`), not
+        # something that happens because HR clicked "complete" on a colleague's
+        # behalf. That distinction is the whole of the case-003 bug.
+        unowned = stage.owner_user_id is None and not (stage.owner or "").strip()
+        if claim and actor.user_id and unowned:
+            set_stage_owner(stage, actor.user_id, actor.full_name or actor.email)
 
         s.add(CaseStageEvent(
             case_id=case.case_id,
@@ -212,6 +237,57 @@ def transition(
             "escalated": escalated,
             "current_stage": case.current_stage,
             "overall_status": case.overall_status,
+        }
+
+
+def record_escalation(*, case_id: str, stage_key: str, actor: Any,
+                      note: str = "") -> dict[str, Any]:
+    """Record that a stage was chased, without moving it.
+
+    The SLA Escalation agent drafts a chase message and, until now, that was
+    the end of it: you copied the text somewhere and the system never learned
+    that anyone had chased. So the same breach was re-escalated on the next
+    sweep, and the case's own record could not answer "has anyone actually
+    pushed on this?".
+
+    An escalation is an event, not a transition -- `from_status` equals
+    `to_status` deliberately, because the stage genuinely has not moved. It is
+    flagged `escalated`, which the case timeline already renders distinctly.
+    """
+    with session_scope() as s:
+        case = s.get(ExitCase, case_id)
+        if case is None:
+            raise TransitionError(f"Unknown exit case '{case_id}'.")
+
+        stage = next((x for x in case.stages if x.stage_key == stage_key), None)
+        if stage is None:
+            raise TransitionError(f"This case has no '{stage_key}' clearance stage.")
+        if stage.status == "completed":
+            raise TransitionError(
+                f"{stage.name} is already completed. There is nothing to chase."
+            )
+
+        event = CaseStageEvent(
+            case_id=case.case_id,
+            stage_key=stage.stage_key,
+            stage_name=stage.name,
+            from_status=stage.status,
+            to_status=stage.status,
+            actor_user_id=getattr(actor, "user_id", None),
+            actor_label=getattr(actor, "full_name", None) or getattr(actor, "email", ""),
+            actor_role=getattr(actor, "role", None),
+            escalated=True,
+            note=(note or "").strip(),
+        )
+        s.add(event)
+        s.flush()
+        return {
+            "case_id": case.case_id,
+            "stage": stage.name,
+            "stage_key": stage.stage_key,
+            "status": stage.status,
+            "owner": stage.owner or None,
+            "escalated": True,
         }
 
 

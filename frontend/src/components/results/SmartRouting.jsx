@@ -13,11 +13,16 @@ import GenericResult from "./GenericResult.jsx";
  * `owner_user_id`, which is exactly what "My queue" filters on -- so the stage
  * lands on that person's own page the next time they load it.
  *
- * `chosen` is the roster entry the backend resolved from the model's answer.
- * When the model names somebody outside the roster it comes back null, and we
- * say so rather than offering a button that cannot work.
+ * Every reason the action cannot work is stated instead of being shown as a
+ * button. That list is not defensive padding: offering it on an already
+ * completed stage is what made someone assign IT Clearance on case-006, be
+ * told it was in Sanya Kapoor's queue, and find nothing there -- the write had
+ * succeeded, but a finished stage is not work and no queue shows it.
+ *
+ * `assignable` is computed by the agent rather than re-derived here, so the
+ * button and the thing it claims cannot drift apart again.
  */
-function AssignAction({ caseId, stageKey, chosen, stageName }) {
+function AssignAction({ caseId, stageKey, chosen, stageName, stageStatus, assignable }) {
   const [state, setState] = useState({ status: "idle", error: null });
 
   if (!chosen?.user_id) {
@@ -34,6 +39,24 @@ function AssignAction({ caseId, stageKey, chosen, stageName }) {
         Run this again with an exit case selected and you can assign
         {` ${chosen.name} `}
         to it from here.
+      </p>
+    );
+  }
+  if (stageStatus === "completed") {
+    return (
+      <p className="rk-empty">
+        {`${stageName} on ${caseId} is already completed, so there is nothing to `}
+        {`hand over. ${chosen.name} is who to route it to if it is ever reopened.`}
+      </p>
+    );
+  }
+  /* Strictly false, not falsy: results captured before the agent reported this
+     field have no opinion, and those should still offer the action -- the
+     server refuses with a readable reason if it turns out not to hold. */
+  if (assignable === false) {
+    return (
+      <p className="rk-empty">
+        {`${caseId} has no ${stageName} stage to assign.`}
       </p>
     );
   }
@@ -135,6 +158,8 @@ export default function SmartRouting({ result: r }) {
           stageKey={r.stage_key}
           chosen={r.chosen}
           stageName={r.stage || "this stage"}
+          stageStatus={r.stage_status}
+          assignable={r.assignable}
         />
       </Section>
 

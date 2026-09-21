@@ -422,6 +422,28 @@ def transition_stage(
         raise HTTPException(status_code=status, detail=str(exc)) from exc
 
 
+@router.post("/cases/{case_id}/stages/{stage_key}/escalate")
+def escalate_stage(case: ScopedCase, stage_key: str, user: StaffUser,
+                   payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Record that this stage has been chased.
+
+    Deliberately not gated on `may_act_on_stage`: chasing a stage you do not
+    own is the entire point -- HR chases IT, a manager chases HR. Seeing the
+    case is the only permission that applies, and `ScopedCase` has already
+    established it.
+    """
+    payload = payload or {}
+    try:
+        return stage_service.record_escalation(
+            case_id=str(case.meta.get("case_id")),
+            stage_key=stage_key,
+            actor=user,
+            note=str(payload.get("note") or ""),
+        )
+    except stage_service.TransitionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.post("/cases/{case_id}/stages/{stage_key}/claim")
 def claim_stage(case: ScopedCase, stage_key: str, user: StaffUser) -> dict[str, Any]:
     """Take ownership of an unclaimed stage without changing its status."""
@@ -443,9 +465,14 @@ def claim_stage(case: ScopedCase, stage_key: str, user: StaffUser) -> dict[str, 
             raise HTTPException(
                 status_code=404, detail=f"This case has no '{stage_key}' stage."
             )
-        stage.owner_user_id = user.user_id
-        if not (stage.owner or "").strip():
-            stage.owner = user.full_name or user.email
+        if stage.status == "completed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"{stage.name} is already completed, so there is no work "
+                       "to take. Reopen it first if it needs redoing.",
+            )
+        stage_service.set_stage_owner(
+            stage, user.user_id, user.full_name or user.email)
         return {"case_id": case.meta.get("case_id"), "stage_key": stage_key,
                 "owner": stage.owner, "owner_user_id": stage.owner_user_id}
 
@@ -500,8 +527,20 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
             raise HTTPException(
                 status_code=404, detail=f"This case has no '{stage_key}' stage.")
 
-        stage.owner_user_id = assignee.id
-        stage.owner = assignee.full_name or assignee.email
+        # Assigning finished work is a no-op that looks like an action: the
+        # write succeeds, and the queue -- which shows open work only -- stays
+        # empty, so the assignment appears to have been silently dropped. This
+        # is exactly what happened to IT Clearance on case-006.
+        if stage.status == "completed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"{stage.name} on {case.meta.get('case_id')} is already "
+                       "completed, so assigning it would not put any work on "
+                       "anyone's queue. Reopen the stage first if it needs redoing.",
+            )
+
+        stage_service.set_stage_owner(
+            stage, assignee.id, assignee.full_name or assignee.email)
         return {
             "case_id": case.meta.get("case_id"),
             "stage_key": stage_key,
