@@ -16,6 +16,12 @@ export const NAV = {
     { to: "/", icon: "◇", label: "Overview", end: true },
     { to: "/cases", icon: "◫", label: "Exit cases" },
     { to: "/orchestrator", icon: "⛓", label: "Orchestrator" },
+    // HR is the ONLY role that can authorise a deprovisioning plan
+    // (`can_approve` is `pending && is_hr`), and this was in IT's sidebar
+    // alone. So the capability existed, the route allowed it, the API worked
+    // -- and the one person who could use it had no link to the page. IT could
+    // reach it and saw no button; HR had the button and no way in.
+    { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
     { to: "/employees/new", icon: "＋", label: "Add employee" },
   ],
   it: [

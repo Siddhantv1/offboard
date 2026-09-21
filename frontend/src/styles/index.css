@@ -1838,3 +1838,9 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .interview-option { display: inline-flex; align-items: center; gap: 7px;
                     font-size: 14px; text-transform: capitalize; cursor: pointer; }
 .interview-option input { margin: 0; accent-color: var(--teal); }
+
+/* What an unattended end-to-end run changed. Same question the orchestrator
+   result answers, asked of an agent that revokes access with no human gate. */
+.rk-applied { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.rk-applied li { font-size: 14px; line-height: 1.5; }
+.rk-applied-why { display: block; font-size: 13px; color: var(--muted); }

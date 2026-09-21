@@ -129,6 +129,28 @@ describe("the route table", () => {
     }
   });
 
+  /* The reverse direction, and the one that actually broke.
+     The test above stops a role being shown a link it cannot follow. It says
+     nothing about a role that CAN follow a link never being shown it -- and
+     that is how HR ended up unable to authorise a deprovisioning plan. The
+     route allowed HR, the API allowed HR, `can_approve` was true for HR alone,
+     and /deprovisioning was in IT's sidebar only. Nothing was broken except
+     that the only person who could act had no way to the page. */
+  const EXCLUSIVE = [
+    ["/deprovisioning", "hr", "authorising a plan is `pending && is_hr`"],
+    ["/admin/users", "it", "account administration is IT's, and HR is not an override"],
+    ["/orchestrator", "hr", "the approval gate is answered here"],
+    ["/interview", "employee", "nobody else can answer it"],
+  ];
+
+  it.each(EXCLUSIVE)(
+    "puts %s in the sidebar of %s, who alone can act there",
+    (path, role, why) => {
+      const paths = (NAV[role] ?? []).map((i) => i.to);
+      expect(paths, `${role} cannot navigate to ${path}: ${why}`).toContain(path);
+    },
+  );
+
   it("keeps the exit interview to the employee alone", () => {
     const route = ROUTES.find((r) => r.path === "/interview");
     expect(route, "/interview is missing from the route table").toBeTruthy();

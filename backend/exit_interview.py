@@ -61,8 +61,8 @@ QUESTIONS: tuple[dict[str, Any], ...] = (
         "prompt": "What made you decide to leave?",
         "type": "text",
         "required": True,
-        "help": "The real reason, not the polite one. Nothing here goes to your "
-                "next employer.",
+        "help": "Please be truthful about your answers, as they do not affect your "
+                "evaluation.",
     },
     {
         "id": "what_worked",
@@ -93,7 +93,7 @@ QUESTIONS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "would_return",
-        "prompt": "Would you come back, if the right role came up?",
+        "prompt": "Would you come back, if the right role/opportunity came up?",
         "type": "choice",
         "options": ("yes", "no", "unsure"),
         "required": True,

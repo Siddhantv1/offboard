@@ -146,8 +146,8 @@ export default function ExitInterview() {
           <p className="hint" style={{ marginTop: -6 }}>
             Sent{data.submitted_at
               ? ` on ${new Date(data.submitted_at).toLocaleDateString()}`
-              : ""}. This is now part of the record, so it cannot be changed —
-            talk to HR if something in it is wrong.
+              : ""}. Your response has been recorded. Found a mistake?
+            Reach out to HR for queries.
           </p>
           {questions.map((q) => (
             <Question key={q.id} question={q} value={answers[q.id] || ""} readOnly />
@@ -168,8 +168,7 @@ export default function ExitInterview() {
       {head}
       <Panel title="Your answers">
         <p className="hint" style={{ marginTop: -6 }}>
-          Save as often as you like — nothing reaches HR until you send it, and
-          once you do it cannot be changed.
+          Your answers are autosaved. Please verify all your answers before submitting, once you do it cannot be changed.
         </p>
 
         {questions.map((q) => (
@@ -204,10 +203,11 @@ export default function ExitInterview() {
         {outstanding.length > 0 ? (
           <p className="hint">
             {`${outstanding.length} question${outstanding.length === 1 ? "" : "s"} `}
-            still to answer before you can send this.
+            {`remain${outstanding.length === 1 ? "s" : ""} `}
+            before you can submit.
           </p>
         ) : (
-          saved && <p className="hint">Saved.</p>
+          saved && <p className="hint">Answers saved successfully.</p>
         )}
       </Panel>
     </>

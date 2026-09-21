@@ -41,6 +41,7 @@ export default function EndToEnd({ result: r }) {
   const approval = orch.approval || {};
   const summary = r.stakeholder_summary || {};
   const exception = r.exception_handling;
+  const applied = Array.isArray(r.applied) ? r.applied : [];
 
   return (
     <>
@@ -78,6 +79,30 @@ export default function EndToEnd({ result: r }) {
           a step failed. */}
       <Section title="What went wrong" when={errors.length > 0}>
         <Bullets items={errors} tone="danger" />
+      </Section>
+
+      {/* What is different about the case now, as opposed to what the run
+          worked out. This agent revokes real access without anyone approving
+          the plan, so "what did it actually do" is the first thing its reader
+          needs and the last thing they should have to dig for. */}
+      <Section
+        title={applied.length
+          ? `It changed ${applied.length} thing${applied.length === 1 ? "" : "s"} on the case`
+          : "It changed nothing on the case"}
+        note={applied.length
+          ? undefined
+          : "Every open stage already had an owner and nothing was past its SLA."}
+      >
+        {applied.length > 0 && (
+          <ul className="rk-applied">
+            {applied.map((a, i) => (
+              <li key={i}>
+                <b>{a.detail}</b>
+                {a.why && <span className="rk-applied-why">{a.why}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
       </Section>
 
       <Section title="What it did" when={steps.length > 0}
@@ -126,9 +151,9 @@ export default function EndToEnd({ result: r }) {
       </Section>
 
       <Section
-        title="Escalations sent"
+        title="Chases recorded"
         when={(r.proactive_escalations || []).length > 0}
-        note="Stages already past their SLA when the run started."
+        note="Drafted for stages past their SLA, and recorded on the case timeline. The messages are not sent."
       >
         {(r.proactive_escalations || []).map((e, i) => (
           <EmailPreview

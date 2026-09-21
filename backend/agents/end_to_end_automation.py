@@ -1,22 +1,35 @@
 """Agent 20 — End-to-End Exit Automation (capstone).
 
-Composes the platform's other agents into one autonomous, start-to-finish run
-for a single employee: resolve or open their exit case, check documents,
-recommend approvers, proactively escalate anything already overdue, run full
-clearance orchestration (auto-approving the deprovisioning plan since this
-agent is meant to run unattended), handle a blocked outcome as an exception,
-and draft a final stakeholder summary. No human in the loop by design -- HR
-runs the LangGraph orchestrator page directly when they want to review the
-deprovisioning plan themselves.
+One unattended, start-to-finish run for a single employee.
+
+It is a *wrapper around the orchestrator*, not a parallel implementation. What
+it adds is the things the orchestrator cannot do because it needs a case to
+already exist and a human to be present:
+
+  before -- resolve the employee's exit case, or open one if there is none;
+            check which documents are in
+  middle -- `run_orchestration(...)`, the whole LangGraph graph, with the
+            approval gate answered `approve` automatically
+  after  -- if the run came back blocked, draft an exception email; then a
+            stakeholder summary of the lot
+
+Routing and escalation are NOT done here even though this agent reports both.
+They belong to the orchestration, which is what actually writes them; doing
+them here as well ran every one of those model calls twice and let the two
+passes disagree about which stages were unowned. See the note in `run`.
+
+**The auto-approval is the whole risk of this agent.** The orchestrator page
+stops at the deprovisioning plan and waits for a person; this answers that gate
+itself, so access is revoked with nobody having read the plan. That is the
+point of it -- and the reason HR should use the orchestrator page whenever they
+want to see what is about to be revoked.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from .base import REGISTRY, AgentMeta, BaseAgent, Field, llm, register
-from ._context import SLA_DAYS, parse_days_open, require_employee
-from .sla_escalation import draft_escalation
-from .smart_routing import approver_roster
+from ._context import require_employee
 from ..data_store import store
 from ..llm import LLMError
 from ..orchestration import run_orchestration
@@ -102,39 +115,21 @@ class EndToEndAutomationAgent(BaseAgent):
         documents = REGISTRY["document_collection"].execute({"case_id": case_id})
         timeline.append("Checked required vs. submitted documents.")
 
-        refreshed = store.exit_case(case_id)
-        case_meta = refreshed.meta if refreshed else case.meta
-        stages = [s for s in (case_meta.get("stages") or []) if isinstance(s, dict)]
-
-        routing_recommendations: dict[str, Any] = {}
-        for stage in stages:
-            if str(stage.get("status", "")).lower() == "completed" or stage.get("owner"):
-                continue
-            name = stage.get("name")
-            if not name:
-                continue
-            # Ask the database who can hold this stage rather than a static
-            # list of stage names: an unstaffed role is a real answer here
-            # ("nobody can take this"), not a configuration gap.
-            if approver_roster(name):
-                routing_recommendations[name] = REGISTRY["smart_routing"].execute(
-                    {"stage": name, "case_id": case_id})
-            else:
-                routing_recommendations[name] = {
-                    "note": f"Nobody currently holds the role that owns {name}.",
-                }
-        timeline.append(f"Drafted routing recommendations for {len(routing_recommendations)} unowned stage(s).")
-
-        proactive_escalations: list[dict[str, Any]] = []
-        for stage in stages:
-            if str(stage.get("status", "")).lower() == "completed":
-                continue
-            if parse_days_open(stage) > SLA_DAYS:
-                proactive_escalations.append(
-                    draft_escalation(case_meta, stage, threshold=SLA_DAYS)
-                )
-        timeline.append(f"Proactively escalated {len(proactive_escalations)} overdue stage(s).")
-
+        # Routing and escalation are NOT done here. They used to be, and the
+        # orchestration below now does both -- so a single run asked the model
+        # to pick an approver twice for every unowned stage and drafted every
+        # overdue chase twice, at roughly double the gateway cost.
+        #
+        # Worse, the two passes disagreed about what "unowned" meant. This one
+        # skipped any stage with `owner` *text*; the orchestrator's apply node
+        # keys off `owner_user_id`. A seeded stage reading "Sanya Kapoor" with
+        # no linked account was owned to one and unowned to the other, so the
+        # recommendation this agent reported and the assignment the run
+        # actually made could differ on the same stage in the same second.
+        #
+        # The orchestrator is the one that *writes* the assignment, so it owns
+        # the decision. Both keys below are lifted from its state afterwards,
+        # which keeps this agent's output shape unchanged.
         try:
             orchestration = run_orchestration(case_id, decision="approve", note=note)
         except LLMError as exc:
@@ -143,6 +138,20 @@ class EndToEndAutomationAgent(BaseAgent):
             orchestration = {"status": "error", "errors": [f"orchestration: {exc}"]}
         final_status = orchestration.get("status", "error")
         timeline.append(f"Ran full clearance orchestration -- result: {final_status}.")
+
+        # Lifted from the run rather than recomputed. `applied` is what it
+        # actually changed; the other two are what it worked out on the way.
+        routing_recommendations = orchestration.get("routing") or {}
+        proactive_escalations = orchestration.get("escalations") or []
+        applied = orchestration.get("applied") or []
+        timeline.append(
+            f"Routed {len(routing_recommendations)} open stage(s) and recorded "
+            f"{len(proactive_escalations)} escalation(s)."
+        )
+        timeline.append(
+            f"Applied {len(applied)} change(s) to the case."
+            if applied else "Nothing on the case needed changing."
+        )
 
         exception_handling = None
         if final_status == "blocked":
@@ -176,6 +185,7 @@ class EndToEndAutomationAgent(BaseAgent):
             "documents": documents,
             "routing_recommendations": routing_recommendations,
             "proactive_escalations": proactive_escalations,
+            "applied": applied,
             "orchestration": orchestration,
             "exception_handling": exception_handling,
             "stakeholder_summary": stakeholder_summary,
