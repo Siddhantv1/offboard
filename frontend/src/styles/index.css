@@ -1790,3 +1790,33 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
   background: var(--ok-wash); border: 1px solid var(--teal-soft);
   border-radius: var(--radius-sm);
 }
+
+/* What an orchestration run actually changed.
+   Above the verdict because "which nodes ran" is not what anybody opens this
+   for -- and for a long time the honest answer was "nothing", since the run
+   computed routing and escalations and wrote neither. */
+.orch-changed { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line);
+                border-left: 3px solid var(--teal); border-radius: 6px;
+                background: var(--inset); }
+.orch-changed.is-empty { border-left-color: var(--line-strong); }
+.orch-changed h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.orch-changed p { margin: 0; font-size: 14px; line-height: 1.55; }
+.orch-changed ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+.orch-changed li { display: grid; grid-template-columns: 86px 1fr; gap: 10px;
+                   align-items: baseline; font-size: 14px; }
+.orch-changed-kind { font-size: 12px; font-weight: 600; color: var(--deep); }
+.orch-changed-detail { font-weight: 500; }
+.orch-changed-why { grid-column: 2; font-size: 13px; color: var(--muted);
+                    line-height: 1.5; }
+.orch-section-body { padding: 4px 2px 2px; }
+
+@media (max-width: 560px) {
+  .orch-changed li { grid-template-columns: 1fr; gap: 2px; }
+  .orch-changed-why { grid-column: 1; }
+}
+
+/* The employee's half of a two-sided clearance, on the case page. */
+.stage-confirmed, .stage-waiting { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+.stage-confirmed { color: var(--deep); }
+.stage-waiting { color: var(--warn); }
+.confirm-done p { margin: 0 0 6px; font-size: 14px; line-height: 1.55; }

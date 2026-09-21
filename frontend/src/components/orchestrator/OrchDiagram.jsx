@@ -15,7 +15,7 @@ export default function OrchDiagram({ status = {}, retryLabel = "", live = false
 
   return (
     <div className={"orch-diagram" + (live ? " is-live" : "")}>
-      <svg viewBox="0 0 1000 1010" role="img" aria-label="Exit process orchestration graph">
+      <svg viewBox="0 0 1000 1130" role="img" aria-label="Exit process orchestration graph">
         <defs>
           <marker
             id="orch-arrow"
@@ -62,24 +62,28 @@ export default function OrchDiagram({ status = {}, retryLabel = "", live = false
           <text x="516" y="626" className="orch-edge-label orch-edge-label-start">
             approve → run · reject → skip
           </text>
-          <path d="M500,754 V802" markerEnd="url(#orch-arrow)" />
-          <path d="M560,848 H746" markerEnd="url(#orch-arrow)" />
-          <path d="M746,876 H562" markerEnd="url(#orch-arrow)" />
-          <path d="M500,922 V958" markerEnd="url(#orch-arrow)" />
-          <text x="653" y="838" className="orch-edge-label">
+          <path d="M500,754 V784" markerEnd="url(#orch-arrow)" />
+          <path d="M500,890 V922" markerEnd="url(#orch-arrow)" />
+          <text x="516" y="912" className="orch-edge-label orch-edge-label-start">
+            assign · start · escalate
+          </text>
+          <path d="M560,968 H746" markerEnd="url(#orch-arrow)" />
+          <path d="M746,996 H562" markerEnd="url(#orch-arrow)" />
+          <path d="M500,1042 V1078" markerEnd="url(#orch-arrow)" />
+          <text x="653" y="958" className="orch-edge-label">
             blocked
           </text>
-          <text x="653" y="898" className="orch-edge-label">
+          <text x="653" y="1018" className="orch-edge-label">
             re-verify
           </text>
-          <text x="486" y="946" className="orch-edge-label orch-edge-label-end">
+          <text x="486" y="1066" className="orch-edge-label orch-edge-label-end">
             cleared
           </text>
-          <text x="800" y="940" className="orch-edge-label orch-retry">
+          <text x="800" y="1060" className="orch-edge-label orch-retry">
             {retryLabel}
           </text>
-          <circle cx="500" cy="980" r="12" className="orch-end-outer" />
-          <circle cx="500" cy="980" r="7" className="orch-end-inner" />
+          <circle cx="500" cy="1100" r="12" className="orch-end-outer" />
+          <circle cx="500" cy="1100" r="7" className="orch-end-inner" />
         </g>
 
         {Object.entries(ORCH_NODES).map(([id, n]) => {

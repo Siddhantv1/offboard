@@ -101,9 +101,14 @@ export const EMPLOYEE_FIELDS = [
   { name: "notes", label: "Notes", type: "textarea", required: false },
 ];
 
-/* Node geometry in SVG units (viewBox 0 0 1000 1010), mirroring
+/* Node geometry in SVG units (viewBox 0 0 1000 1130), mirroring
    backend/orchestration/graph.py: start -> six parallel agents -> human
-   approval gate -> execute -> compliance (+ escalate loop). */
+   approval gate -> execute -> apply -> compliance (+ escalate loop).
+
+   `apply` is drawn because it is the only node that changes the case. Leaving
+   it out of the picture is how the orchestration came to look like a reporting
+   run: every circle on the diagram produced a document, and none of them
+   produced a difference. */
 export const ORCH_PARALLEL_X = [110, 266, 422, 578, 734, 890];
 
 export const ORCH_NODES = {
@@ -116,8 +121,9 @@ export const ORCH_NODES = {
   deprov_plan: { cx: 890, cy: 330, r: 58, label: ["deprov", "plan"], small: true },
   approval_gate: { cx: 500, cy: 540, r: 52, label: ["human", "approval"], gate: true },
   deprov_execute: { cx: 500, cy: 700, r: 52, label: ["execute", "deprov"] },
-  compliance: { cx: 500, cy: 862, r: 58, label: ["compliance", "agent"] },
-  escalate: { cx: 800, cy: 862, r: 52, label: ["escalation", "agent"] },
+  apply: { cx: 500, cy: 838, r: 50, label: ["apply to", "the case"] },
+  compliance: { cx: 500, cy: 982, r: 58, label: ["compliance", "agent"] },
+  escalate: { cx: 800, cy: 982, r: 52, label: ["escalation", "agent"] },
 };
 
 export const ORCH_NAMES = {
@@ -130,13 +136,16 @@ export const ORCH_NAMES = {
   deprov_plan: "deprovisioning plan",
   approval_gate: "human approval",
   deprov_execute: "deprovisioning",
+  apply: "applying the changes",
   compliance: "compliance check",
   escalate: "escalation",
 };
 
 export const ORCH_DESCRIPTION =
-  "One case, eight agents, one graph. Six agents run side by side: checklist, risk, " +
-  "approver routing, live system clearance, document collection, and the IT " +
-  "deprovisioning plan. The run then pauses for you to approve or reject that plan, " +
-  "executes it if approved, and compliance decides with everything the other agents " +
-  "found. If blocked, escalation drafts the nudges and compliance looks again, up to two rounds.";
+  "Runs one exit case end to end and changes it. Six agents work side by side — " +
+  "checklist, risk, approver routing, live system clearance, document collection and " +
+  "the IT deprovisioning plan — then the run pauses for you to approve or reject that " +
+  "plan. Once you decide it executes, puts the recommended approver on every " +
+  "unclaimed stage, starts IT clearance, records a chase against anything past its " +
+  "SLA, and compliance rules on the result. It never marks a clearance done: that is " +
+  "a judgement about the real world, and no agent here can see it.";

@@ -19,6 +19,7 @@ Every node calls straight into the existing `REGISTRY` agents via their normal
           -> checklist | risk_assessment | routing | clearance | documents | deprov_plan
           -> approval_gate  (interrupt: waits for approve / reject)
           -> deprov_execute
+          -> apply          (writes the run's conclusions onto the case)
           -> compliance -> END (cleared) | escalate -> compliance ... (MAX_RETRIES)
 """
 from __future__ import annotations
@@ -34,6 +35,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 from psycopg_pool import ConnectionPool
+from sqlalchemy import select
 
 from ..agents import REGISTRY
 from ..agents._context import parse_days_open
@@ -67,10 +69,37 @@ class ExitOrchestrationState(TypedDict, total=False):
     escalations: list[dict[str, Any]]
     retries: int
     status: str
+    # What the run actually CHANGED about the case, as opposed to what it
+    # worked out. Kept separate from `log` on purpose: the log is a trace of
+    # nodes that executed, which is true of a run that touched nothing at all.
+    # This is the answer to "what is different now", and it is the first thing
+    # the result view shows.
+    applied: Annotated[list[dict[str, Any]], operator.add]
     # The parallel branch nodes run in the same step and each append to
     # these, so they need a reducer instead of last-write-wins.
     log: Annotated[list[str], operator.add]
     errors: Annotated[list[str], operator.add]
+
+
+class _Orchestrator:
+    """The actor recorded against anything the orchestration writes.
+
+    Not a `User` row: the orchestrator has no session and must never borrow the
+    identity of whoever pressed the button, because the audit trail would then
+    claim a person did something a machine did. `actor_user_id` stays NULL and
+    `actor_label` carries the name -- exactly the denormalisation
+    `CaseStageEvent` already exists to support.
+
+    The role is `hr` because that is the only role permitted to act across
+    every stage type; the alternative is an orchestration that can route IT's
+    work but not Finance's.
+    """
+
+    user_id = None
+    email = "orchestrator@offboard.internal"
+    role = "hr"
+    employee_id = None
+    full_name = "Exit Process Orchestrator"
 
 
 def _agent(agent_id: str):
@@ -149,7 +178,12 @@ def run_routing(state: ExitOrchestrationState) -> dict[str, Any]:
         name = stage.get("name")
         if not name or name in routing:
             continue
-        result, error = _run_safe("smart_routing", {"stage": name})
+        # Pass the case, not just the stage name. Without it smart_routing
+        # cannot resolve its recommendation to a real account, and the
+        # orchestration has a name it cannot act on -- which is most of why
+        # this node produced nothing anyone could use.
+        result, error = _run_safe("smart_routing",
+                                  {"stage": name, "case_id": state["case_id"]})
         routing[name] = result
         if error:
             return {"routing": routing, "errors": [error], "log": [f"smart_routing: failed on '{name}'"]}
@@ -270,6 +304,84 @@ def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
     return {"deprov_execution": result, "log": [f"deprov_execute: {result['executed']} action(s) executed"]}
 
 
+def apply_decisions(state: ExitOrchestrationState) -> dict[str, Any]:
+    """Write the run's conclusions onto the case.
+
+    Everything before this node produces *advice*. Routing worked out the best
+    approver for every open stage and threw it away; the escalation node
+    drafted chase messages nobody recorded; nothing moved a stage. So a full
+    orchestration could complete and leave the exit case byte-for-byte
+    identical -- which is exactly what "it doesn't actually do anything" means.
+
+    Two rules bound what it is allowed to change, and both are about not
+    overruling a person:
+
+    - **Only unowned stages are assigned.** A stage someone already holds was
+      given to them by a human, and a machine reassigning it on a schedule is
+      how you lose track of who is accountable.
+    - **It never completes a clearance.** Marking work done is a judgement
+      about the real world -- was the laptop returned, did the handover
+      happen -- and no agent here can see the real world. It moves `pending`
+      to `in_progress` where work has demonstrably started, and stops.
+    """
+    if state.get("errors"):
+        return {}
+
+    from ..db import session_scope
+    from ..db.models import CaseStage
+    from ..policy import STAGE_KEY_BY_NAME
+    from ..stages import TransitionError, set_stage_owner, transition
+
+    applied: list[dict[str, Any]] = []
+    case_id = state["case_id"]
+
+    # 1. Put the recommended approver on every open stage nobody holds.
+    for stage_name, routed in (state.get("routing") or {}).items():
+        if not isinstance(routed, dict) or routed.get("error"):
+            continue
+        chosen = routed.get("chosen")
+        stage_key = routed.get("stage_key") or STAGE_KEY_BY_NAME.get(stage_name)
+        if not (chosen and chosen.get("user_id") and stage_key):
+            continue
+        with session_scope() as s:
+            stage = s.scalar(select(CaseStage).where(
+                CaseStage.case_id == case_id, CaseStage.stage_key == stage_key))
+            if stage is None or stage.status == "completed":
+                continue
+            if stage.owner_user_id is not None:
+                continue
+            set_stage_owner(stage, int(chosen["user_id"]), str(chosen.get("name") or ""))
+        applied.append({
+            "kind": "assigned",
+            "stage": stage_name,
+            "detail": f"{chosen.get('name')} now owns {stage_name}",
+            "why": (routed.get("routing") or {}).get("reason") or "",
+        })
+
+    # 2. A drafted deprovisioning plan means IT has work in flight, so an IT
+    #    Clearance still sitting at `pending` is stale. Starting it is safe --
+    #    it is the one transition that asserts nothing about the real world.
+    if (state.get("deprov_plan") or {}).get("plan_id"):
+        try:
+            transition(case_id=case_id, stage_key="it", to_status="in_progress",
+                       actor=_Orchestrator(),
+                       note="Deprovisioning plan drafted by the orchestrator.")
+            applied.append({
+                "kind": "started",
+                "stage": "IT Clearance",
+                "detail": "IT Clearance moved to in progress",
+                "why": "a deprovisioning plan was drafted, so IT has work in flight",
+            })
+        except TransitionError:
+            # Already started, already done, or not present on this case. All
+            # three are ordinary, and none is a reason to fail the run.
+            pass
+
+    log = [f"apply: {len(applied)} change(s) written to the case"] if applied else [
+        "apply: nothing needed changing"]
+    return {"applied": applied, "log": log}
+
+
 def _extra_evidence(state: ExitOrchestrationState) -> str:
     """What the other agents found, handed to compliance as evidence."""
     parts: list[str] = []
@@ -328,22 +440,55 @@ def escalate(state: ExitOrchestrationState) -> dict[str, Any]:
         and str(s.get("status", "")).lower() != "completed"
         and parse_days_open(s) > 0
     ]
+    from ..policy import STAGE_KEY_BY_NAME
+    from ..stages import TransitionError, record_escalation
+
     retries = state.get("retries", 0) + 1
     drafted: list[dict[str, Any]] = []
+    applied: list[dict[str, Any]] = []
+
+    def _record(stage_name: str) -> None:
+        """Put the chase on the case's own record.
+
+        Drafting alone left no trace, so the next sweep re-drafted the same
+        chase and the case could never answer "has anyone pushed on this?".
+        A failure here must not fail the run -- the draft is still useful.
+        """
+        key = STAGE_KEY_BY_NAME.get(stage_name)
+        if not key:
+            return
+        try:
+            record_escalation(
+                case_id=case_meta.get("case_id"), stage_key=key,
+                actor=_Orchestrator(),
+                note=f"Escalated by the orchestrator: {stage_name} is past its SLA.")
+            applied.append({
+                "kind": "escalated",
+                "stage": stage_name,
+                "detail": f"{stage_name} chased and recorded on the timeline",
+                "why": "it is open past its SLA",
+            })
+        except TransitionError:
+            pass
+
     for stage in open_stages:
         try:
             drafted.append(draft_escalation(case_meta, stage, threshold=0))
         except LLMError as exc:
             return {
                 "escalations": [*state.get("escalations", []), *drafted],
+                "applied": applied,
                 "retries": retries,
                 "errors": [f"sla_escalation: {exc}"],
                 "log": [f"escalate: failed after {len(drafted)}/{len(open_stages)} escalation(s), retry {retries}"],
             }
+        _record(str(stage.get("name") or ""))
+
     return {
         "escalations": [*state.get("escalations", []), *drafted],
+        "applied": applied,
         "retries": retries,
-        "log": [f"escalate: drafted {len(drafted)} escalation(s), retry {retries}"],
+        "log": [f"escalate: drafted and recorded {len(drafted)} escalation(s), retry {retries}"],
     }
 
 
@@ -370,6 +515,7 @@ def build_graph():
     graph.add_node("deprov_plan", run_deprov_plan)
     graph.add_node(APPROVAL_NODE, approval_gate)
     graph.add_node("deprov_execute", deprov_execute)
+    graph.add_node("apply", apply_decisions)
     graph.add_node("compliance", verify_compliance)
     graph.add_node("escalate", escalate)
 
@@ -378,7 +524,8 @@ def build_graph():
         graph.add_edge("load_case", node)
         graph.add_edge(node, APPROVAL_NODE)
     graph.add_edge(APPROVAL_NODE, "deprov_execute")
-    graph.add_edge("deprov_execute", "compliance")
+    graph.add_edge("deprov_execute", "apply")
+    graph.add_edge("apply", "compliance")
     graph.add_conditional_edges("compliance", _after_compliance, {"end": END, "escalate": "escalate"})
     graph.add_edge("escalate", "compliance")
 
