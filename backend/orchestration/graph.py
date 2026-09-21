@@ -37,7 +37,8 @@ from psycopg_pool import ConnectionPool
 
 from ..agents import REGISTRY
 from ..agents._context import parse_days_open
-from ..agents.it_deprovisioning import execute_plan, plan_deprovisioning
+from ..agents.it_deprovisioning import (approve_plan, execute_plan,
+                                        plan_deprovisioning)
 from ..agents.sla_escalation import draft_escalation
 from ..config import PG_URI
 from ..data_store import store
@@ -232,7 +233,26 @@ def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
             "log": ["deprov_execute: failed (no plan_id)"],
         }
     try:
-        result = execute_plan(plan_id, approved_by=approval.get("by", "hr-operator"), note=approval.get("note", ""))
+        # The gate above IS the human approval, so record it as one before
+        # running. `execute_plan` refuses an unapproved plan -- that refusal is
+        # what makes it safe for IT to hold the execute button in the UI, and
+        # the orchestrator has to satisfy the same rule rather than bypass it.
+        #
+        # No approver user id: the gate identifies its approver by name (it can
+        # be answered by the API with no session). That leaves the
+        # separation-of-duties check inapplicable rather than violated -- the
+        # executor here is the orchestrator, never the person who approved.
+        approve_plan(plan_id, approved_by=approval.get("by", "hr-operator"),
+                     approver_user_id=None, note=approval.get("note", ""))
+        result = execute_plan(plan_id, executed_by="orchestrator",
+                              note=approval.get("note", ""))
+    except PermissionError as exc:
+        result = {"status": "error", "reason": str(exc), "executed": 0}
+        return {
+            "deprov_execution": result,
+            "errors": [f"deprov_execute: {exc}"],
+            "log": ["deprov_execute: refused"],
+        }
     except LookupError as exc:
         result = {"status": "error", "reason": str(exc), "executed": 0}
         return {
