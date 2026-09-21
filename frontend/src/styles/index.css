@@ -1767,3 +1767,14 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 /* The problem list is the one that carries a tone; the fix below it stays
    neutral so the two are told apart by more than their order. */
 .rk-block-label.t-danger { color: var(--rk); }
+
+/* ---- deprovisioning plans ---- */
+.plan { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.plan:last-child { border-bottom: none; }
+.plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.plan-who { font-family: var(--serif); font-size: 16px; font-weight: 600; }
+.plan-meta { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); }
+.plan-summary { margin: 8px 0; font-size: 13.5px; line-height: 1.55; max-width: 74ch; }
+.plan-hint { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.plan .orch-plan { margin-top: 10px; }
+.plan .stage-note { margin-top: 12px; }

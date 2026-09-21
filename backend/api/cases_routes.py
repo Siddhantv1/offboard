@@ -450,6 +450,66 @@ def claim_stage(case: ScopedCase, stage_key: str, user: StaffUser) -> dict[str, 
                 "owner": stage.owner, "owner_user_id": stage.owner_user_id}
 
 
+@router.post("/cases/{case_id}/stages/{stage_key}/assign")
+def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
+                 payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Put a named person on a stage.
+
+    The sibling `claim` route only ever assigns to the caller, which left the
+    Smart Routing agent recommending an approver with no way to apply the
+    recommendation -- advice you had to carry out by hand elsewhere, which is
+    most of why that agent felt useless.
+
+    The assignee must hold a role that owns this stage type. Routing HR's
+    finance clearance to an IT engineer would be a rota error, not a judgement
+    call, so it is refused rather than warned about.
+    """
+    from sqlalchemy import select
+
+    from ..db.models import CaseStage, User
+    from ..policy import STAGE_OWNERS, may_act_on_stage
+
+    payload = payload or {}
+    try:
+        assignee_id = int(payload.get("user_id"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Give the user_id to assign.") from None
+
+    if not may_act_on_stage(user.role, stage_key):
+        raise HTTPException(
+            status_code=403, detail="Your role does not own this clearance stage.")
+
+    with session_scope() as s:
+        assignee = s.get(User, assignee_id)
+        if assignee is None or not assignee.is_active:
+            raise HTTPException(status_code=404, detail="No such active account.")
+
+        owners = STAGE_OWNERS.get(stage_key, frozenset())
+        if assignee.role not in owners and assignee.role != "hr":
+            raise HTTPException(
+                status_code=422,
+                detail=f"{assignee.full_name or assignee.email} is "
+                       f"{assignee.role}, which does not own this stage.",
+            )
+
+        stage = s.scalar(select(CaseStage).where(
+            CaseStage.case_id == str(case.meta.get("case_id")),
+            CaseStage.stage_key == stage_key,
+        ))
+        if stage is None:
+            raise HTTPException(
+                status_code=404, detail=f"This case has no '{stage_key}' stage.")
+
+        stage.owner_user_id = assignee.id
+        stage.owner = assignee.full_name or assignee.email
+        return {
+            "case_id": case.meta.get("case_id"),
+            "stage_key": stage_key,
+            "owner": stage.owner,
+            "owner_user_id": stage.owner_user_id,
+        }
+
+
 @router.post("/employees")
 def create_employee(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Add a new employee record. If marked "exiting", also creates a starter

@@ -16,7 +16,7 @@ from typing import Any
 from .base import REGISTRY, AgentMeta, BaseAgent, Field, llm, register
 from ._context import SLA_DAYS, parse_days_open, require_employee
 from .sla_escalation import draft_escalation
-from .smart_routing import APPROVER_ROSTER
+from .smart_routing import approver_roster
 from ..data_store import store
 from ..llm import LLMError
 from ..orchestration import run_orchestration
@@ -113,10 +113,16 @@ class EndToEndAutomationAgent(BaseAgent):
             name = stage.get("name")
             if not name:
                 continue
-            if name in APPROVER_ROSTER:
-                routing_recommendations[name] = REGISTRY["smart_routing"].execute({"stage": name})
+            # Ask the database who can hold this stage rather than a static
+            # list of stage names: an unstaffed role is a real answer here
+            # ("nobody can take this"), not a configuration gap.
+            if approver_roster(name):
+                routing_recommendations[name] = REGISTRY["smart_routing"].execute(
+                    {"stage": name, "case_id": case_id})
             else:
-                routing_recommendations[name] = {"note": "No approver roster configured for this stage."}
+                routing_recommendations[name] = {
+                    "note": f"Nobody currently holds the role that owns {name}.",
+                }
         timeline.append(f"Drafted routing recommendations for {len(routing_recommendations)} unowned stage(s).")
 
         proactive_escalations: list[dict[str, Any]] = []

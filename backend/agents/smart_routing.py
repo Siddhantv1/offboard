@@ -1,33 +1,80 @@
 """Agent 7 — Smart Routing Agent.
 
-Determines the optimal approver for a clearance stage based on availability,
-current workload, and delegation rules (handles out-of-office). Uses a demo
-approver roster; in production this would query the HRMS / calendar.
+Picks the best approver for a clearance stage from the people who can actually
+hold it, weighted by how much open work each already carries.
+
+The roster used to be a hardcoded dict of invented names -- Ravi Menon, Priya
+Nair, Anita Desai and four others, none of whom exist in the company. The agent
+therefore recommended people nobody could assign, which made it advice you
+could not act on. It is now built from the `users` table: the accounts whose
+role owns the stage, with workload counted from the clearance stages actually
+assigned to them.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from .base import AgentMeta, BaseAgent, Field, llm, register
+from sqlalchemy import func, select
 
-# Demo roster: approvers per clearance stage with live-ish signals.
-APPROVER_ROSTER = {
-    "IT Clearance": [
-        {"name": "Ravi Menon", "workload": 8, "available": True, "ooo_until": None, "delegate": "Priya Nair"},
-        {"name": "Priya Nair", "workload": 3, "available": True, "ooo_until": None, "delegate": None},
-    ],
-    "Finance Clearance": [
-        {"name": "Anita Desai", "workload": 5, "available": False, "ooo_until": "2026-09-15", "delegate": "Karan Shah"},
-        {"name": "Karan Shah", "workload": 6, "available": True, "ooo_until": None, "delegate": None},
-    ],
-    "HR Clearance": [
-        {"name": "Meera Iyer", "workload": 4, "available": True, "ooo_until": None, "delegate": "Sam Fernandes"},
-        {"name": "Sam Fernandes", "workload": 9, "available": True, "ooo_until": None, "delegate": None},
-    ],
-    "Manager Sign-off": [
-        {"name": "Line Manager", "workload": 7, "available": True, "ooo_until": None, "delegate": "Skip-level Manager"},
-    ],
-}
+from .base import AgentMeta, BaseAgent, Field, llm, register
+from ..db import session_scope
+from ..db.models import CaseStage, User
+from ..policy import STAGE_KEY_BY_NAME, STAGE_OWNERS
+
+
+def approver_roster(stage_name: str) -> list[dict[str, Any]]:
+    """Who can hold this stage, and how loaded each of them is.
+
+    Workload is the count of clearance stages assigned to that account and not
+    yet completed -- the same number the person sees on their own queue page,
+    so a recommendation to route away from someone busy is checkable rather
+    than asserted.
+
+    Availability comes from `User.is_active`. There is no calendar integration,
+    so nobody is ever "out of office" here; the field stays in the shape
+    because the prompt's delegation rule reads it, and wiring a real calendar
+    would fill it without changing anything else.
+    """
+    stage_key = STAGE_KEY_BY_NAME.get(stage_name)
+    if not stage_key:
+        return []
+    roles = STAGE_OWNERS.get(stage_key, frozenset())
+    if not roles:
+        return []
+
+    with session_scope() as s:
+        # Open stages per owner, in one query rather than one per candidate.
+        load = dict(s.execute(
+            select(CaseStage.owner_user_id, func.count())
+            .where(CaseStage.owner_user_id.isnot(None),
+                   CaseStage.status != "completed")
+            .group_by(CaseStage.owner_user_id)
+        ).all())
+
+        people = s.scalars(
+            select(User)
+            .where(User.role.in_(tuple(roles)), User.is_active.is_(True))
+            .order_by(User.full_name, User.email)
+        ).all()
+
+        return [{
+            "name": u.full_name or u.email,
+            "email": u.email,
+            "user_id": u.id,
+            "workload": int(load.get(u.id, 0)),
+            "available": True,
+            "ooo_until": None,
+            # No delegation table exists. Naming a fictional delegate was part
+            # of what made this agent untrustworthy, so it stays null until
+            # there is somewhere real to read it from.
+            "delegate": None,
+        } for u in people]
+
+
+#: Kept as a name because tests and the result view import it. It is now a
+#: function of the database rather than a constant.
+def _roster_for(stage: str) -> list[dict[str, Any]]:
+    return approver_roster(stage)
 
 SYSTEM = """You are a workflow routing agent. Choose the single best approver for \
 a clearance stage. Rules, in priority order:
@@ -54,24 +101,51 @@ class SmartRoutingAgent(BaseAgent):
                 "stage",
                 "Clearance stage",
                 type="select",
-                options=[{"value": s, "label": s} for s in APPROVER_ROSTER],
+                options=[{"value": s, "label": s} for s in STAGE_KEY_BY_NAME],
             ),
+            # Asking which case turns "here is a good approver" into something
+            # the reader can act on: the result carries the ids needed to
+            # actually put that person on that stage.
+            Field("case_id", "Exit case", type="select", required=False,
+                  help="Pick one and the result offers to assign the approver."),
         ],
     )
 
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         stage = (inputs.get("stage") or "").strip()
-        roster = APPROVER_ROSTER.get(stage)
+        case_id = (inputs.get("case_id") or "").strip()
+        roster = approver_roster(stage)
         if not roster:
-            return {"error": f"No approver roster for stage '{stage}'."}
+            return {
+                "error": f"Nobody holds the role that owns '{stage}'. "
+                         "Create an account for that role under People & access.",
+            }
 
         lines = []
         for a in roster:
             status = "OOO until " + a["ooo_until"] if not a["available"] else "available"
             lines.append(
-                f"- {a['name']}: {status}, workload {a['workload']}/10, "
+                f"- {a['name']}: {status}, carrying {a['workload']} open stage(s), "
                 f"delegate: {a['delegate'] or 'none'}"
             )
         user = f"Stage: {stage}\nCandidate approvers:\n" + "\n".join(lines)
         result = llm.complete_json(SYSTEM, user, temperature=0.2)
-        return {"stage": stage, "routing": result, "roster": roster}
+
+        # Map the model's chosen NAME back onto a real account, so the UI can
+        # offer to assign rather than leaving the reader to find the person.
+        chosen_name = str((result or {}).get("chosen_approver") or "").strip().lower()
+        chosen = next(
+            (a for a in roster if a["name"].strip().lower() == chosen_name), None)
+
+        return {
+            "stage": stage,
+            "stage_key": STAGE_KEY_BY_NAME.get(stage),
+            "case_id": case_id or None,
+            "routing": result,
+            "roster": roster,
+            # Null when the model named somebody outside the roster, which is
+            # itself worth showing rather than silently assigning the wrong
+            # person.
+            "chosen": chosen,
+            "assignable": bool(chosen and case_id),
+        }

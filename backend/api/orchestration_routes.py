@@ -19,6 +19,11 @@ from .. import auth
 from ..agents.it_deprovisioning import approve_plan
 from ..auth import DeprovUser, HRUser
 from ..llm import LLMError
+from sqlalchemy import select
+
+from ..data_store import store
+from ..db import session_scope
+from ..db.models import DeprovisioningPlan
 from ..orchestration import (pending_approval, pending_approvals,
                              run_orchestration, stream_orchestration)
 from .deps import ScopedCase
@@ -36,6 +41,69 @@ def list_pending_approvals(user: DeprovUser) -> dict[str, Any]:
     the thread_id held in the browser tab that started it.
     """
     return {"approvals": pending_approvals()}
+
+
+@router.get("/deprovisioning/plans")
+def list_deprovisioning_plans(user: DeprovUser, status: str | None = None) -> dict[str, Any]:
+    """Every drafted deprovisioning plan and where it has got to.
+
+    This did not exist, which made the whole Deprovisioning page a lie: it was
+    reading `/api/approvals`, which lists LangGraph runs paused at the
+    orchestrator's interrupt -- a different thing entirely. Plans drafted by
+    running the IT Deprovisioning agent directly were written to the database
+    and then unreachable by anyone, so neither HR could approve one nor IT run
+    one. There were seven sitting in `deprovisioning_plans` with nothing in the
+    product able to show them.
+
+    Open to `hr` and `it` because both halves of the workflow live here: HR
+    authorises, IT executes, and each needs to see the other's queue to know
+    whether they are waiting or being waited on.
+    """
+    wanted = (status or "").strip().lower()
+    if wanted and wanted not in ("pending", "approved", "executed"):
+        raise HTTPException(
+            status_code=422,
+            detail="status must be pending, approved or executed.",
+        )
+
+    with session_scope() as s:
+        stmt = select(DeprovisioningPlan).order_by(
+            DeprovisioningPlan.created_at.desc())
+        if wanted:
+            stmt = stmt.where(DeprovisioningPlan.status == wanted)
+        rows = s.scalars(stmt).all()
+
+        out = []
+        for row in rows:
+            plan = row.plan or {}
+            actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
+            employee = store.employee(row.employee_id)
+            out.append({
+                "plan_id": row.id,
+                "status": row.status,
+                "employee_id": row.employee_id,
+                "employee": plan.get("employee") or (employee.meta.get("name")
+                                                     if employee else row.employee_id),
+                "case_id": row.case_id,
+                "summary": plan.get("summary"),
+                "urgency": plan.get("urgency"),
+                "actions": actions,
+                "action_count": len(actions),
+                "privileged_count": sum(1 for a in actions if a.get("privileged")),
+                "risks_if_delayed": plan.get("risks_if_delayed") or [],
+                "dependencies": plan.get("dependencies") or [],
+                "approved_by": row.approved_by,
+                "approved_at": row.approved_at,
+                "executed_by": row.executed_by,
+                "executed_at": row.executed_at,
+                "note": row.note,
+                "execution": row.execution,
+                # What this caller can do with it right now, decided here
+                # rather than re-derived in the UI from role plus status.
+                "can_approve": row.status == "pending" and user.is_hr,
+                "can_execute": row.status == "approved" and user.role in ("it", "hr"),
+            })
+    return {"plans": out}
 
 
 @router.post("/deprovisioning/{plan_id}/approve")
