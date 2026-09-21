@@ -1324,8 +1324,7 @@ a.back:focus-visible,
 /* Which clearance the form belongs to. On the row rather than as a heading,
    because the list is ordered by what needs doing, not by stage. */
 .doc-stage-tag {
-  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--muted);
+  font-size: 12px; color: var(--muted);
 }
 /* A refused document is the only row that needs action right now, so it is
    the only one that gets a colour on its edge. */
@@ -1487,11 +1486,14 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .t-danger  { --rk: var(--danger);  --rk-wash: var(--danger-wash); }
 .t-neutral { --rk: var(--muted);   --rk-wash: var(--inset); }
 
+/* Quieter than it was. A tag now appears only where a row differs from its
+   neighbours, so it no longer has to compete with a page full of its twins --
+   and the verdict or score stays the one loud thing on the screen. */
 .rk-tag {
-  display: inline-block; font-size: 11px; font-weight: 550;
-  letter-spacing: .03em; padding: 2px 9px; border-radius: 999px;
+  display: inline-block; font-size: 11.5px; font-weight: 500;
+  padding: 1px 8px; border-radius: var(--radius-sm);
   color: var(--rk); background: var(--rk-wash);
-  border: 1px solid color-mix(in srgb, var(--rk) 34%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rk) 26%, transparent);
   white-space: nowrap;
 }
 
@@ -1574,8 +1576,7 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
   display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 4px;
 }
 .rk-ledger-head {
-  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
-  text-transform: uppercase; color: var(--rk); margin: 0 0 8px;
+  font-size: 13.5px; font-weight: 600; color: var(--rk); margin: 0 0 8px;
   padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--rk) 28%, transparent);
 }
 .rk-ledger-col ul { margin: 0; padding-left: 18px; }
@@ -1643,16 +1644,17 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .rk-email-foot { padding: 0 16px 14px; }
 
 /* ---- layout bits ---- */
-.rk-section { margin-top: 26px; }
+/* A section heading is a sentence that says what was found, at reading size.
+   It replaced an 11px tracked-out uppercase eyebrow -- the single habit that
+   made every result view look like the same template with different nouns. */
+.rk-section { margin-top: 28px; }
 .rk-section-head {
   display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-  font-size: 11.5px; font-weight: 600; letter-spacing: .055em;
-  text-transform: uppercase; color: var(--muted);
-  margin: 0 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--line);
+  font-family: var(--sans); font-size: 15px; font-weight: 550;
+  letter-spacing: -.005em; color: var(--ink);
+  margin: 0 0 10px;
 }
-.rk-section-note {
-  text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px;
-}
+.rk-section-note { font-weight: 400; font-size: 13px; color: var(--muted); }
 .rk-bullets { margin: 0; padding-left: 19px; }
 .rk-bullets li { font-size: 13.5px; line-height: 1.6; margin-bottom: 6px; }
 .rk-bullets.t-danger li::marker { color: var(--danger); }
@@ -1662,17 +1664,15 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .rk-prose p { margin: 0 0 11px; line-height: 1.62; font-size: 14px; }
 
 .rk-facts {
-  display: flex; flex-wrap: wrap; gap: 26px; margin: 0 0 20px;
-  padding-bottom: 16px; border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; gap: 28px; margin: 0 0 22px;
+  padding-bottom: 18px; border-bottom: 1px solid var(--line);
 }
-.rk-facts div { display: flex; flex-direction: column; gap: 2px; }
-.rk-facts dt {
-  font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
-}
+.rk-facts div { display: flex; flex-direction: column; gap: 1px; }
 .rk-facts dd {
-  margin: 0; font-family: var(--serif); font-size: 17px; font-weight: 550;
-  font-variant-numeric: tabular-nums; color: var(--rk, var(--ink));
+  margin: 0; font-family: var(--serif); font-size: 20px; font-weight: 550;
+  font-variant-numeric: tabular-nums; color: var(--rk, var(--ink)); line-height: 1.15;
 }
+.rk-facts dt { font-size: 12.5px; color: var(--muted); }
 
 /* ---- routing decision ---- */
 .rk-route { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -1724,9 +1724,7 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
    Everything else in that block reuses .rk-check*, which already exists. */
 .rk-sys-open { margin-top: 8px; }
 .rk-sys-open-head {
-  display: block; margin-bottom: 5px;
-  font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--muted);
+  display: block; margin-bottom: 5px; font-size: 12.5px; color: var(--muted);
 }
 .rk-sys-open .rk-bullets li { margin-bottom: 4px; }
 
@@ -1757,12 +1755,7 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .rk-block-note { font-size: 12px; color: var(--muted); }
 
 .rk-block-label {
-  margin: 13px 0 5px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin: 13px 0 5px; font-size: 13px; font-weight: 600; color: var(--muted);
 }
 /* The problem list is the one that carries a tone; the fix below it stays
    neutral so the two are told apart by more than their order. */
@@ -1778,3 +1771,15 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .plan-hint { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
 .plan .orch-plan { margin-top: 10px; }
 .plan .stage-note { margin-top: 12px; }
+
+/* A group of rows that share a severity, headed once instead of tagged
+   individually. The rule on the left is the one structural device in a result
+   view that means "this is what needs you" -- it is not used decoratively. */
+.rk-group { margin-bottom: 18px; }
+.rk-group:last-child { margin-bottom: 0; }
+.rk-group-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13.5px; font-weight: 550; color: var(--rk);
+  margin: 0 0 4px;
+}
+.rk-group.is-flagged { box-shadow: inset 2px 0 0 var(--rk); padding-left: 13px; }

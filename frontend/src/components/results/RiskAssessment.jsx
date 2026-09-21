@@ -1,4 +1,5 @@
-import { Bullets, Facts, ScoreRing, Section, TaskList, bySeverity, toneOf } from "./kit.jsx";
+import { Bullets, Facts, ScoreRing, Section, TaskList, bySeverity, countLine,
+         toneOf } from "./kit.jsx";
 import GenericResult from "./GenericResult.jsx";
 
 /** Attrition Risk Assessment.
@@ -52,12 +53,25 @@ export default function RiskAssessment({ result: r }) {
       {/* Before the drivers, because this is the part that actually breaks
           something. A driver explains the score; a single point of failure is
           work that stops the day they leave. */}
-      <Section title="Only this person can do these" when={spofs.length > 0}
-               note="Cover each of these before the last day.">
+      <Section
+        when={spofs.length > 0}
+        title={countLine(spofs.length, "thing") + " only this person can do"}
+        note="Cover each before the last day."
+      >
         <Bullets items={spofs} tone="danger" />
       </Section>
 
-      <Section title="What drives the risk" when={drivers.length > 0}>
+      <Section
+        when={drivers.length > 0}
+        title={(() => {
+          const impacts = new Set(drivers.map((d) => String(d.impact || "").toLowerCase()));
+          // When every driver shares an impact, say it once here instead of
+          // stamping the same pill on all four rows.
+          return impacts.size === 1
+            ? `${countLine(drivers.length, "driver")}, all ${[...impacts][0]} impact`
+            : countLine(drivers.length, "driver");
+        })()}
+      >
         <TaskList
           items={[...drivers].sort(bySeverity("impact"))}
           textKey="factor"
@@ -70,8 +84,11 @@ export default function RiskAssessment({ result: r }) {
           that gradient is how promptly the remedy is being handled, not how
           bad the risk is. The alarm is the ring at the top; repeating it on
           every remedy would leave a page with no un-red thing left to read. */}
-      <Section title="What to do about it" when={mitigations.length > 0}
-               note="Sorted by urgency, each with the owner who holds it.">
+      <Section
+        when={mitigations.length > 0}
+        title={countLine(mitigations.length, "mitigation") + " to put in place"}
+        note="Most urgent first, each with its owner."
+      >
         <TaskList
           items={[...mitigations].sort(bySeverity("urgency"))}
           textKey="action"

@@ -233,6 +233,12 @@ export function StepList({ steps, renderMeta }) {
 export function TaskList({ items, textKey = "task", ownerKey = "owner",
                            noteKey = "notes", toneKey = null, empty }) {
   if (!items?.length) return empty ? <p className="rk-empty">{empty}</p> : null;
+
+  // A pill on every row is only information when the rows differ. When they
+  // are all the same value, the caller should have said so once in the
+  // section heading, so drop it rather than repeat it down the page.
+  const varied = toneKey
+    && new Set(items.map((i) => String(i?.[toneKey] ?? ""))).size > 1;
   return (
     <ul className="rk-tasks">
       {items.map((it, i) => (
@@ -241,7 +247,7 @@ export function TaskList({ items, textKey = "task", ownerKey = "owner",
             <span className="rk-task-text">
               {typeof it === "string" ? it : it[textKey] ?? it.item ?? it.system ?? it.topic}
             </span>
-            {toneKey && it[toneKey] && <Tag value={it[toneKey]} />}
+            {varied && it[toneKey] && <Tag value={it[toneKey]} />}
           </div>
           {typeof it !== "string" && (it[noteKey] || it.why || it[ownerKey]) && (
             <p className="rk-task-note">
@@ -296,16 +302,59 @@ export function EmailPreview({ to, cc, subject, body, severity }) {
 /* ---------------------------------------------------------------- layout */
 
 /** Section heading inside a result. */
+/** A section of a result.
+ *
+ * `title` is a STATEMENT, not a label. "Four drivers, all high impact" tells
+ * the reader something; "WHAT DRIVES THE RISK" only names the box below it.
+ * The first version of this rendered every title as a tracked-out all-caps
+ * eyebrow, which turned every view into the same shape -- label, list, label,
+ * list -- regardless of what the agent had actually found. That sameness was
+ * the whole complaint about these screens.
+ */
 export const Section = ({ title, note, children, when = true }) =>
   (!when ? null : (
     <section className="rk-section">
-      <h4 className="rk-section-head">
-        {title}
-        {note && <span className="rk-section-note">{note}</span>}
-      </h4>
+      {title && (
+        <h4 className="rk-section-head">
+          {title}
+          {note && <span className="rk-section-note">{note}</span>}
+        </h4>
+      )}
       {children}
     </section>
   ));
+
+/** Count things and say what the count means, for a Section title.
+ *
+ *     countLine(4, "driver") -> "4 drivers"
+ *     countLine(1, "blocker", {all: "high"}) -> "1 blocker, high"
+ */
+export const countLine = (n, noun, suffix = "") =>
+  `${n} ${noun}${n === 1 ? "" : "s"}${suffix ? `, ${suffix}` : ""}`;
+
+/** Group rows by a severity-ish field, worst first.
+ *
+ * Tagging every row with its own pill was noise whenever the values were
+ * uniform -- the risk fixture has four drivers all marked "high", which
+ * rendered as four identical red pills saying nothing. A single heading over a
+ * group carries the same fact once.
+ *
+ * Returns [{key, tone, rows}], and an empty array when there is nothing to
+ * group so the caller can fall back to a plain list.
+ */
+export function groupBy(items, key) {
+  if (!items?.length || !key) return [];
+  const rank = { critical: 0, high: 1, immediate: 1, medium: 2, soon: 2, low: 3, routine: 3 };
+  const buckets = new Map();
+  for (const it of items) {
+    const k = String(it?.[key] ?? "").toLowerCase() || "unspecified";
+    if (!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push(it);
+  }
+  return [...buckets.entries()]
+    .sort((a, b) => (rank[a[0]] ?? 9) - (rank[b[0]] ?? 9))
+    .map(([k, rows]) => ({ key: k, tone: toneOf(k), rows }));
+}
 
 /** A short list of plain strings -- next actions, blockers, quick wins. */
 export const Bullets = ({ items, tone, empty }) => {
@@ -323,11 +372,14 @@ export const Facts = ({ items }) => {
   const shown = (items || []).filter((i) => i && i.value != null && i.value !== "");
   if (!shown.length) return null;
   return (
+    // Value first, label after, in sentence case. The old arrangement put a
+    // tracked-out uppercase label above every figure, which is the same
+    // eyebrow habit and made a three-fact row look like a dashboard header.
     <dl className="rk-facts">
       {shown.map((i, n) => (
         <div key={n}>
-          <dt>{i.label}</dt>
           <dd className={i.tone ? TONE_CLASS[i.tone] : undefined}>{i.value}</dd>
+          <dt>{i.label}</dt>
         </div>
       ))}
     </dl>

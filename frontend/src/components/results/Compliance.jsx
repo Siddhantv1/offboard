@@ -1,4 +1,4 @@
-import { Bullets, CheckList, Facts, Section, Verdict, toneOf } from "./kit.jsx";
+import { Bullets, CheckList, Facts, Section, Verdict, countLine } from "./kit.jsx";
 import GenericResult from "./GenericResult.jsx";
 
 /** Compliance Verification.
@@ -53,17 +53,22 @@ export default function Compliance({ result: r }) {
       />
 
       {!cleared && blockers.length > 0 && (
-        <Section title="What is blocking release">
+        <Section title={countLine(blockers.length, "thing") + " must be resolved first"}>
           <Bullets items={blockers} tone="danger" />
         </Section>
       )}
 
-      <Section title="Requirements checked" when={requirements.length > 0}
-               note="Evidence is what the systems actually reported.">
+      <Section
+        when={requirements.length > 0}
+        title={passed === requirements.length
+          ? `All ${requirements.length} requirements hold`
+          : `${passed} of ${requirements.length} requirements hold`}
+        note="Evidence is what the systems reported, not what the case record claims."
+      >
         <CheckList items={requirements} />
       </Section>
 
-      <Section title="Next actions" when={(v.next_actions || []).length > 0}>
+      <Section title="Then do this" when={(v.next_actions || []).length > 0}>
         <Bullets items={v.next_actions} />
       </Section>
     </>
