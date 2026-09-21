@@ -50,7 +50,15 @@ def my_case(user: CurrentUser) -> dict[str, Any]:
         raise HTTPException(
             status_code=404, detail="No exit case is associated with this account."
         )
-    return {"case": case.meta, "documents": document_status(case.meta)}
+    return {
+        "case": case.meta,
+        "documents": document_status(case.meta),
+        # The stages with a side the employee has to mark themselves. IT
+        # Clearance is the only one: it turns on a physical handover no
+        # document ever evidenced.
+        "confirmations": stage_service.employee_confirmations(
+            str(case.meta.get("case_id"))),
+    }
 
 
 #: Documents the company issues at sign-off. An employee must never be able to
@@ -379,7 +387,45 @@ def case_detail(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
         "may_action": sorted(_stage_keys_for(user)),
         "related": related,
         "actions": actions,
+        # The employee's half of a two-sided stage. Not in `case.meta` because
+        # that shape is the agents' context and is pinned by the golden
+        # snapshot -- but IT cannot verify a clearance without being told
+        # whether the person has said they are done.
+        "employee_confirmations": stage_service.employee_confirmations(
+            str(case.meta.get("case_id"))),
     }
+
+
+@router.post("/me/case/stages/{stage_key}/confirm")
+def confirm_my_stage(user: CurrentUser, stage_key: str,
+                     payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The employee's side of a two-sided clearance.
+
+    Scoped to the signed-in person's own case, resolved from the session --
+    there is no case id to pass and therefore none to tamper with.
+
+    This does not complete anything. It records a claim, which the owning role
+    then verifies. Letting the employee's own click close their IT clearance
+    would be the same hole the document uploads had: a box ticked by the one
+    person with a reason to tick it.
+    """
+    payload = payload or {}
+    if not user.employee_id:
+        raise HTTPException(
+            status_code=404, detail="No exit case is associated with this account.")
+    case = store.exit_case_for_employee(user.employee_id)
+    if not case:
+        raise HTTPException(
+            status_code=404, detail="No exit case is associated with this account.")
+    try:
+        return stage_service.confirm_employee_side(
+            case_id=str(case.meta.get("case_id")),
+            stage_key=stage_key,
+            actor=user,
+            note=str(payload.get("note") or ""),
+        )
+    except stage_service.TransitionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/cases/{case_id}/timeline")

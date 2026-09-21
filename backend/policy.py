@@ -56,6 +56,21 @@ ROLE_AGENTS: dict[str, object] = {
 }
 
 
+#: Stages the employee has a side of, and what they are confirming.
+#:
+#: Only IT Clearance today. It is the one stage whose completion depends on a
+#: physical act by the leaver -- handing hardware back -- that no document
+#: upload ever evidenced. The other four are cleared from records the company
+#: already holds, so there is nothing for the employee to attest to.
+EMPLOYEE_CONFIRMABLE: dict[str, str] = {
+    "it": "returned every company device and handed back your access",
+}
+
+
+def needs_employee_confirmation(stage_key: str | None) -> bool:
+    return stage_key in EMPLOYEE_CONFIRMABLE
+
+
 def stage_key_for_name(name: str | None) -> str | None:
     """`CaseStage.name` -> stage_key, or None for a name outside the canonical
     five. None degrades safely: it matches no role, so only HR can act on it."""

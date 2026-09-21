@@ -4,6 +4,7 @@ import { Facts, Prose, Section, Tag, toneOf } from "./kit.jsx";
 import { Button, ErrorBox } from "../ui.jsx";
 import { humanize } from "../../lib/format.js";
 import { postJSON } from "../../lib/api.js";
+import { useAuth } from "../../lib/auth.jsx";
 import GenericResult from "./GenericResult.jsx";
 
 /** Put the recommended person on the stage.
@@ -24,6 +25,25 @@ import GenericResult from "./GenericResult.jsx";
  */
 function AssignAction({ caseId, stageKey, chosen, stageName, stageStatus, assignable }) {
   const [state, setState] = useState({ status: "idle", error: null });
+  const { user } = useAuth();
+
+  /* A completed stage genuinely cannot be assigned -- the queue shows open work
+     only, so the assignment would land nowhere. But saying just that leaves the
+     reader stuck holding a recommendation and no way to use it. Reopening is a
+     legal transition (`completed -> in_progress`) and HR's alone, so for HR the
+     answer is one button instead of a refusal. */
+  const reopenable = stageStatus === "completed" && caseId && stageKey
+    && user?.role === "hr" && chosen?.user_id;
+
+  async function act(fn) {
+    setState({ status: "busy", error: null });
+    try {
+      await fn();
+      setState({ status: "done", error: null });
+    } catch (e) {
+      setState({ status: "idle", error: e.message });
+    }
+  }
 
   if (!chosen?.user_id) {
     return (
@@ -43,11 +63,47 @@ function AssignAction({ caseId, stageKey, chosen, stageName, stageStatus, assign
     );
   }
   if (stageStatus === "completed") {
+    if (state.status === "done") {
+      return (
+        <p className="rk-assigned">
+          {`${stageName} on ${caseId} is open again and ${chosen.name} owns it. `}
+          It is in their queue.
+        </p>
+      );
+    }
     return (
-      <p className="rk-empty">
-        {`${stageName} on ${caseId} is already completed, so there is nothing to `}
-        {`hand over. ${chosen.name} is who to route it to if it is ever reopened.`}
-      </p>
+      <>
+        {state.error && <ErrorBox>{state.error}</ErrorBox>}
+        <p className="rk-empty">
+          {`${stageName} on ${caseId} is already completed, so assigning it as it `}
+          {`stands would put nothing on anyone's queue.`}
+        </p>
+        {reopenable && (
+          <>
+            <div className="btn-row">
+              <Button busy={state.status === "busy"} onClick={() => act(async () => {
+                await postJSON(`/api/cases/${caseId}/stages/${stageKey}/transition`, {
+                  to: "in_progress",
+                  note: `Reopened to reassign to ${chosen.name}.`,
+                });
+                await postJSON(`/api/cases/${caseId}/stages/${stageKey}/assign`,
+                               { user_id: chosen.user_id });
+              })}>
+                {`Reopen it and assign ${chosen.name}`}
+              </Button>
+            </div>
+            <p className="rk-empty">
+              Reopening a signed-off clearance is recorded on the case timeline.
+            </p>
+          </>
+        )}
+        {!reopenable && (
+          <p className="rk-empty">
+            {`Only HR can reopen a completed clearance. ${chosen.name} is who to `}
+            route it to if that happens.
+          </p>
+        )}
+      </>
     );
   }
   /* Strictly false, not falsy: results captured before the agent reported this

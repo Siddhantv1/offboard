@@ -57,12 +57,31 @@ describe("Smart Routing: assigning the recommendation", () => {
       "/api/cases/case-006/stages/it/assign", { user_id: 288 }));
   });
 
-  it("refuses to offer a completed stage, and says why", () => {
+  it("will not plainly assign a completed stage, and says why", () => {
     // The reported bug. IT Clearance on case-006 was already done, so
-    // assigning it could never put work on anybody's queue.
+    // assigning it as-is could never put work on anybody's queue.
     draw(<SmartRouting result={routing({ stage_status: "completed", assignable: false })} />);
-    expect(screen.queryByRole("button", { name: /assign/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^assign/i })).toBeNull();
     expect(document.body.textContent).toMatch(/already completed/i);
+  });
+
+  it("offers HR the reopen-and-assign path instead of a dead end", async () => {
+    // Saying "no" and stopping left the reader holding a recommendation with
+    // nowhere to put it. Reopening is legal and HR's alone, so for HR the
+    // answer is one button rather than a refusal.
+    draw(<SmartRouting result={routing({ stage_status: "completed", assignable: false })} />);
+    fireEvent.click(screen.getByRole("button", { name: /reopen it and assign/i }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledTimes(2));
+    expect(postJSON.mock.calls[0][0]).toBe("/api/cases/case-006/stages/it/transition");
+    expect(postJSON.mock.calls[0][1].to).toBe("in_progress");
+    expect(postJSON.mock.calls[1][0]).toBe("/api/cases/case-006/stages/it/assign");
+  });
+
+  it("does not offer reopening to anyone but HR", () => {
+    authUser.current = { role: "it", email: "it@example.com" };
+    draw(<SmartRouting result={routing({ stage_status: "completed", assignable: false })} />);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(document.body.textContent).toMatch(/only hr can reopen/i);
   });
 
   it("says what is missing when no case was picked", () => {

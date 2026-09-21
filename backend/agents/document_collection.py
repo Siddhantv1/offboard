@@ -27,15 +27,21 @@ from ..llm import LLMError
 # Canonical required documents, mirroring data/process-docs/documents-required.md
 # (proc-002). `issued` documents are produced by the company at sign-off, not
 # collected from the employee, so they are tracked but never "missing".
+#
+# IT Clearance deliberately has NO documents. It used to ask for three -- an
+# asset return checklist, a device handover acknowledgement and a VPN/MFA
+# deactivation confirmation -- none of which is a document anybody actually
+# holds: the laptop goes back to a desk and IT reads the truth out of their own
+# asset system. Chasing paperwork for it was theatre that a leaver could
+# satisfy with a blank PDF. It is a two-sided mark now instead: the employee
+# confirms they handed everything back (`CaseStage.employee_confirmed_at`) and
+# IT verifies independently by completing the stage.
 REQUIRED_DOCUMENTS: list[dict[str, Any]] = [
     {"name": "Resignation letter", "stage": "Resignation / Notice"},
     {"name": "Notice acknowledgement", "stage": "Resignation / Notice"},
     {"name": "Personal contact details", "stage": "Resignation / Notice"},
     {"name": "KT document", "stage": "Knowledge Transfer"},
     {"name": "Successor acknowledgement", "stage": "Knowledge Transfer"},
-    {"name": "Asset Return Checklist", "stage": "IT Clearance"},
-    {"name": "Device handover acknowledgement", "stage": "IT Clearance"},
-    {"name": "VPN/MFA deactivation confirmation", "stage": "IT Clearance"},
     {"name": "No-dues declaration", "stage": "Finance Clearance"},
     {"name": "Advance/loan settlement confirmation", "stage": "Finance Clearance", "conditional": True},
     {"name": "Bank account confirmation", "stage": "Finance Clearance"},

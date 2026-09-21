@@ -288,6 +288,19 @@ class CaseStage(Base):
     #: the two, so seeded values stay authoritative while new cases age for real.
     status_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    #: When the *employee* said they had done their side of this stage.
+    #:
+    #: IT Clearance used to be three document uploads -- an asset return
+    #: checklist, a device handover acknowledgement, a VPN/MFA deactivation
+    #: confirmation -- none of which is a document anyone really has. The
+    #: laptop comes back to a desk and IT sees it in their own asset system.
+    #: So the employee marks their side here and IT verifies independently by
+    #: completing the stage. This column alone never closes a clearance: it is
+    #: a claim, and `stages.assert_may_transition` treats it as one.
+    employee_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True))
+    employee_confirmed_note: Mapped[str | None] = mapped_column(Text)
+
     #: Why this stage is stalled, if it is. Deliberately a separate column
     #: rather than a fourth `status` value: four consumers
     #: (`systems.asset_status`, `systems.hrms_status`, `systems.finance_status`,

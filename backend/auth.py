@@ -421,5 +421,15 @@ OptionalUser = Annotated[Identity | None, Depends(optional_user)]
 StaffUser = Annotated[Identity, Depends(require_roles("hr", "it", "manager"))]
 #: IT owns access revocation; HR is the escalation path over it.
 DeprovUser = Annotated[Identity, Depends(require_roles("hr", "it"))]
+#: Account administration. IT owns it, not HR: creating, disabling and
+#: role-changing logins is access management, which is the same job as
+#: revoking a leaver's systems -- and the team already trusted with the
+#: deprovisioning connectors is the one that should hold it.
+#:
+#: This is the one place HR is *not* a blanket override. HR keeping a path to
+#: grant itself any role would make the separation cosmetic. If every IT
+#: account is ever locked out, recovery is `python -m scripts.create_users`
+#: on the host, which is a deliberate, logged, physical-access step.
+AdminUser = Annotated[Identity, Depends(require_roles("it"))]
 #: Anyone whose queue contains stages (i.e. not an employee).
 QueueUser = StaffUser

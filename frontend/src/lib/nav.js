@@ -17,12 +17,12 @@ export const NAV = {
     { to: "/cases", icon: "◫", label: "Exit cases" },
     { to: "/orchestrator", icon: "⛓", label: "Orchestrator" },
     { to: "/employees/new", icon: "＋", label: "Add employee" },
-    { to: "/admin/users", icon: "◈", label: "People & access" },
   ],
   it: [
     { to: "/", icon: "◇", label: "My queue", end: true },
     { to: "/queue/all", icon: "◫", label: "All IT clearance" },
     { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
+    { to: "/admin/users", icon: "◈", label: "People & access" },
   ],
   manager: [
     { to: "/", icon: "◇", label: "My team's exits", end: true },

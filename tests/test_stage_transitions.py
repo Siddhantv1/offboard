@@ -19,7 +19,7 @@ from backend.db import session_scope
 from backend.db.models import (CaseStage, CaseStageEvent, Employee, ExitCase,
                                User)
 from backend.policy import SLA_DAYS, effective_days_open, is_breaching
-from backend.stages import (LEGAL, TransitionError, recompute_case, timeline,
+from backend.stages import (confirm_employee_side, LEGAL, TransitionError, recompute_case, timeline,
                             transition)
 
 
@@ -81,6 +81,28 @@ def scratch_case():
         s.execute(delete(User).where(User.email == email))
         s.execute(delete(ExitCase).where(ExitCase.case_id == case_doc.meta["case_id"]))
         s.execute(delete(Employee).where(Employee.id == emp_doc.meta["id"]))
+
+
+def _employee_has_confirmed(case_id: str) -> None:
+    """IT Clearance is two-sided: the leaver attests they handed everything
+    back, then IT verifies. Tests that only care about the *transition* still
+    have to satisfy that precondition, so this stands in for the employee.
+
+    It uses the login `add_employee` really creates for a leaver rather than a
+    synthetic id -- `case_stage_events.actor_user_id` is a foreign key, and the
+    employee role additionally has a CHECK requiring an employee record.
+    """
+    with session_scope() as s:
+        case = s.get(ExitCase, case_id)
+        account = s.scalar(select(User).where(User.employee_id == case.employee_id))
+        assert account is not None, "add_employee should have created a login"
+        actor = auth.Identity(
+            user_id=account.id, email=account.email, role="employee",
+            employee_id=case.employee_id, full_name=account.full_name,
+            must_change_password=False,
+        )
+    confirm_employee_side(case_id=case_id, stage_key="it", actor=actor,
+                          note="all returned")
 
 
 # -- the characterisation test this whole design turns on ---------------------
@@ -187,6 +209,7 @@ def test_hr_may_act_on_any_stage_but_it_is_recorded_as_an_escalation(scratch_cas
 
 def test_only_hr_can_reopen_a_completed_stage(scratch_case):
     _, case_id = scratch_case
+    _employee_has_confirmed(case_id)
     transition(case_id=case_id, stage_key="it", to_status="completed",
                actor=_identity("it"))
 
@@ -233,6 +256,7 @@ def test_current_stage_advances_only_when_the_named_stage_completes(scratch_case
         assert s.get(ExitCase, case_id).current_stage == "IT Clearance"
 
     # Completing the named stage advances it to the next unfinished one.
+    _employee_has_confirmed(case_id)
     transition(case_id=case_id, stage_key="it", to_status="completed",
                actor=_identity("it"))
     with session_scope() as s:
@@ -303,6 +327,7 @@ def test_blocking_keeps_the_stage_in_progress_so_sla_keeps_counting(scratch_case
         assert stage.blocked_at is not None
 
     # Moving on clears the flag rather than leaving it stuck on a done stage.
+    _employee_has_confirmed(case_id)
     transition(case_id=case_id, stage_key="it", to_status="completed",
                actor=_identity("it"))
     with session_scope() as s:

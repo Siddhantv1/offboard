@@ -187,17 +187,19 @@ def test_no_api_route_is_left_unauthenticated():
 @pytest.mark.parametrize(
     "role,path,expected",
     [
-        # HR reaches everything.
+        # HR reaches everything operational -- but NOT account administration,
+        # which is IT's. HR being able to grant itself any role would make that
+        # split cosmetic, so this is the one route where HR is not an override.
         ("hr", "/api/health", 200),
-        ("hr", "/api/admin/users", 200),
+        ("hr", "/api/admin/users", 403),
         ("hr", "/api/queue", 200),
         ("hr", "/api/cases", 200),
-        # IT works every case but administers nobody.
+        # IT works every case and owns account administration.
         ("it", "/api/health", 200),
         ("it", "/api/queue", 200),
         ("it", "/api/cases", 200),
         ("it", "/api/approvals", 200),
-        ("it", "/api/admin/users", 403),
+        ("it", "/api/admin/users", 200),
         # A manager sees their own team and nothing operational.
         ("manager", "/api/queue", 200),
         ("manager", "/api/cases", 200),

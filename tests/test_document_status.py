@@ -34,12 +34,26 @@ def test_resignation_paperwork_is_always_due():
     assert _row(result, "Resignation letter")["status"] == "missing"
 
 
+def test_it_clearance_asks_for_no_documents_at_all():
+    """It is a two-sided mark, not paperwork.
+
+    The three documents it used to ask for -- an asset return checklist, a
+    device handover acknowledgement, a VPN/MFA deactivation confirmation --
+    were not things anybody holds, and a leaver could satisfy all three with a
+    blank PDF. The employee confirms they handed everything back and IT
+    verifies it against their own asset system instead.
+    """
+    names = [r["document"] for r in document_status(BASE_META)["documents"]]
+    assert not any("Asset Return" in n or "Device handover" in n
+                   or "VPN/MFA" in n for n in names)
+
+
 def test_a_collectable_document_is_not_yet_due_before_its_stage_opens():
-    """IT Clearance is still 'pending', so its paperwork is not due -- and must
-    not be counted as missing (which would make the case look overdue for
+    """Finance Clearance is still 'pending', so its paperwork is not due -- and
+    must not be counted as missing (which would make the case look overdue for
     documents nobody could have submitted yet)."""
     result = document_status(BASE_META)
-    row = _row(result, "Asset Return Checklist")
+    row = _row(result, "No-dues declaration")
 
     assert row["status"] == "not_yet_due"
     assert row not in result["missing"]
@@ -47,17 +61,17 @@ def test_a_collectable_document_is_not_yet_due_before_its_stage_opens():
 
 def test_a_collectable_document_becomes_missing_once_its_stage_opens():
     meta = {**BASE_META, "stages": [
-        {**s, "status": "in_progress"} if s["name"] == "IT Clearance" else s
+        {**s, "status": "in_progress"} if s["name"] == "Finance Clearance" else s
         for s in BASE_META["stages"]
     ]}
-    row = _row(document_status(meta), "Asset Return Checklist")
+    row = _row(document_status(meta), "No-dues declaration")
 
     assert row["status"] == "missing"
 
 
 def test_a_submitted_document_is_submitted_regardless_of_stage():
-    meta = {**BASE_META, "documents_submitted": ["Asset Return Checklist"]}
-    row = _row(document_status(meta), "Asset Return Checklist")
+    meta = {**BASE_META, "documents_submitted": ["No-dues declaration"]}
+    row = _row(document_status(meta), "No-dues declaration")
 
     assert row["status"] == "submitted"
 

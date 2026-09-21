@@ -1,8 +1,12 @@
-"""User administration. HR only.
+"""User administration. IT only.
 
 Before this, accounts existed only where `scripts/create_users.py` had been run
 from a terminal -- which meant onboarding a new IT engineer or manager required
 shell access to the production host.
+
+Owned by IT rather than HR: creating, disabling and role-changing logins is
+access management, the same job as revoking a leaver's systems. See `AdminUser`
+in `backend/auth.py` for why HR is deliberately not an override here.
 """
 from __future__ import annotations
 
@@ -11,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, select
 
-from ..auth import (HRUser, destroy_all_sessions, generate_temp_password,
+from ..auth import (AdminUser, destroy_all_sessions, generate_temp_password,
                     hash_password)
 from ..db import session_scope
 from ..db.models import ROLES, Employee, User
@@ -34,35 +38,49 @@ def _serialize(user: User) -> dict[str, Any]:
     }
 
 
-def _assert_not_last_active_hr(session, user: User, *, action: str) -> None:
-    """Refuse to remove the last way into the admin area.
+#: Roles that cannot be emptied, and what stops working if they are.
+#: `it` administers accounts, so losing it means the only way back in is a
+#: shell on the host. `hr` is the sole authoriser of a deprovisioning plan and
+#: the only role that can reopen a signed-off clearance, so losing it strands
+#: every pending plan and every completed-in-error stage.
+IRREPLACEABLE = {
+    "it": "administer accounts",
+    "hr": "authorise a deprovisioning plan or reopen a clearance",
+}
 
-    Locking every HR account out of a single-tenant deployment means the only
-    recovery is a shell on the database host.
+
+def _assert_not_last_of_role(session, user: User, *, action: str) -> None:
+    """Refuse to remove the last active holder of a role nothing else covers.
+
+    This used to guard HR only, from when HR ran the admin area. Account
+    administration is IT's now, so the guard follows it -- an IT engineer
+    deactivating the last IT account would otherwise lock the product's own
+    admins out of it, and be allowed to do so by the very page they were using.
     """
-    if user.role != "hr" or not user.is_active:
+    if not user.is_active or user.role not in IRREPLACEABLE:
         return
     remaining = session.scalar(
         select(func.count()).select_from(User)
-        .where(User.role == "hr", User.is_active.is_(True), User.id != user.id)
+        .where(User.role == user.role, User.is_active.is_(True), User.id != user.id)
     ) or 0
     if remaining == 0:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot {action} the last active HR account -- nobody would be "
-                   "able to administer the system. Create another HR account first.",
+            detail=f"Cannot {action} the last active {user.role.upper()} account -- "
+                   f"nobody would be able to {IRREPLACEABLE[user.role]}. "
+                   f"Create another {user.role.upper()} account first.",
         )
 
 
 @router.get("/users")
-def list_users(admin: HRUser) -> dict[str, Any]:
+def list_users(admin: AdminUser) -> dict[str, Any]:
     with session_scope() as s:
         rows = s.scalars(select(User).order_by(User.role, User.email)).all()
         return {"users": [_serialize(u) for u in rows]}
 
 
 @router.post("/users")
-def create_user(admin: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def create_user(admin: AdminUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Invite someone. Returns a one-time password, shown once and never stored
     in readable form."""
     payload = payload or {}
@@ -108,7 +126,7 @@ def create_user(admin: HRUser, payload: dict[str, Any] | None = None) -> dict[st
 
 
 @router.patch("/users/{user_id}")
-def update_user(user_id: int, admin: HRUser,
+def update_user(user_id: int, admin: AdminUser,
                 payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Change a role, a display name, or active state."""
     payload = payload or {}
@@ -126,8 +144,11 @@ def update_user(user_id: int, admin: HRUser,
                 raise HTTPException(
                     status_code=422,
                     detail="An employee account must be linked to an employee record.")
-            if role != "hr":
-                _assert_not_last_active_hr(s, user, action="demote")
+            # Whenever the role actually changes, not just when it leaves "hr":
+            # the old guard was written when HR was the only protected role, and
+            # kept as-is it would let someone demote the last IT account.
+            if role != user.role:
+                _assert_not_last_of_role(s, user, action="demote")
             user.role = role
 
         if "full_name" in payload:
@@ -136,7 +157,7 @@ def update_user(user_id: int, admin: HRUser,
         if "is_active" in payload:
             active = bool(payload["is_active"])
             if not active:
-                _assert_not_last_active_hr(s, user, action="deactivate")
+                _assert_not_last_of_role(s, user, action="deactivate")
             user.is_active = active
             if not active:
                 # resolve_session already drops sessions for inactive users on
@@ -154,7 +175,7 @@ def update_user(user_id: int, admin: HRUser,
 
 
 @router.post("/users/{user_id}/reset-password")
-def reset_password(user_id: int, admin: HRUser) -> dict[str, Any]:
+def reset_password(user_id: int, admin: AdminUser) -> dict[str, Any]:
     """Issue a new one-time password and sign the account out everywhere."""
     with session_scope() as s:
         user = s.get(User, user_id)

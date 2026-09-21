@@ -18,7 +18,33 @@ const NEXT = {
   completed: [["in_progress", "Reopen"]],
 };
 
-function StageRow({ caseId, stage, canAct, onChanged }) {
+/** Whether the leaver has done their half of a two-sided stage.
+ *
+ * Shown because the owning role cannot verify without it -- the server refuses
+ * the transition -- and a disabled-looking "complete" button with no stated
+ * reason is exactly the kind of dead control this app had too much of. */
+function EmployeeSide({ confirmation, employee }) {
+  if (!confirmation) return null;
+  if (confirmation.confirmed) {
+    return (
+      <p className="stage-confirmed">
+        {employee || "The employee"} confirmed their side
+        {confirmation.at ? ` on ${new Date(confirmation.at).toLocaleDateString()}` : ""}.
+        {confirmation.note ? ` “${confirmation.note}”` : ""}
+        {" Verify it against your own records before completing."}
+      </p>
+    );
+  }
+  return (
+    <p className="stage-waiting">
+      {`Waiting on ${employee || "the employee"} to confirm they have `}
+      {confirmation.asks}. This cannot be completed until they do — HR can
+      clear it without them, and it is recorded as an override.
+    </p>
+  );
+}
+
+function StageRow({ caseId, stage, canAct, confirmation, employee, onChanged }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState("");
@@ -57,6 +83,7 @@ function StageRow({ caseId, stage, canAct, onChanged }) {
         )}
       </div>
       <p className="stage-owner">{stage.owner ? `Owner: ${stage.owner}` : "Unassigned"}</p>
+      <EmployeeSide confirmation={confirmation} employee={employee} />
 
       {canAct && (
         <div className="stage-actions">
@@ -193,6 +220,8 @@ export default function CaseDetail() {
             caseId={caseId}
             stage={s}
             canAct={mayAction.has(KEY_BY_NAME[s.name])}
+            confirmation={(data.employee_confirmations || {})[KEY_BY_NAME[s.name]]}
+            employee={c.employee_name}
             onChanged={load}
           />
         ))}

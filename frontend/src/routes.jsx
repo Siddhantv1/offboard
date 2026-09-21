@@ -45,7 +45,7 @@ export const ROUTES = [
   { path: "/deprovisioning", roles: ["it", "hr"], element: <Deprovisioning /> },
   { path: "/orchestrator", roles: ["hr"], element: <Orchestrator /> },
   { path: "/employees/new", roles: ["hr"], element: <AddEmployee /> },
-  { path: "/admin/users", roles: ["hr"], element: <Users /> },
+  { path: "/admin/users", roles: ["it"], element: <Users /> },
 
   { path: "/settings", roles: ALL, element: <Settings /> },
   { path: "/faq", roles: ALL, element: <AgentPage agentId="faq_chatbot" /> },

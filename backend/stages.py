@@ -18,7 +18,9 @@ from sqlalchemy.orm import Session
 
 from .db import session_scope
 from .db.models import CaseStage, CaseStageEvent, ExitCase
-from .policy import STAGE_STATUSES, effective_days_open, is_breaching, may_act_on_stage
+from .policy import (STAGE_STATUSES, effective_days_open, is_breaching,
+                     may_act_on_stage, needs_employee_confirmation,
+                     EMPLOYEE_CONFIRMABLE)
 
 
 class TransitionError(Exception):
@@ -188,6 +190,26 @@ def transition(
             case_employee_id=case.employee_id,
         )
 
+        # Two-sided clearance. The employee attests that they have done their
+        # part; the owning role verifies it independently. Completing before
+        # the employee has said anything means nobody asked whether the laptop
+        # actually came back -- which is the failure the old document uploads
+        # only pretended to catch.
+        #
+        # HR can still force it through, because a leaver who has already gone
+        # cannot be made to click a button. That is an override, so it is
+        # recorded as one rather than waved past.
+        if (to_status == "completed"
+                and needs_employee_confirmation(stage.stage_key)
+                and stage.employee_confirmed_at is None):
+            if actor.role != "hr":
+                raise TransitionError(
+                    f"{stage.name} cannot be verified until "
+                    f"{case.employee_name or 'the employee'} has confirmed their "
+                    "side. Chase them, or ask HR to clear it without them."
+                )
+            escalated = True
+
         now = datetime.now(timezone.utc)
         stage.status = to_status
         stage.status_changed_at = now
@@ -237,6 +259,83 @@ def transition(
             "escalated": escalated,
             "current_stage": case.current_stage,
             "overall_status": case.overall_status,
+        }
+
+
+def employee_confirmations(case_id: str) -> dict[str, dict[str, Any]]:
+    """stage_key -> what the employee has attested, for the stages that have a
+    two-sided mark. Stages they have not confirmed appear with `at` as None, so
+    the UI can distinguish "waiting on them" from "not their concern"."""
+    with session_scope() as s:
+        rows = s.scalars(
+            select(CaseStage).where(CaseStage.case_id == case_id)).all()
+        return {
+            st.stage_key: {
+                "at": st.employee_confirmed_at,
+                "note": st.employee_confirmed_note,
+                "confirmed": st.employee_confirmed_at is not None,
+                "asks": EMPLOYEE_CONFIRMABLE[st.stage_key],
+            }
+            for st in rows
+            if needs_employee_confirmation(st.stage_key)
+        }
+
+
+def confirm_employee_side(*, case_id: str, stage_key: str, actor: Any,
+                          note: str = "") -> dict[str, Any]:
+    """Record that the employee says they have done their part of a stage.
+
+    Idempotent: confirming twice keeps the first timestamp. The point of the
+    field is "when did they say it", and letting a second click move that
+    forward would quietly reset the clock IT is being measured against.
+    """
+    with session_scope() as s:
+        case = s.get(ExitCase, case_id)
+        if case is None:
+            raise TransitionError(f"Unknown exit case '{case_id}'.")
+
+        stage = next((x for x in case.stages if x.stage_key == stage_key), None)
+        if stage is None:
+            raise TransitionError(f"This case has no '{stage_key}' clearance stage.")
+        if not needs_employee_confirmation(stage_key):
+            raise TransitionError(
+                f"{stage.name} is cleared from records the company already holds. "
+                "There is nothing for you to confirm on it."
+            )
+        if stage.status == "completed":
+            raise TransitionError(f"{stage.name} is already signed off.")
+
+        first_time = stage.employee_confirmed_at is None
+        if first_time:
+            stage.employee_confirmed_at = datetime.now(timezone.utc)
+        stage.employee_confirmed_note = (note or "").strip() or None
+
+        if first_time:
+            # Visible to IT on the case timeline, so "the employee says they
+            # handed everything back" is part of the record rather than a flag
+            # only the stage row knows about.
+            s.add(CaseStageEvent(
+                case_id=case.case_id,
+                stage_key=stage.stage_key,
+                stage_name=stage.name,
+                from_status=stage.status,
+                to_status=stage.status,
+                actor_user_id=getattr(actor, "user_id", None),
+                actor_label=getattr(actor, "full_name", None)
+                            or getattr(actor, "email", ""),
+                actor_role="employee",
+                escalated=False,
+                note=(f"Confirmed their side: {EMPLOYEE_CONFIRMABLE[stage_key]}."
+                      + (f" {note.strip()}" if note and note.strip() else "")),
+            ))
+        s.flush()
+        return {
+            "case_id": case.case_id,
+            "stage": stage.name,
+            "stage_key": stage.stage_key,
+            "confirmed": True,
+            "at": stage.employee_confirmed_at,
+            "note": stage.employee_confirmed_note,
         }
 
 
@@ -340,6 +439,12 @@ def queue(session: Session, *, stage_keys: set[str], case_ids: set[str] | None =
             "days_open": days,
             "breaching": is_breaching(stage.status, days),
             "blocked_reason": stage.blocked_reason,
+            # Two-sided stages only: whether the leaver has said they are done.
+            # None means the stage has no employee side at all, which reads
+            # differently from "waiting on them".
+            "employee_confirmed": (stage.employee_confirmed_at is not None
+                                   if needs_employee_confirmation(stage.stage_key)
+                                   else None),
         })
     # Worst first: breaching before not, then longest open. A queue sorted by
     # id would bury the case that is about to miss its last working day.

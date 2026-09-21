@@ -62,8 +62,11 @@ describe("routes another role owns", () => {
     expect(screen.getByText("403")).toBeInTheDocument();
   });
 
-  it("tell IT they are forbidden from the HR admin page", () => {
-    renderAt("/admin/users", "it");
+  it("tell HR they are forbidden from the admin page, which is IT's", () => {
+    // Account administration moved to IT: creating and role-changing logins is
+    // access management. HR keeping a way to grant itself any role would make
+    // that split cosmetic, so this is the one page HR does not override.
+    renderAt("/admin/users", "hr");
     expect(screen.getByText("403")).toBeInTheDocument();
   });
 

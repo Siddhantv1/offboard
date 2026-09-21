@@ -2,8 +2,69 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DocumentUpload from "../components/DocumentUpload.jsx";
-import { Badge, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
-import { fetchJSON } from "../lib/api.js";
+import { Badge, Button, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
+import { fetchJSON, postJSON } from "../lib/api.js";
+import { STAGE_NAMES } from "../lib/stages.js";
+
+/** The employee's half of a two-sided clearance.
+ *
+ * IT Clearance used to ask this person for three documents -- an asset return
+ * checklist, a device handover acknowledgement, a VPN/MFA deactivation
+ * confirmation. Nobody has those. The laptop goes back to a desk, and IT reads
+ * the truth out of their own asset system, so the uploads were a form to fill
+ * rather than evidence of anything.
+ *
+ * Confirming here does not clear the stage, and the copy says so plainly. IT
+ * still verifies. Implying otherwise would be the same hole the uploads had:
+ * the one person with a reason to tick the box being the one who ticks it.
+ */
+function ConfirmStage({ stageKey, state, onConfirmed }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const name = STAGE_NAMES[stageKey] ?? stageKey;
+
+  if (state?.confirmed) {
+    return (
+      <div className="confirm-done">
+        <p>
+          <b>You have confirmed your side of {name}.</b>{" "}
+          IT is verifying it against their own records — you do not need to do
+          anything else.
+        </p>
+        {state.note && <p className="muted">You added: “{state.note}”</p>}
+      </div>
+    );
+  }
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      const body = await postJSON(`/api/me/case/stages/${stageKey}/confirm`, {});
+      onConfirmed(stageKey, body);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <p>
+        Confirm when you have {state?.asks ?? "done your part"}. IT then checks
+        it against their own asset and access records before {name} is signed
+        off — your confirmation on its own does not close it.
+      </p>
+      {error && <ErrorBox>{error}</ErrorBox>}
+      <div className="btn-row">
+        <Button busy={busy} onClick={confirm}>
+          {`I have done my part of ${name}`}
+        </Button>
+      </div>
+    </>
+  );
+}
 
 /** The employee's own exit case: where it stands, and the paperwork they owe.
  *
@@ -37,6 +98,19 @@ export default function MyCase() {
 
   // An upload returns the refreshed checklist, so the progress bar moves
   // immediately rather than after a round trip the person has to wait through.
+  const onConfirmed = useCallback((stageKey, body) => {
+    setState((st) => (st.data ? {
+      ...st,
+      data: {
+        ...st.data,
+        confirmations: {
+          ...st.data.confirmations,
+          [stageKey]: { ...st.data.confirmations?.[stageKey], ...body },
+        },
+      },
+    } : st));
+  }, []);
+
   const onUploaded = useCallback((result) => {
     setDocs((d) => (d ? { ...d, checklist: result.checklist, summary: result.summary } : d));
     // The case itself can change too -- an accepted document clears a
@@ -92,6 +166,12 @@ export default function MyCase() {
           {c.last_working_day && <> · last working day {c.last_working_day}</>}
         </span>
       </div>
+
+      {Object.entries(data.confirmations || {}).map(([key, conf]) => (
+        <Panel key={key} title={`Your part of ${STAGE_NAMES[key] ?? key}`}>
+          <ConfirmStage stageKey={key} state={conf} onConfirmed={onConfirmed} />
+        </Panel>
+      ))}
 
       {docs && (
         <Panel title="Your documents">
