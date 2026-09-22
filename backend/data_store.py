@@ -454,12 +454,24 @@ class DataStore:
         if not name or not role or not department:
             raise ValueError("name, role, and department are required.")
 
-        tenure_years = _as_number(fields.get("tenure_years"), "tenure_years",
-                                  default=0.0)
         rating = _as_number(fields.get("performance_rating"), "performance_rating",
                             integer=True)
         join_date = _require_date(fields.get("join_date"), "join_date",
                                   default=date.today())
+
+        # Derived from the join date rather than typed. Two fields describing
+        # one fact is two fields that disagree: somebody enters a join date of
+        # 2019 and a tenure of 2, and every agent reading tenure is wrong about
+        # them from then on. It is also a number that changes on its own every
+        # day, which is not something a form can keep true.
+        #
+        # An explicit value is still honoured, for importing a record whose
+        # join date is genuinely unknown.
+        supplied = _as_number(fields.get("tenure_years"), "tenure_years", default=None)
+        tenure_years = (
+            supplied if supplied is not None
+            else round((date.today() - join_date).days / 365.25, 1)
+        )
         last_working_day = _require_date(fields.get("last_working_day"),
                                          "last_working_day")
         if last_working_day and join_date and last_working_day < join_date:
@@ -515,6 +527,24 @@ class DataStore:
                     ))
                     credential = {"email": emp.email, "password": secret}
         return emp_doc, case_doc, credential
+
+    def set_employee_status(self, employee_id: str, status: str) -> Doc:
+        """Move somebody between active and exiting.
+
+        The only writer for this column outside `add_employee`. It exists
+        because the status chosen when the record was created used to be
+        permanent, and people resign after they are hired.
+        """
+        wanted = str(status or "").strip().lower()
+        if wanted not in ("active", "exiting"):
+            raise ValueError("status must be 'active' or 'exiting'.")
+        with session_scope() as s:
+            emp = s.get(Employee, str(employee_id or "").strip())
+            if emp is None:
+                raise ValueError(f"Unknown employee {employee_id!r}.")
+            emp.status = wanted
+            s.flush()
+            return _doc(emp)
 
     def add_exit_case(self, employee: Doc, *,
                       last_working_day: str | None = None) -> Doc:

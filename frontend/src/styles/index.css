@@ -1944,3 +1944,61 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
                                       color: var(--muted); font-size: 12.5px; }
   .itc-steps td.itc-step-action { text-align: left; padding-top: 8px; }
 }
+
+/* ---- select menus -------------------------------------------------------
+   The closed control was themed; nothing else about a select was.
+
+   The chevron was a data-URI with the light-mode muted colour baked into it
+   (#4A6866), so on the dark surface it was a dark teal on a dark field --
+   present, invisible. It is drawn per theme now.
+
+   `option` had no rules at all. Chrome and Firefox on Windows do honour
+   background-color and color on an option, so without them the open list fell
+   back to the OS palette: a white popup hanging off a dark field.
+
+   A native popup is drawn by the browser and cannot be fully styled -- its
+   corner radius, row height and font are the platform's. Controlling those
+   means replacing the control with a listbox, which is a real component
+   (keyboard, typeahead, aria-activedescendant) and not a stylesheet change. */
+
+select:hover:not(:disabled) { border-color: var(--teal-soft); }
+select:disabled { opacity: .55; cursor: not-allowed; background: var(--inset); }
+
+select option,
+select optgroup {
+  background: var(--surface);
+  color: var(--ink);
+}
+select option:checked { background: var(--mint); color: var(--deep); }
+
+/* The browser draws native widgets -- the popup itself, scrollbars, the date
+   picker -- from this. Stated explicitly on light as well as dark so a browser
+   whose default is dark does not render half the form in the wrong scheme. */
+:root { color-scheme: light; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%239DB8B6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+}
+:root[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1l6 6 6-6' fill='none' stroke='%239DB8B6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* The payroll list, and the people awaiting an account on People & access.
+   A list rather than a table: each row carries three lines of context and one
+   control, which a table would either crush or stretch. */
+.emp-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.emp-list > li { display: flex; align-items: flex-start; justify-content: space-between;
+                 gap: 16px; padding: 12px 14px; border: 1px solid var(--line);
+                 border-radius: var(--radius-sm); }
+.emp-who { display: grid; gap: 2px; min-width: 0; }
+.emp-name { font-weight: 550; font-size: 14.5px; }
+.emp-who .muted { font-size: 13px; }
+.emp-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+              flex: none; }
+.emp-status-form input[type="date"] { width: auto; }
+
+@media (max-width: 760px) {
+  .emp-list > li { flex-direction: column; align-items: stretch; gap: 10px; }
+}

@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Field from "../components/Field.jsx";
 import { ErrorBox, Loading, PageHead } from "../components/ui.jsx";
-import { postJSON } from "../lib/api.js";
+import { fetchJSON, postJSON } from "../lib/api.js";
 import { useAgents } from "../lib/agents.jsx";
 import { EMPLOYEE_FIELDS } from "../lib/constants.js";
 
@@ -10,6 +10,18 @@ export default function AddEmployee() {
   const formRef = useRef(null);
   const { refresh } = useAgents();
   const [state, setState] = useState({ status: "idle", added: null, error: null });
+
+  /* Fields whose options come from the server rather than the constant. Only
+     managers today: the list has to be real accounts, because a manager who
+     is not one is a sign-off that can never be routed. */
+  const [dynamic, setDynamic] = useState({ managers: null });
+  useEffect(() => {
+    let cancelled = false;
+    fetchJSON("/api/employees/managers")
+      .then((d) => !cancelled && setDynamic({ managers: d.managers || [] }))
+      .catch(() => !cancelled && setDynamic({ managers: [] }));
+    return () => { cancelled = true; };
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -49,9 +61,25 @@ export default function AddEmployee() {
 
       <form className="panel" ref={formRef} onSubmit={submit}>
         <h3>Employee details</h3>
-        {EMPLOYEE_FIELDS.map((f) => (
-          <Field key={f.name} field={f} />
-        ))}
+        {EMPLOYEE_FIELDS.map((f) => {
+          if (!f.optionsFrom) return <Field key={f.name} field={f} />;
+          const options = dynamic[f.optionsFrom];
+          // Until it loads, and when the company has no manager accounts at
+          // all, say which rather than showing an empty menu that looks broken.
+          if (options === null) {
+            return <Field key={f.name} field={{ ...f, options: [],
+                                                help: "Loading managers…" }} />;
+          }
+          if (!options.length) {
+            return (
+              <Field key={f.name} field={{ ...f, options: [],
+                help: "No manager accounts exist yet. IT creates them under "
+                    + "People & access; until then this stays blank and the "
+                    + "sign-off is assigned by hand." }} />
+            );
+          }
+          return <Field key={f.name} field={{ ...f, options }} />;
+        })}
         <div className="btn-row">
           <button type="submit" className="btn btn-primary" disabled={status === "saving"}>
             Add employee

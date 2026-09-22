@@ -16,6 +16,7 @@ import CaseList from "./pages/CaseList.jsx";
 import Deprovisioning from "./pages/Deprovisioning.jsx";
 import { Forbidden, NotFound } from "./pages/Errors.jsx";
 import ExitInterview from "./pages/ExitInterview.jsx";
+import Employees from "./pages/Employees.jsx";
 import Home from "./pages/Home.jsx";
 import ITClearance from "./pages/ITClearance.jsx";
 import MyCase from "./pages/MyCase.jsx";
@@ -59,6 +60,7 @@ export const ROUTES = [
      concerns. */
   { path: "/deprovisioning", roles: ["hr"], element: <Deprovisioning /> },
   { path: "/orchestrator", roles: ["hr"], element: <Orchestrator /> },
+  { path: "/employees", roles: ["hr"], element: <Employees /> },
   { path: "/employees/new", roles: ["hr"], element: <AddEmployee /> },
   { path: "/admin/users", roles: ["it"], element: <Users /> },
 

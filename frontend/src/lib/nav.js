@@ -22,7 +22,11 @@ export const NAV = {
     // -- and the one person who could use it had no link to the page. IT could
     // reach it and saw no button; HR had the button and no way in.
     { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
-    { to: "/employees/new", icon: "+", label: "Add employee" },
+    // "People" rather than "Add employee": the list is what you need most
+    // often and adding is one button on it. Somebody added as active used to
+    // vanish the moment the form cleared, so a resignation six months later
+    // could only be recorded by entering the person a second time.
+    { to: "/employees", icon: "▤", label: "People" },
   ],
   it: [
     { to: "/", icon: "◇", label: "My queue", end: true },

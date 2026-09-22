@@ -155,12 +155,15 @@ describe("the route table", () => {
        /settings      -- the topbar, beside the account it belongs to
        /faq           -- the agent catalogue in the sidebar, which every role
                          has because faq_chatbot is in every role's agent set
+       /employees/new -- the button on /employees, which is in HR's sidebar.
+                         Adding is one action on the list, not a destination
+                         competing with it
      Anything else a role may open must be in that role's sidebar. Twice now a
      page has been permitted to a role and linked from nowhere: HR could not
      reach the deprovisioning page it alone can authorise, and IT could not
      reach any case whose clearance it had already finished. Both looked to the
      user like the feature was missing. */
-  const REACHED_ELSEWHERE = new Set(["/settings", "/faq"]);
+  const REACHED_ELSEWHERE = new Set(["/settings", "/faq", "/employees/new"]);
 
   it.each(ROLES)("gives %s a way to every page it may open", (role) => {
     const linked = new Set((NAV[role] ?? []).map((i) => i.to));

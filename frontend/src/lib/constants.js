@@ -35,16 +35,26 @@ export const EMPLOYEE_FIELDS = [
   { name: "role", label: "Role", required: true, placeholder: "e.g. Backend Engineer" },
   { name: "department", label: "Department", required: true, placeholder: "e.g. Engineering" },
   { name: "email", label: "Email", required: false, placeholder: "auto-generated if left blank" },
-  { name: "manager", label: "Manager", required: false },
-  { name: "manager_email", label: "Manager email", required: false },
+  // One field, and only real accounts in it. Free text let HR type a name and
+  // an address that matched nobody, which leaves Knowledge Transfer and
+  // Manager Sign-off unroutable for that person forever. Options come from
+  // /api/employees/managers; `optionsFrom` tells the form to fetch them.
+  {
+    name: "manager_email",
+    label: "Manager",
+    type: "select",
+    required: false,
+    optionsFrom: "managers",
+    help: "Only managers with an account appear here — they are the only ones "
+        + "a sign-off can actually reach. Ask IT to add one under People & access.",
+  },
   { name: "location", label: "Location", required: false, placeholder: "e.g. Bengaluru, IN" },
   { name: "employment_type", label: "Employment type", required: false, placeholder: "Full-time" },
   { name: "join_date", label: "Join date", type: "date", required: false,
     max: "2100-12-31" },
-  // Bounded because the browser will otherwise take anything, including what
-  // the mouse wheel lands on. 60 years is longer than anyone has worked here.
-  { name: "tenure_years", label: "Tenure (years)", type: "number", required: false,
-    min: 0, max: 60, step: 0.5 },
+  // Tenure is not asked for: it is the join date, and two fields describing
+  // one fact are two fields that disagree. It is also a number that changes
+  // by itself every day, which no form can keep true.
   { name: "performance_rating", label: "Performance rating", type: "number",
     required: false, min: 1, max: 5, step: 1 },
   {

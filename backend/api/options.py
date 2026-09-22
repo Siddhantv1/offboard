@@ -87,3 +87,28 @@ DYNAMIC = {
     "kt_id": kt_options,
     "interview_id": interview_options,
 }
+
+
+def manager_options() -> list[dict[str, str]]:
+    """The managers a new employee can actually be given.
+
+    Free text here was a real flaw: HR typed a name and an address, and if the
+    address matched no account -- a typo, or a manager who had never been given
+    a login -- then Knowledge Transfer and Manager Sign-off were unroutable for
+    that person forever. `approver_roster` returns nobody, the stage sits on no
+    queue, and nothing anywhere reports it. Offering only accounts that exist
+    makes the bad state unreachable rather than merely unlikely.
+    """
+    from sqlalchemy import select
+
+    from ..db import session_scope
+    from ..db.models import User
+
+    with session_scope() as s:
+        rows = s.scalars(
+            select(User)
+            .where(User.role == "manager", User.is_active.is_(True))
+            .order_by(User.full_name, User.email)
+        ).all()
+        return [{"value": u.email, "label": _label(u.full_name or u.email, u.email)}
+                for u in rows]

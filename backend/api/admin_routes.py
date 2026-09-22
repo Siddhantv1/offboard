@@ -74,9 +74,36 @@ def _assert_not_last_of_role(session, user: User, *, action: str) -> None:
 
 @router.get("/users")
 def list_users(admin: AdminUser) -> dict[str, Any]:
+    """Accounts, and the people who have none.
+
+    The page is called People & access and listed only accounts, so an employee
+    HR had just added was nowhere on it -- an account is created for a leaver,
+    not for a new hire, so the one person IT most needs to set up was the one
+    person invisible here. Listing them as awaiting an account turns the page
+    into what its name promises, and gives the invite button something to
+    start from.
+    """
     with session_scope() as s:
         rows = s.scalars(select(User).order_by(User.role, User.email)).all()
-        return {"users": [_serialize(u) for u in rows]}
+        accounts = [_serialize(u) for u in rows]
+        linked = {u.employee_id for u in rows if u.employee_id}
+        by_email = {(u.email or "").strip().lower() for u in rows}
+
+        waiting = []
+        for emp in s.scalars(select(Employee).order_by(Employee.name)).all():
+            email = (emp.email or "").strip().lower()
+            if emp.id in linked or (email and email in by_email):
+                continue
+            waiting.append({
+                "employee_id": emp.id,
+                "name": emp.name,
+                "email": emp.email,
+                "role": emp.role,
+                "department": emp.department,
+                "status": emp.status,
+            })
+
+    return {"users": accounts, "awaiting_account": waiting}
 
 
 @router.post("/users")

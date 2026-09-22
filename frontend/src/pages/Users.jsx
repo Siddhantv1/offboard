@@ -126,8 +126,10 @@ export default function Users() {
   const load = useCallback(() => {
     let cancelled = false;
     fetchJSON("/api/admin/users")
-      .then((d) => !cancelled && setState({ status: "done", users: d.users, error: null }))
-      .catch((e) => !cancelled && setState({ status: "done", users: [], error: e.message }));
+      .then((d) => !cancelled && setState({
+        status: "done", users: d.users, waiting: d.awaiting_account || [], error: null }))
+      .catch((e) => !cancelled && setState({
+        status: "done", users: [], waiting: [], error: e.message }));
     return () => {
       cancelled = true;
     };
@@ -247,6 +249,33 @@ export default function Users() {
       {state.status === "done" && !state.error && (
         <DataTable columns={columns} rows={state.users} rowKey={(u) => u.id}
                    empty="No accounts yet." />
+      )}
+
+      {/* People on the payroll with no login. An account is created for a
+          leaver, not for a new hire, so somebody HR had just added was the one
+          person missing from a page called People & access -- exactly the
+          person IT needs to set up. */}
+      {state.status === "done" && !!(state.waiting || []).length && (
+        <Panel title={`On the payroll, no account yet (${state.waiting.length})`}>
+          <p className="hint" style={{ marginTop: -6 }}>
+            Invite them above using their employee id. A manager needs an
+            account before anyone can be assigned to report to them.
+          </p>
+          <ul className="emp-list">
+            {state.waiting.map((p) => (
+              <li key={p.employee_id}>
+                <div className="emp-who">
+                  <span className="emp-name">{p.name}</span>
+                  <span className="muted">
+                    {[p.role, p.department, p.employee_id].filter(Boolean).join(" · ")}
+                  </span>
+                  <span className="muted">{p.email || "no email on record"}</span>
+                </div>
+                <Badge value={p.status || "active"} />
+              </li>
+            ))}
+          </ul>
+        </Panel>
       )}
     </div>
   );

@@ -737,19 +737,123 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/employees/managers")
+def employee_manager_options(user: HRUser) -> dict[str, Any]:
+    """Managers a new employee can be assigned to. Accounts only, by design --
+    see `options.manager_options`."""
+    from .options import manager_options
+
+    return {"managers": manager_options()}
+
+
 @router.post("/employees")
 def create_employee(user: HRUser, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Add a new employee record. If marked "exiting", also creates a starter
     exit case for the orchestrator and, if the email has no account yet, a
     one-time login credential."""
+    from .options import manager_options
+
+    payload = dict(payload or {})
+
+    # A manager who is not an account is a manager the work can never reach.
+    # `approver_roster` resolves Knowledge Transfer and Manager Sign-off
+    # through this address, so a typo here leaves both stages permanently on
+    # nobody's queue, with nothing anywhere reporting it.
+    wanted = str(payload.get("manager_email") or "").strip().lower()
+    if wanted:
+        known = {m["value"].lower(): m for m in manager_options()}
+        if wanted not in known:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{wanted} is not a manager account here, so Knowledge "
+                       "Transfer and Manager Sign-off could never be routed to "
+                       "them. Ask IT to create the account under People & "
+                       "access first, or leave the manager blank for now.",
+            )
+        payload["manager_email"] = wanted
+
     try:
-        emp_doc, case_doc, credential = store.add_employee(payload or {})
+        emp_doc, case_doc, credential = store.add_employee(payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
         "employee": emp_doc.meta,
         "case": case_doc.meta if case_doc else None,
         "credential": credential,
+    }
+
+
+@router.get("/employees")
+def list_employees(user: HRUser) -> dict[str, Any]:
+    """Everyone on the payroll, with whether they have an exit case yet.
+
+    HR could add an employee and never see them again: there was no list, so
+    somebody added as active had no route to being marked as leaving later.
+    Resignations happen after the record is created, which is the normal case
+    rather than the exception.
+    """
+    cases = {str(c.meta.get("employee_id")): c.meta for c in store.exit_cases()}
+    out = []
+    for emp in store.employees():
+        meta = emp.meta
+        case = cases.get(str(meta.get("id")))
+        out.append({
+            "id": meta.get("id"),
+            "name": meta.get("name"),
+            "role": meta.get("role"),
+            "department": meta.get("department"),
+            "email": meta.get("email"),
+            "manager": meta.get("manager"),
+            "manager_email": meta.get("manager_email"),
+            "status": meta.get("status"),
+            "join_date": meta.get("join_date"),
+            "tenure_years": meta.get("tenure_years"),
+            "case_id": case.get("case_id") if case else None,
+            "last_working_day": (case or {}).get("last_working_day"),
+        })
+    return {"employees": out}
+
+
+@router.patch("/employees/{employee_id}")
+def update_employee_status(employee_id: str, user: HRUser,
+                           payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Mark somebody as leaving (or not), after the fact.
+
+    Marking them `exiting` opens the exit case, exactly as adding them that way
+    does -- the same `add_exit_case`, so a person who resigns six months in
+    gets the identical five stages as one added on their last week. Without
+    this the status chosen at creation was permanent, and a later resignation
+    could only be recorded by adding the person to the system twice.
+    """
+    payload = payload or {}
+    status = str(payload.get("status") or "").strip().lower()
+    if status not in ("active", "exiting"):
+        raise HTTPException(status_code=422, detail="Status must be active or exiting.")
+
+    emp = store.employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail=f"Unknown employee {employee_id!r}.")
+
+    existing = store.exit_case_for_employee(employee_id)
+    created = None
+    if status == "exiting" and existing is None:
+        try:
+            created = store.add_exit_case(
+                emp, last_working_day=str(payload.get("last_working_day") or "") or None)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # The case is deliberately NOT deleted when someone is set back to active.
+    # A withdrawn resignation is a real thing and the case is the record that
+    # it happened; deleting it would erase a clearance somebody may already
+    # have worked. HR closes the stages instead.
+    store.set_employee_status(employee_id, status)
+
+    return {
+        "employee_id": employee_id,
+        "status": status,
+        "case": created.meta if created else (existing.meta if existing else None),
+        "case_was_created": created is not None,
     }
 
 
