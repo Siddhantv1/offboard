@@ -2002,3 +2002,16 @@ select option:checked { background: var(--mint); color: var(--deep); }
 @media (max-width: 760px) {
   .emp-list > li { flex-direction: column; align-items: stretch; gap: 10px; }
 }
+
+/* The leaving documents, once every clearance is done. Given the brand colour
+   rather than a status hue: finishing is the good case, and the palette's
+   positive is the teal. */
+.allset-lead { margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
+.allset-docs { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.allset-docs li { display: flex; align-items: center; justify-content: space-between;
+                  gap: 14px; padding: 10px 14px; border: 1px solid var(--teal-soft);
+                  border-radius: var(--radius-sm); background: var(--ok-wash);
+                  font-size: 14px; }
+@media (max-width: 560px) {
+  .allset-docs li { flex-direction: column; align-items: stretch; gap: 8px; }
+}

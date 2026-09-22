@@ -143,6 +143,55 @@ function MyChecklist() {
   );
 }
 
+/** What the company owes them, once the exit is actually finished.
+ *
+ * Three documents have been listed as "to be issued" since the beginning and
+ * nothing ever produced one, so the checklist carried a line nobody could act
+ * on. They are generated from the record now.
+ *
+ * Gated on every clearance, not most of them: a relieving letter states the
+ * person has been released, and releasing somebody with an open IT clearance
+ * is the thing the clearance exists to prevent.
+ */
+function IssuedDocuments({ state }) {
+  if (!state) return null;
+
+  if (!state.ready) {
+    return (
+      <Panel title="Your leaving documents">
+        <p>
+          Your relieving letter, experience certificate and settlement statement
+          are issued once every clearance is signed off. Still open:{" "}
+          <b>{state.outstanding.join(", ")}</b>.
+        </p>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="You're all set">
+      <p className="allset-lead">
+        Every clearance is complete. These are yours to keep — download them
+        now, while you still have access to this account.
+      </p>
+      <ul className="allset-docs">
+        {state.documents.map((d) => (
+          <li key={d.id}>
+            <span>{d.name}</span>
+            <a className="btn btn-ghost" href={`/api/me/case/issued/${d.id}`}
+               download>
+              Download PDF
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="hint">
+        HR can re-send any of these later if you lose them.
+      </p>
+    </Panel>
+  );
+}
+
 /** The employee's own exit case: where it stands, and the paperwork they owe.
  *
  * Resolved server-side from the session, so there is no case id to pick and
@@ -154,6 +203,7 @@ export default function MyCase() {
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [docs, setDocs] = useState(null);
   const [interview, setInterview] = useState(null);
+  const [issued, setIssued] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -163,12 +213,15 @@ export default function MyCase() {
       // Swallowed rather than joined into the rejection: a failure here should
       // cost the interview line, not the whole page.
       fetchJSON("/api/me/case/interview").catch(() => null),
+      // A failure here costs the download panel, not the page.
+      fetchJSON("/api/me/case/issued").catch(() => null),
     ])
-      .then(([caseData, docData, interviewData]) => {
+      .then(([caseData, docData, interviewData, issuedData]) => {
         if (cancelled) return;
         setState({ status: "done", data: caseData, error: null });
         setDocs(docData);
         setInterview(interviewData);
+        setIssued(issuedData);
       })
       .catch((e) => !cancelled && setState({ status: "done", data: null, error: e.message }));
     return () => {
@@ -294,6 +347,8 @@ export default function MyCase() {
         <MyChecklist />
       </Panel>
 
+      {issued?.ready && <IssuedDocuments state={issued} />}
+
       <Panel title="Clearance stages">
         <p className="hint" style={{ marginTop: -6 }}>
           Following are the stages of your exiting. IT, HR, Finance and your
@@ -312,6 +367,8 @@ export default function MyCase() {
           </div>
         ))}
       </Panel>
+
+      {issued && !issued.ready && <IssuedDocuments state={issued} />}
 
       <Panel title="Have a Question?">
         <p>

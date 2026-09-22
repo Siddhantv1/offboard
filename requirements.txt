@@ -38,3 +38,5 @@ langgraph-checkpoint-postgres
 # Tests
 pytest
 httpx                                # required by fastapi.testclient.TestClient
+reportlab>=4.0
+pypdf>=5.0

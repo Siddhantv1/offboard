@@ -26,6 +26,7 @@ from ..db import session_scope
 from ..policy import STAGE_OWNERS, may_run_agent
 from .. import checklist_progress
 from .. import exit_interview
+from .. import issued_documents
 from .. import stages as stage_service
 from .deps import ScopedCase, can_see_case, visible_cases
 
@@ -735,6 +736,53 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except stage_service.TransitionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/me/case/issued")
+def my_issued_documents(user: CurrentUser) -> dict[str, Any]:
+    """What the company owes this person, and whether it can be handed over."""
+    case = _my_case(user)
+    return issued_documents.readiness(str(case.meta.get("case_id")))
+
+
+@router.get("/me/case/issued/{document_id}")
+def download_my_issued_document(document_id: str, user: CurrentUser) -> Response:
+    """One generated leaving document, as a PDF.
+
+    Scoped through the session like every other /me route, so the document id
+    alone grants nothing -- these name a person and state their dates.
+    """
+    case = _my_case(user)
+    return _issued_pdf(str(case.meta.get("case_id")), document_id)
+
+
+@router.get("/cases/{case_id}/issued")
+def case_issued_documents(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
+    return issued_documents.readiness(str(case.meta.get("case_id")))
+
+
+@router.get("/cases/{case_id}/issued/{document_id}")
+def download_case_issued_document(case: ScopedCase, document_id: str,
+                                  user: StaffUser) -> Response:
+    """The same documents from the staff side -- HR is asked to re-send these
+    long after the person has lost their login."""
+    return _issued_pdf(str(case.meta.get("case_id")), document_id)
+
+
+def _issued_pdf(case_id: str, document_id: str) -> Response:
+    try:
+        pdf, filename = issued_documents.generate(case_id, document_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        # `attachment`: this is a record somebody keeps, not something to
+        # glance at beside a verdict the way a scan is.
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/employees/managers")
