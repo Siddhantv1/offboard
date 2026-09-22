@@ -83,8 +83,8 @@ export default function SubmittedDocuments({ documents, imageUrl, onReviewed }) 
 
             {d.reviewed_by && (
               <p className="subdoc-review">
-                Overridden by {d.reviewed_by}
-                {d.review_note ? ` — ${d.review_note}` : ""}
+                Reviewed by {d.reviewed_by}
+                {d.review_note ? `: ${d.review_note}` : ""}
               </p>
             )}
 

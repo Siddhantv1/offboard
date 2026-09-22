@@ -23,21 +23,39 @@ const NEXT = {
  * Shown because the owning role cannot verify without it -- the server refuses
  * the transition -- and a disabled-looking "complete" button with no stated
  * reason is exactly the kind of dead control this app had too much of. */
-function EmployeeSide({ confirmation, employee }) {
+export function EmployeeSide({ confirmation, employee }) {
   if (!confirmation) return null;
+  const who = employee || "The employee";
+  const signedOff = confirmation.status === "completed";
+
   if (confirmation.confirmed) {
     return (
       <p className="stage-confirmed">
-        {employee || "The employee"} confirmed their side
+        {who} confirmed their side
         {confirmation.at ? ` on ${new Date(confirmation.at).toLocaleDateString()}` : ""}.
         {confirmation.note ? ` “${confirmation.note}”` : ""}
-        {" Verify it against your own records before completing."}
+        {/* Only worth saying while there is still something to do about it. */}
+        {!signedOff && " Verify it against your own records before completing."}
       </p>
     );
   }
+
+  /* Cleared with no confirmation on record. Every stage completed before the
+     two-sided mark existed is in this state -- three of the six seeded cases --
+     and the branch below used to claim they were "waiting on" someone, on a
+     stage that was finished. Stating it plainly is also the honest audit line:
+     nobody recorded the leaver saying their part was done. */
+  if (signedOff) {
+    return (
+      <p className="stage-confirmed">
+        {`Signed off with no confirmation recorded from ${who}.`}
+      </p>
+    );
+  }
+
   return (
     <p className="stage-waiting">
-      {`Waiting on ${employee || "the employee"} to confirm they have `}
+      {`Waiting on ${who} to confirm they have `}
       {confirmation.asks}. This cannot be completed until they do — HR can
       clear it without them, and it is recorded as an override.
     </p>

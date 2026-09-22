@@ -94,11 +94,11 @@ export default function Checklist({ result: r }) {
     <>
       {progress?.tracked > 0 && (
         <p className="rk-progress">
-          <b>{`${progress.done} of ${progress.tracked} done.`}</b>{" "}
+          <b>{`${progress.done} of ${progress.tracked} tasks   done.`}</b>{" "}
           {progress.done === progress.tracked
             ? "Everything we can track is finished."
-            : "Ticked off automatically as each one is actually confirmed — "
-              + "you do not need to tell us."}
+            : ""
+              }
         </p>
       )}
 

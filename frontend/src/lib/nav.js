@@ -22,7 +22,7 @@ export const NAV = {
     // -- and the one person who could use it had no link to the page. IT could
     // reach it and saw no button; HR had the button and no way in.
     { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
-    { to: "/employees/new", icon: "＋", label: "Add employee" },
+    { to: "/employees/new", icon: "+", label: "Add employee" },
   ],
   it: [
     { to: "/", icon: "◇", label: "My queue", end: true },
