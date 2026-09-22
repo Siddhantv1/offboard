@@ -35,7 +35,9 @@ ROLES = [
     # management. Swept under the role that can actually reach it, or the sweep
     # would only ever be measuring the 403 page.
     ("it", "sanya.kapoor@perficient.com",
-     ["/", "/queue/all", "/deprovisioning", "/admin/users", "/settings"]),
+     # The clearance workspace, not a case page: IT no longer has /cases or the
+     # all-plans Deprovisioning page, and this is where its queue now lands.
+     ["/", "/queue/all", "/it/clearance/case-001", "/admin/users", "/settings"]),
     ("manager", "vikram.sharma@perficient.com",
      ["/", "/queue/all", "/cases", "/cases/case-001", "/settings"]),
     ("employee", "aarav.mehta@perficient.com",

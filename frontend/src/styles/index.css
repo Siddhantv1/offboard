@@ -1893,3 +1893,23 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .topbar-settings:hover,
 .topbar-settings:focus-visible { color: var(--deep); background: var(--mint); }
 .topbar-settings.active { color: var(--deep); font-weight: 500; }
+
+/* One person's IT clearance. Access and assets side by side because an
+   engineer checks both before signing off, and the whole point of the page is
+   that they are visible from the same place as the buttons that change them. */
+.itc-position { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.itc-col h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.itc-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.itc-list li { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
+.itc-list li.is-done { color: var(--muted); }
+.itc-list li.is-done span:not(.itc-tick) { text-decoration: line-through;
+                                           text-decoration-thickness: 1px; }
+.itc-tick { width: 1em; color: var(--deep); font-weight: 600; }
+.itc-flag { font-size: 11.5px; color: var(--danger); border: 1px solid var(--danger);
+            border-radius: 999px; padding: 0 6px; }
+.itc-auth { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 10px; font-size: 14px; }
+
+@media (max-width: 760px) {
+  .itc-position { grid-template-columns: 1fr; gap: 18px; }
+}

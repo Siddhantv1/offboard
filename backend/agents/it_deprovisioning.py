@@ -20,7 +20,7 @@ from typing import Any
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 
 from .base import AgentMeta, BaseAgent, Field, llm, register
 from ._context import doc_to_context, require_employee
@@ -92,6 +92,25 @@ def plan_deprovisioning(employee_id: str, *, exit_type: str = "", last_working_d
         plan["plan_id"] = plan_id
         plan["requires_approval"] = True
         with session_scope() as s:
+            # One plan awaiting authorisation per person. Every run used to
+            # insert another, so the orchestrator and a couple of manual runs
+            # left HR four identical pending drafts for one employee -- eight
+            # rows for emp-001 across the two states. Authorising one of four
+            # identical drafts is not a decision anybody can make well.
+            #
+            # Only `pending` rows are replaced. An executed plan is the record
+            # of access that was actually revoked and must never be discarded.
+            superseded = s.scalars(
+                select(DeprovisioningPlan).where(
+                    DeprovisioningPlan.employee_id == emp_id,
+                    DeprovisioningPlan.status == "pending",
+                )
+            ).all()
+            for old in superseded:
+                s.delete(old)
+            if superseded:
+                plan["superseded"] = len(superseded)
+
             s.add(DeprovisioningPlan(
                 id=plan_id,
                 employee_id=emp_id,

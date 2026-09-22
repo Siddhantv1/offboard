@@ -9,7 +9,7 @@ const COPY = {
   it: {
     mine: {
       title: "My queue",
-      description: "IT clearance stages assigned to you. Worst first — anything past its SLA is at the top.",
+      description: "Exit cases assigned to you which require IT Clearance.",
       empty: "Nothing is assigned to you right now.",
       emptyHint: "Open All IT clearance to pick up unclaimed work.",
     },
@@ -61,12 +61,18 @@ export default function Queue({ scope = "mine" }) {
 
   const { status, rows, error } = state;
 
+  const rowHref = (r) => (user?.role === "it"
+    ? `/it/clearance/${r.case_id}`
+    : `/cases/${r.case_id}`);
+
   const columns = [
     {
       key: "employee",
       label: "Person",
+      // IT's row leads to that person's clearance workspace, not to HR's case
+      // page: that page opens with five stages, four of which IT does not own.
       render: (r) => (
-        <Link to={`/cases/${r.case_id}`} className="dtable-link">
+        <Link to={rowHref(r)} className="dtable-link">
           {r.employee_name || r.employee_id}
         </Link>
       ),

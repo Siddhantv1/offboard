@@ -172,6 +172,29 @@ describe("the route table", () => {
     expect(orphans, `${role} may open these and has no link to them`).toEqual([]);
   });
 
+  it("keeps the all-cases browser away from IT", () => {
+    /* IT was given HR's case list because the queue had nowhere else to click
+       through to. It is the wrong page for them: it opens with five clearance
+       stages, four of which IT does not own, and buries the access position
+       they actually need. They get a page about one person instead. */
+    const list = ROUTES.find((r) => r.path === "/cases");
+    expect(list.roles).not.toContain("it");
+    expect(NAV.it.map((i) => i.to)).not.toContain("/cases");
+
+    const workspace = ROUTES.find((r) => r.path === "/it/clearance/:caseId");
+    expect(workspace, "the IT clearance page is missing").toBeTruthy();
+    expect(workspace.roles).toEqual(["it", "hr"]);
+  });
+
+  it("leaves the cross-case authorisation queue with HR", () => {
+    // IT's half of it moved onto the clearance page for the person concerned,
+    // where the authorisation state sits beside the action it gates.
+    const deprov = ROUTES.find((r) => r.path === "/deprovisioning");
+    expect(deprov.roles).toEqual(["hr"]);
+    expect(NAV.it.map((i) => i.to)).not.toContain("/deprovisioning");
+    expect(NAV.hr.map((i) => i.to)).toContain("/deprovisioning");
+  });
+
   it("keeps the exit interview to the employee alone", () => {
     const route = ROUTES.find((r) => r.path === "/interview");
     expect(route, "/interview is missing from the route table").toBeTruthy();

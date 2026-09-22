@@ -27,12 +27,10 @@ export const NAV = {
   it: [
     { to: "/", icon: "◇", label: "My queue", end: true },
     { to: "/queue/all", icon: "◫", label: "All IT clearance" },
-    // IT may read every case, and had no way to open one. A clearance they
-    // have finished leaves their queue -- the queue is open work -- so without
-    // this an engineer could not look up a case they cleared last week, or any
-    // case whose IT stage was already done.
-    { to: "/cases", icon: "▤", label: "Exit cases" },
-    { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
+    // No "Exit cases" and no "Deprovisioning". Both were pages about everybody:
+    // one the whole company's exit book, the other every plan ever drafted,
+    // with the same employee listed four times. IT reaches one person's
+    // clearance from the queue instead, and the authorisation state is on it.
     { to: "/admin/users", icon: "◈", label: "People & access" },
   ],
   manager: [

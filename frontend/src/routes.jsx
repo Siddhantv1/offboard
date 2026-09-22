@@ -17,6 +17,7 @@ import Deprovisioning from "./pages/Deprovisioning.jsx";
 import { Forbidden, NotFound } from "./pages/Errors.jsx";
 import ExitInterview from "./pages/ExitInterview.jsx";
 import Home from "./pages/Home.jsx";
+import ITClearance from "./pages/ITClearance.jsx";
 import MyCase from "./pages/MyCase.jsx";
 import Orchestrator from "./pages/Orchestrator.jsx";
 import Queue from "./pages/Queue.jsx";
@@ -46,9 +47,17 @@ export const ROUTES = [
   { path: "/interview", roles: ["employee"], element: <ExitInterview /> },
 
   { path: "/queue/all", roles: ["it", "manager"], element: <Queue scope="all" /> },
-  { path: "/cases", roles: STAFF, element: <CaseList /> },
-  { path: "/cases/:caseId", roles: STAFF, element: <CaseDetail /> },
-  { path: "/deprovisioning", roles: ["it", "hr"], element: <Deprovisioning /> },
+  /* The all-cases browser is HR's and the manager's. IT was given it for lack
+     of anywhere else to click through to, and it is the wrong page for them:
+     it opens with five clearance stages IT does not own and buries the access
+     position. IT gets a page about one person's clearance instead. */
+  { path: "/cases", roles: ["hr", "manager"], element: <CaseList /> },
+  { path: "/cases/:caseId", roles: ["hr", "manager"], element: <CaseDetail /> },
+  { path: "/it/clearance/:caseId", roles: ["it", "hr"], element: <ITClearance /> },
+  /* HR only now. It is an authorisation queue across every case, which is
+     HR's job; IT's half of it moved onto the clearance page for the person it
+     concerns. */
+  { path: "/deprovisioning", roles: ["hr"], element: <Deprovisioning /> },
   { path: "/orchestrator", roles: ["hr"], element: <Orchestrator /> },
   { path: "/employees/new", roles: ["hr"], element: <AddEmployee /> },
   { path: "/admin/users", roles: ["it"], element: <Users /> },
