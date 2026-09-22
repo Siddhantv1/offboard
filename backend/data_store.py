@@ -237,6 +237,71 @@ class DataStore:
             return [_doc(r) for r in s.scalars(
                 select(Interview).order_by(Interview.slug)).all()]
 
+    def submitted_interviews(self) -> list[Doc]:
+        """Exit interviews the leavers actually filled in, as Docs.
+
+        The `interviews` table is a read-only corpus of transcripts from
+        interviews held before this product existed. Everything that analyses
+        interviews reads that table, so the one interview the product itself
+        collects -- seven questions, answered by the person leaving -- was
+        invisible to every agent that exists to analyse interviews.
+
+        Rendered into the same shape rather than given a parallel pipeline: one
+        seam means `interview_trends` compares this quarter's real answers
+        against the historical corpus without knowing there are two sources.
+        """
+        from .db.models import ExitInterviewResponse
+        from .exit_interview import QUESTIONS
+
+        prompts = {q["id"]: q["prompt"] for q in QUESTIONS}
+        out: list[Doc] = []
+        with session_scope() as s:
+            rows = s.scalars(
+                select(ExitInterviewResponse)
+                .where(ExitInterviewResponse.submitted_at.isnot(None))
+                .order_by(ExitInterviewResponse.case_id)
+            ).all()
+            cases = {c.case_id: c for c in s.scalars(select(ExitCase)).all()}
+            for row in rows:
+                case = cases.get(row.case_id)
+                answers = dict(row.answers or {})
+                body = "\n\n".join(
+                    f"{prompts.get(qid, qid)}\n{text}"
+                    for qid, text in answers.items() if str(text).strip()
+                )
+                recommend = str(answers.get("would_recommend", "")).strip().lower()
+                out.append(Doc(
+                    slug=f"interview-{row.case_id}",
+                    body=body,
+                    meta={k: v for k, v in {
+                        "interview_id": f"iv-{row.case_id}",
+                        "case_id": row.case_id,
+                        "employee_id": row.employee_id or (
+                            case.employee_id if case else None),
+                        "employee_name": case.employee_name if case else None,
+                        # `sentiment` is deliberately absent: the corpus rows
+                        # carry a human's label and nothing here has produced
+                        # one. Inventing it would poison every trend that
+                        # groups by it. `interview_summarizer` derives it on
+                        # demand, which is the honest place for a judgement.
+                        "would_recommend": (True if recommend.startswith("y")
+                                            else False if recommend.startswith("n")
+                                            else None),
+                        "submitted_date": (row.submitted_at.date()
+                                           if row.submitted_at else None),
+                        "source": "portal",
+                    }.items() if v is not None},
+                ))
+        return out
+
+    def all_interviews(self) -> list[Doc]:
+        """The historical corpus plus what leavers have submitted here.
+
+        What every analysis agent should read. `interviews()` stays the corpus
+        alone because `tests/golden/store_snapshot.json` pins it.
+        """
+        return [*self.interviews(), *self.submitted_interviews()]
+
     # RAG source documents: still files. See the module docstring.
     def policies(self) -> list[Doc]:
         return _load_dir("policies")
@@ -255,7 +320,18 @@ class DataStore:
         return self._lookup(KTDoc, KTDoc.id, kt_id)
 
     def interview(self, interview_id: str) -> Doc | None:
-        return self._lookup(Interview, Interview.id, interview_id)
+        """A transcript from the corpus, or an interview submitted here.
+
+        Both, because the id comes from a select whose options are built from
+        `all_interviews()`. Resolving only the corpus would offer the reader a
+        submitted interview and then refuse to open it.
+        """
+        found = self._lookup(Interview, Interview.id, interview_id)
+        if found is not None:
+            return found
+        wanted = str(interview_id or "").strip()
+        return next((d for d in self.submitted_interviews()
+                     if d.meta.get("interview_id") == wanted), None)
 
     def exit_case_for_employee(self, employee_id: str) -> Doc | None:
         """The exit case tied to an employee, most-recently-initiated first.

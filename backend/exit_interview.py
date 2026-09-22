@@ -104,7 +104,7 @@ QUESTIONS: tuple[dict[str, Any], ...] = (
         "prompt": "Anything else you want on the record?",
         "type": "text",
         "required": False,
-        "help": "Optional. This is the one nobody asks and people most want to answer.",
+        "help": "",
     },
 )
 

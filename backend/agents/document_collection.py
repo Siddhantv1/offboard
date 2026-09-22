@@ -28,6 +28,19 @@ from ..llm import LLMError
 # (proc-002). `issued` documents are produced by the company at sign-off, not
 # collected from the employee, so they are tracked but never "missing".
 #
+# Three more were removed for asking twice.
+#
+# A *resignation letter* and *personal contact details* are requested from
+# somebody who resigned through this product and whose record already holds
+# their email, their manager, their department and their last working day.
+# Asking them to upload a PDF of what we typed into the form is paperwork for
+# its own sake.
+#
+# The *exit interview form* is collected as an interview, on its own page, with
+# stable question ids so `interview_trends` can compare quarters. Asking for a
+# scan of it as well produced two records of the same conversation, one of them
+# unreadable by anything.
+#
 # IT Clearance deliberately has NO documents. It used to ask for three -- an
 # asset return checklist, a device handover acknowledgement and a VPN/MFA
 # deactivation confirmation -- none of which is a document anybody actually
@@ -37,15 +50,12 @@ from ..llm import LLMError
 # confirms they handed everything back (`CaseStage.employee_confirmed_at`) and
 # IT verifies independently by completing the stage.
 REQUIRED_DOCUMENTS: list[dict[str, Any]] = [
-    {"name": "Resignation letter", "stage": "Resignation / Notice"},
     {"name": "Notice acknowledgement", "stage": "Resignation / Notice"},
-    {"name": "Personal contact details", "stage": "Resignation / Notice"},
     {"name": "KT document", "stage": "Knowledge Transfer"},
     {"name": "Successor acknowledgement", "stage": "Knowledge Transfer"},
     {"name": "No-dues declaration", "stage": "Finance Clearance"},
     {"name": "Advance/loan settlement confirmation", "stage": "Finance Clearance", "conditional": True},
     {"name": "Bank account confirmation", "stage": "Finance Clearance"},
-    {"name": "Exit interview form", "stage": "HR Clearance"},
     {"name": "Confidentiality Reaffirmation", "stage": "HR Clearance"},
     {"name": "ID badge return acknowledgement", "stage": "HR Clearance"},
     {"name": "PF transfer/withdrawal form", "stage": "HR Clearance"},

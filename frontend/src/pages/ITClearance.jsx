@@ -189,7 +189,7 @@ export default function ITClearance() {
         ? `Assets — ${outstanding.length} not accounted for`
         : "Assets — all accounted for"}>
         <p className="hint" style={{ marginTop: -6 }}>
-          You are the record. Mark each one as you physically take it back.
+          Verify the assets being returned by the exiting employee.
         </p>
         <ul className="itc-assets">
           {(assets.assets || []).map((a) => (
@@ -233,8 +233,7 @@ export default function ITClearance() {
           )}
         </ul>
         <p className="hint">
-          Revoked when a step of the authorised plan below says so — not when the
-          stage is signed off.
+          Revoked access as per the authorized deprovisioning plan.
         </p>
       </Panel>
 
@@ -331,7 +330,7 @@ export default function ITClearance() {
       <Panel title="Sign off the clearance">
         {!canAct && <p className="empty">Your role cannot move this stage.</p>}
         {canAct && done && (
-          <p className="stage-confirmed">Signed off. Reopening it is HR's call.</p>
+          <p className="stage-confirmed">IT Clearance signed off successfully. Contact HR to reopen.</p>
         )}
         {canAct && !done && (
           <>

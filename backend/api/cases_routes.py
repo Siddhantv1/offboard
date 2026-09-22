@@ -497,7 +497,7 @@ def _related_ids(case_meta: dict[str, Any]) -> dict[str, str]:
             ids["kt_id"] = str(doc.meta.get("kt_id") or doc.slug)
             break
 
-    for doc in store.interviews():
+    for doc in store.all_interviews():
         if employee_id and str(doc.meta.get("employee_id") or "") == employee_id:
             ids["interview_id"] = str(doc.meta.get("interview_id") or doc.slug)
             break

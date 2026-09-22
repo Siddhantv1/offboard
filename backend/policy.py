@@ -67,6 +67,18 @@ ROLE_AGENTS: dict[str, object] = {
     "employee": frozenset({"faq_chatbot"}),
 }
 
+#: Taken back off a role that would otherwise have it.
+#:
+#: HR is `"*"` so that a nineteenth agent is available to them the day it is
+#: registered, without anyone remembering to add it. That default is right and
+#: worth keeping -- but "everything" is not the same as "everything is theirs
+#: to judge". Reviewing a handover is the manager's call: they know what the
+#: work was and who is picking it up, and HR scoring a KT document is HR
+#: guessing. Subtracting is how the convenient default survives the exception.
+ROLE_AGENTS_EXCEPT: dict[str, frozenset[str]] = {
+    "hr": frozenset({"kt_reviewer"}),
+}
+
 
 #: Stages the employee has a side of, and what they are confirming.
 #:
@@ -105,6 +117,8 @@ def may_act_on_stage(role: str, stage_key: str | None) -> bool:
 
 
 def may_run_agent(role: str, agent_id: str) -> bool:
+    if agent_id in ROLE_AGENTS_EXCEPT.get(role, frozenset()):
+        return False
     allowed = ROLE_AGENTS.get(role, frozenset())
     return allowed == "*" or agent_id in allowed
 

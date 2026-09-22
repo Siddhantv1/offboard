@@ -58,7 +58,7 @@ def _compute_metrics() -> dict[str, Any]:
     }
 
     sentiment = Counter()
-    for iv in store.interviews():
+    for iv in store.all_interviews():
         # Cheap heuristic tally; the summarizer agent does the real analysis.
         text = iv.body.lower()
         neg = sum(text.count(w) for w in ("frustrat", "overwork", "poor", "unfair", "burnout", "toxic"))

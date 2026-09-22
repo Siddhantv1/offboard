@@ -78,7 +78,7 @@ def _collect_signals(department: str | None = None) -> dict[str, Any]:
         dept_exits[dept] += 1
 
     dept_sentiment: dict[str, dict[str, Any]] = {}
-    for iv in store.interviews():
+    for iv in store.all_interviews():
         dept = str(iv.meta.get("department") or "unknown")
         if dept_filter and dept.lower() != dept_filter:
             continue

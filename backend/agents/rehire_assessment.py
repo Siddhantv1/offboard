@@ -32,7 +32,7 @@ Return JSON:
 
 
 def _matching_interviews(emp_id: str) -> list[Any]:
-    return [iv for iv in store.interviews() if str(iv.meta.get("employee_id", "")) == emp_id]
+    return [iv for iv in store.all_interviews() if str(iv.meta.get("employee_id", "")) == emp_id]
 
 
 def _matching_case(emp_id: str) -> Any | None:

@@ -24,7 +24,8 @@
   --deep:       #004B49;   /* Deep Teal — headings, solid fills, positive state */
   --teal:       #007A78;   /* Primary Teal — interactive, chart marks */
   --mint:       #E6F2F2;   /* Pale Mint — STATE ONLY: active, hover, focus */
-  --surface:    #FFFFFF;   /* Pure White — the canvas and the cards */
+  --surface:    #FFFFFF;
+  --accepted:   #0ab301;   /* Pure White — the canvas and the cards */
 
   /* -- derived neutrals (teal-cast, not grey) --------------- */
   --inset:      #F4F7F7;   /* quiet fill: ~2/3 the strength of mint against white */
@@ -363,7 +364,7 @@ input:focus, textarea:focus, select:focus {
 }
 /* Outline, not a filled pill: badgeClass() routes the entire happy path here,
    so a mint fill made every result view a field of mint. */
-.badge.b-ok { background: transparent; color: var(--deep); border-color: var(--teal-soft); }
+.badge.b-ok { background: var(--accepted); color: solid transparent; border-color: var(--teal-soft); }
 .badge.b-warn { background: var(--warn-wash); color: var(--warn); border-color: #E4CE96; }
 .badge.b-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .badge.b-neutral { background: var(--inset); color: var(--muted); border-color: var(--line-strong); }

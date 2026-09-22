@@ -57,7 +57,7 @@ def _signals() -> dict[str, Any]:
     managers: dict[str, Counter[str]] = defaultdict(Counter)
     timeline: list[dict[str, Any]] = []
 
-    for iv in store.interviews():
+    for iv in store.all_interviews():
         meta = iv.meta
         iid = str(meta.get("interview_id", iv.slug))
         dept = str(meta.get("department") or "Unknown")
@@ -137,7 +137,7 @@ class InterviewTrendAnalystAgent(BaseAgent):
             f"[{iv.meta.get('interview_id', iv.slug)} | {iv.meta.get('department', '?')} | "
             f"{iv.meta.get('submitted_date', '?')} | sentiment: {iv.meta.get('sentiment', '?')}]\n"
             f"{iv.body.strip()}"
-            for iv in store.interviews()
+            for iv in store.all_interviews()
         )
         convo = "\n".join(
             f"{t.get('role', 'user').upper()}: {t.get('content', '')}" for t in history[-6:]

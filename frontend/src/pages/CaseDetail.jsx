@@ -308,8 +308,8 @@ export default function CaseDetail() {
             {`${awaitingReview.length} document${awaitingReview.length === 1 ? "" : "s"} `}
             {awaitingReview.length === 1 ? "is" : "are"} waiting on your decision.
           </b>{" "}
-          <a href="#submitted-documents" className="linkish">Review them</a>
-          {" — "}
+          <a href="#submitted-documents" className="linkish">{`Review document${awaitingReview.length === 1 ? "" : "s"}`}</a>
+          {" : "}
           {awaitingReview.map((d) => d.document_name).join(", ")}
         </div>
       )}

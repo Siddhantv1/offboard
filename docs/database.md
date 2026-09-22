@@ -266,3 +266,48 @@ anyone moved a stage.
 hand-authored value exactly: at risk when any non-completed stage has been open
 strictly longer than `SLA_DAYS`. Strict `>` matches all five agents that infer
 the same thing, so exactly 5 days is not a breach.
+
+## Looking at the data as a developer
+
+The connection string lives in `.env` as `DATABASE_URL`. Everything below
+assumes you are in the repo root with the project's Python environment active.
+
+**Quickest, no extra tooling.** The driver is already a dependency:
+
+```bash
+python -m scripts.db                      # every table with row counts and a one-line description
+python -m scripts.db case_stages          # one table, newest first
+python -m scripts.db "select case_id, stage_key, status, owner from case_stages where stage_key='it'"
+python -m scripts.db --dsn                # a psql-style URL, for the tools below
+```
+
+It refuses anything that is not a read. Migrations own the schema and the
+application owns the rows; a convenience tool that can also `UPDATE` is one
+somebody eventually updates with.
+
+**psql**, if you have it:
+
+```bash
+psql "$(python -m scripts.db --dsn)"
+```
+
+**A GUI** — DBeaver, TablePlus, pgAdmin, DataGrip — all take the same URL.
+Host `localhost`, port `5432`, database `offboard`, user `offboard`.
+
+**The test database is separate** and is what the suite runs against, so you
+can drop and rebuild it without losing your demo data:
+
+```bash
+DATABASE_URL="$TEST_DATABASE_URL" python -m alembic upgrade head
+```
+
+### Where to look first
+
+| Question | Table |
+|---|---|
+| Why is this stage on nobody's queue? | `case_stages` — `owner_user_id`, not `owner`, is what routes |
+| Who did this, and when? | `case_stage_events` — `kind` says which of the four it is |
+| Did that laptop actually come back? | `asset_returns` |
+| Was that account really revoked? | `deprovisioning_actions` (a completed stage proves nothing) |
+| Why did an agent say that? | `agent_runs` — the full result of every invocation |
+| Why can this person not see X? | `users.role` plus `employees.manager_email` |

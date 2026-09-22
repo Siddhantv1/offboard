@@ -31,7 +31,18 @@ def _row(result: dict, name: str) -> dict:
 def test_resignation_paperwork_is_always_due():
     """Resignation-stage docs are due from day one, regardless of case stage."""
     result = document_status(BASE_META)
-    assert _row(result, "Resignation letter")["status"] == "missing"
+    assert _row(result, "Notice acknowledgement")["status"] == "missing"
+
+
+def test_nothing_is_asked_for_twice():
+    """A resignation letter and contact details were requested from somebody
+    who resigned through this product and whose record already holds both. The
+    exit interview was requested as a scan as well as being collected on its
+    own page, producing two records of one conversation."""
+    names = {r["document"] for r in document_status(BASE_META)["documents"]}
+    for gone in ("Resignation letter", "Personal contact details",
+                 "Exit interview form"):
+        assert gone not in names, f"{gone} is still being asked for"
 
 
 def test_it_clearance_asks_for_no_documents_at_all():

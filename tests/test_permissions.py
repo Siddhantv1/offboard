@@ -273,7 +273,12 @@ def test_the_agent_catalogue_is_scoped_per_role(client, accounts):
     assert "it_deprovisioning" not in seen["manager"]
     assert "kt_reviewer" in seen["manager"]
     assert "kt_reviewer" not in seen["it"]
-    assert seen["hr"] > seen["it"] and seen["hr"] > seen["manager"]
+    # HR sees everything except what has been deliberately taken back. Judging
+    # a handover is the manager's: they know what the work was and who is
+    # picking it up. So HR is a superset of IT but *not* of the manager.
+    assert seen["hr"] > seen["it"]
+    assert "kt_reviewer" not in seen["hr"]
+    assert seen["manager"] - seen["hr"] == {"kt_reviewer"}
 
 
 def test_the_catalogue_does_not_leak_the_roster_to_a_manager(client, accounts):

@@ -274,7 +274,7 @@ export default function MyCase() {
               {`You answered this${interview.submitted_at
                 ? ` on ${new Date(interview.submitted_at).toLocaleDateString()}`
                 : ""}, and it cannot be changed. `}
-              <Link to="/interview">Read what you said</Link>.
+              <Link to="/interview">Read your response</Link>.
             </p>
           ) : (
             <p>
@@ -296,8 +296,8 @@ export default function MyCase() {
 
       <Panel title="Clearance stages">
         <p className="hint" style={{ marginTop: -6 }}>
-          These are moved by the teams that own them — IT, HR, Finance and your
-          manager. Sending your documents is what unblocks them.
+          Following are the stages of your exiting. IT, HR, Finance and your
+          manager.
         </p>
         {(c.stages || []).map((s) => (
           <div className="stage-row" key={s.name}>

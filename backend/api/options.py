@@ -74,7 +74,7 @@ def interview_options(user: Identity) -> list[dict[str, str]]:
          "label": _label(d.meta.get("employee_name") or d.meta.get("employee_id"),
                          d.meta.get("department"),
                          d.meta.get("interview_id", d.slug))}
-        for d in store.interviews()
+        for d in store.all_interviews()
         if user.is_hr or str(d.meta.get("employee_id") or "") in allowed
     ]
 

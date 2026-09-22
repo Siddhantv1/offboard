@@ -142,7 +142,7 @@ def test_case_violations_flags_a_missing_document():
     }
     violations = _case_violations(case_meta, DEFAULT_THRESHOLD_DAYS)
     assert any(
-        "Missing document" in v and "Resignation letter" in v for v in violations
+        "Missing document" in v and "Notice acknowledgement" in v for v in violations
     ), violations
 
 

@@ -27,7 +27,7 @@ const STATE = {
   },
   in_review: {
     tone: "b-warn",
-    label: "Being checked",
+    label: "Under review",
     blurb: "Your document has been received. HR will review it.",
     cta: "Replace it",
   },
