@@ -169,6 +169,36 @@ def recompute_case(case: ExitCase, *, now: datetime | None = None) -> None:
         case.current_stage = nxt
 
 
+def _it_clearance_blockers(case_id: str) -> list[str]:
+    """What is genuinely unfinished on an IT clearance, in words.
+
+    Read from the two records that actually know: `asset_returns` and the
+    executed deprovisioning actions. Neither is derived from the stage, which
+    is the whole point -- a check computed from the thing being checked cannot
+    contradict it.
+    """
+    from .systems import access_status, asset_status
+
+    blockers = []
+    try:
+        assets = asset_status(case_id)
+        access = access_status(case_id)
+    except LookupError:
+        return []
+
+    outstanding = assets.get("outstanding") or []
+    if outstanding:
+        blockers.append(
+            f"{len(outstanding)} asset{'s' if len(outstanding) != 1 else ''} "
+            f"unaccounted for ({', '.join(outstanding)})")
+    live = access.get("still_active") or []
+    if live:
+        blockers.append(
+            f"{len(live)} account{'s' if len(live) != 1 else ''} still live "
+            f"({', '.join(live)})")
+    return blockers
+
+
 def transition(
     *, case_id: str, stage_key: str, to_status: str, actor, note: str = "",
     blocked_reason: str | None = None, claim: bool = False,
@@ -199,25 +229,32 @@ def transition(
             case_employee_id=case.employee_id,
         )
 
-        # Two-sided clearance. The employee attests that they have done their
-        # part; the owning role verifies it independently. Completing before
-        # the employee has said anything means nobody asked whether the laptop
-        # actually came back -- which is the failure the old document uploads
-        # only pretended to catch.
+        # What blocks an IT sign-off is unfinished work, not an unclicked
+        # button.
         #
-        # HR can still force it through, because a leaver who has already gone
-        # cannot be made to click a button. That is an override, so it is
-        # recorded as one rather than waved past.
-        if (to_status == "completed"
-                and needs_employee_confirmation(stage.stage_key)
-                and stage.employee_confirmed_at is None):
-            if actor.role != "hr":
+        # This used to refuse until the leaver confirmed their side. That was
+        # backwards twice over. It let someone who had already left -- or who
+        # simply never logged in -- freeze their own clearance indefinitely,
+        # with IT unable to close a case whose hardware was sitting on a desk
+        # in front of them. And it dressed up as assurance something that is
+        # not: the leaver's click evidences nothing IT cannot see better, and
+        # a click by the person with every reason to click is the weakest
+        # signal in the room.
+        #
+        # IT holds the authoritative record because IT physically takes the
+        # laptop and clicks revoke in Okta. So the gate is that record: assets
+        # unaccounted for, or access still live. Both are overridable with a
+        # reason, because writing a lost YubiKey off to the final settlement is
+        # a real outcome -- but the reason is recorded against a named person,
+        # which is what makes a sign-off mean something.
+        if to_status == "completed" and stage.stage_key == "it":
+            blockers = _it_clearance_blockers(case.case_id)
+            if blockers and not (note or "").strip():
                 raise TransitionError(
-                    f"{stage.name} cannot be verified until "
-                    f"{case.employee_name or 'the employee'} has confirmed their "
-                    "side. Chase them, or ask HR to clear it without them."
+                    f"{stage.name} still has {'; '.join(blockers)}. Deal with "
+                    "those first, or add a note saying why you are signing off "
+                    "anyway -- it goes on the record with your name."
                 )
-            escalated = True
 
         now = datetime.now(timezone.utc)
         stage.status = to_status

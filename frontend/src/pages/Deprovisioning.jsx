@@ -116,17 +116,11 @@ function Plan({ plan, onActed, role }) {
                 Authorise this plan
               </Button>
             )}
-            {plan.can_execute && (
-              <Button variant="danger" busy={busy} onClick={() => act(() =>
-                postJSON("/api/agents/it_deprovisioning/execute",
-                         { plan_id: plan.plan_id, note }))}>
-                Run it now
-              </Button>
-            )}
+
           </div>
           <p className="plan-hint">
             {plan.can_approve
-              ? "Authorising revokes nothing. IT runs it separately, and it cannot be the same person."
+              ? "Authorising a deprovisioning plan allows IT to run it and revoke IT Asset access properly."
               : "This revokes real access."}
           </p>
         </>
@@ -137,8 +131,8 @@ function Plan({ plan, onActed, role }) {
       {!plan.can_approve && !plan.can_execute && plan.status === "pending" && (
         <p className="plan-hint">Waiting on HR to authorise it.</p>
       )}
-      {!plan.can_execute && plan.status === "approved" && role !== "it" && (
-        <p className="plan-hint">Authorised — waiting for IT to run it.</p>
+      {plan.status === "approved" && (
+        <p className="plan-hint">Authorised — waiting for IT to work through it.</p>
       )}
     </div>
   );

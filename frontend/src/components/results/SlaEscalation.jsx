@@ -59,8 +59,7 @@ function RecordEscalation({ caseId, stageName, severity }) {
         </Button>
       </div>
       <p className="rk-empty">
-        Adds it to the case timeline. Nothing is emailed — send the message above
-        yourself.
+        Add the case to timeline, draft an email. 
       </p>
     </>
   );

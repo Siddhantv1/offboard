@@ -1898,6 +1898,22 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
    engineer checks both before signing off, and the whole point of the page is
    that they are visible from the same place as the buttons that change them. */
 .itc-position { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+/* Assets, one row each, because each one is a separate act of taking something
+   back from somebody. */
+.itc-assets { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.itc-assets > li { padding: 12px 14px; border: 1px solid var(--line);
+                   border-radius: var(--radius-sm); }
+.itc-assets > li.is-done { background: var(--inset); border-color: var(--line-strong); }
+.itc-asset-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.itc-asset-name { font-weight: 550; font-size: 14.5px; }
+.itc-assets > li.is-done .itc-asset-name { color: var(--muted); }
+.itc-asset-by { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.itc-asset-actions { margin-top: 10px; }
+.itc-writeoff { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.itc-writeoff input { flex: 1 1 260px; }
+.itc-steps td.itc-step-action { white-space: nowrap; text-align: right; }
+.itc-steps tr.is-done td { color: var(--muted); }
 .itc-col h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
 .itc-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .itc-list li { display: flex; align-items: baseline; gap: 8px; font-size: 14px; }
@@ -1912,4 +1928,18 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 
 @media (max-width: 760px) {
   .itc-position { grid-template-columns: 1fr; gap: 18px; }
+  /* Four columns and a button do not fit 390px. Sideways scrolling was the
+     first attempt and the wrong idiom -- the stylesheet already stacks tables
+     here, and a row you have to scroll to finish reading is worse than one
+     you scroll past. Same treatment as .dtable: header dropped, each cell
+     labelled by the column it came from. */
+  .itc-steps thead { display: none; }
+  .itc-steps, .itc-steps tbody, .itc-steps tr, .itc-steps td { display: block;
+                                                               width: 100%; }
+  .itc-steps tr { border: 1px solid var(--line); border-radius: var(--radius-sm);
+                  padding: 10px 12px; margin-bottom: 10px; }
+  .itc-steps td { padding: 2px 0; }
+  .itc-steps td[data-label]::before { content: attr(data-label) ": ";
+                                      color: var(--muted); font-size: 12.5px; }
+  .itc-steps td.itc-step-action { text-align: left; padding-top: 8px; }
 }

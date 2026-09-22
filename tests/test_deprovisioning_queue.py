@@ -121,9 +121,12 @@ def test_the_full_two_person_flow(client, people, plan):
                        json={"note": "checked"}).status_code == 200
     assert _find(client, pid)["status"] == "approved"
 
+    # Carrying it out is no longer offered from this page at all -- it is IT's
+    # work, one step at a time, on the person's clearance page. The batch route
+    # stays because the orchestrator uses it, and it still enforces both rules.
     _login(client, people["it"])
-    row = _find(client, pid)
-    assert row["can_execute"] is True
+    assert _find(client, pid)["can_execute"] is False, (
+        "the authorisation queue is offering to run the plan again")
     done = client.post("/api/agents/it_deprovisioning/execute", json={"plan_id": pid})
     assert done.status_code == 200
     execution = done.json()["execution"]

@@ -101,7 +101,11 @@ def list_deprovisioning_plans(user: DeprovUser, status: str | None = None) -> di
                 # What this caller can do with it right now, decided here
                 # rather than re-derived in the UI from role plus status.
                 "can_approve": row.status == "pending" and user.is_hr,
-                "can_execute": row.status == "approved" and user.role in ("it", "hr"),
+                # Carrying a plan out is IT's, one step at a time, on that
+                # person's clearance page. It used to be a single button here
+                # that asserted twelve revocations happened at one instant --
+                # and offered HR, who authorised it, the chance to run it too.
+                "can_execute": False,
             })
     return {"plans": out}
 

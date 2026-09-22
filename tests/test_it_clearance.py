@@ -53,6 +53,10 @@ def leaver():
     emp, case, _credential = store.add_employee({
         "name": "Pytest Leaver", "role": "Engineer", "department": "Engineering",
         "email": email, "status": "exiting",
+        # A leaver with nothing to hand back has nothing to block a sign-off,
+        # which would make these tests pass for the wrong reason.
+        "assets_assigned": ["MacBook Pro", "YubiKey"],
+        "access_systems": ["Okta/SSO", "AWS"],
     })
     # `add_employee` issues a one-time password with `must_change_password`
     # set, which 403s every other route until it is changed. Settling it here
@@ -65,6 +69,11 @@ def leaver():
     yield {"email": email, "case_id": str(case.meta["case_id"]),
            "employee_id": str(emp.meta["id"]), "password": password}
     with session_scope() as s:
+        from backend.db.models import AssetReturn, DeprovisioningAction
+        s.execute(delete(AssetReturn).where(
+            AssetReturn.employee_id == emp.meta["id"]))
+        s.execute(delete(DeprovisioningAction).where(
+            DeprovisioningAction.employee_id == emp.meta["id"]))
         s.execute(delete(User).where(User.email == email))
         s.execute(delete(ExitCase).where(ExitCase.case_id == case.meta["case_id"]))
         s.execute(delete(Employee).where(Employee.id == emp.meta["id"]))
@@ -84,6 +93,24 @@ def _identity(email, role, employee_id=None):
                              must_change_password=False)
 
 
+def _settle_everything(leaver):
+    """Log every asset back and revoke every account -- what IT would do."""
+    from backend.db.models import AssetReturn, DeprovisioningAction
+    from backend.data_store import store
+
+    emp = store.employee(leaver["employee_id"])
+    with session_scope() as s:
+        for asset in (emp.meta.get("assets_assigned") or []):
+            s.add(AssetReturn(employee_id=leaver["employee_id"],
+                              case_id=leaver["case_id"], asset=str(asset),
+                              state="returned", logged_by="Pytest IT"))
+        for system in (emp.meta.get("access_systems") or []):
+            s.add(DeprovisioningAction(
+                employee_id=leaver["employee_id"], case_id=leaver["case_id"],
+                action_type="revoke_access", target=str(system),
+                result="done", approved_by="Pytest HR"))
+
+
 def _stage(case_id, key="it"):
     with session_scope() as s:
         st = s.scalar(select(CaseStage).where(
@@ -91,20 +118,60 @@ def _stage(case_id, key="it"):
         return st.status, st.employee_confirmed_at, st.employee_confirmed_note
 
 
-# -- IT cannot close it alone -------------------------------------------------
-def test_it_cannot_verify_before_the_employee_has_confirmed(staff, leaver):
-    with pytest.raises(TransitionError, match="confirmed their side"):
+# -- what actually blocks a sign-off ------------------------------------------
+def test_unaccounted_assets_block_the_sign_off_not_an_unclicked_button(staff, leaver):
+    """The gate used to be the leaver's confirmation, which was backwards.
+
+    It let somebody who had already left freeze their own clearance for good,
+    with IT unable to close a case whose hardware was on the desk in front of
+    them. And it evidenced nothing: a click by the person with every reason to
+    click is the weakest signal available. What blocks a sign-off is unfinished
+    work, and IT is the party that knows.
+    """
+    with pytest.raises(TransitionError, match="unaccounted for"):
         transition(case_id=leaver["case_id"], stage_key="it",
                    to_status="completed", actor=_identity(staff["it"], "it"))
 
 
-def test_it_can_verify_once_the_employee_has_confirmed(staff, leaver):
+def test_it_can_sign_off_without_the_employee_once_nothing_is_outstanding(
+        staff, leaver):
+    """No confirmation from the leaver anywhere in this test. IT took the
+    hardware back and killed the accounts; that is the whole basis for a
+    clearance."""
+    _settle_everything(leaver)
+    transition(case_id=leaver["case_id"], stage_key="it", to_status="completed",
+               actor=_identity(staff["it"], "it"))
+    assert _stage(leaver["case_id"])[0] == "completed"
+
+
+def test_signing_off_with_items_outstanding_needs_a_reason(staff, leaver):
+    """Overridable, because writing a lost YubiKey off to the final settlement
+    is a real outcome -- but the reason is recorded against a named person,
+    which is what makes the sign-off mean anything."""
+    transition(case_id=leaver["case_id"], stage_key="it", to_status="completed",
+               actor=_identity(staff["it"], "it"),
+               note="Laptop written off, charged to settlement.")
+
+    events = timeline(leaver["case_id"])
+    assert "written off" in events[-1]["note"].lower()
+
+
+def test_the_employee_confirmation_is_recorded_but_does_not_gate(staff, leaver):
+    """Their word is worth having and worth showing IT. It is not the gate:
+    the gate is whether the hardware is back and the accounts are dead."""
     from backend.stages import confirm_employee_side
     confirm_employee_side(
         case_id=leaver["case_id"], stage_key="it",
         actor=_identity(leaver["email"], "employee", leaver["employee_id"]),
         note="Laptop and badge handed to reception.")
 
+    # Confirmed, but the laptop is not logged back and the accounts are live,
+    # so the sign-off is still refused -- on the facts, not on the click.
+    with pytest.raises(TransitionError, match="unaccounted for"):
+        transition(case_id=leaver["case_id"], stage_key="it",
+                   to_status="completed", actor=_identity(staff["it"], "it"))
+
+    _settle_everything(leaver)
     transition(case_id=leaver["case_id"], stage_key="it", to_status="completed",
                actor=_identity(staff["it"], "it"))
     status, confirmed_at, note = _stage(leaver["case_id"])

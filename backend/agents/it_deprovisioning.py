@@ -266,3 +266,101 @@ class ITDeprovisioningAgent(BaseAgent):
         if "error" in plan:
             return plan
         return {"plan": plan, "awaiting_approval": True}
+
+
+def action_states(plan_id: str) -> list[dict[str, Any]]:
+    """Each action in a plan, and whether it has actually been carried out.
+
+    Matched against the `deprovisioning_actions` records by target, because
+    that is what a record names. An action with no record has not been done --
+    absence of evidence is not evidence of revocation.
+    """
+    from ..systems import _revoked, executed_actions
+
+    with session_scope() as s:
+        row = s.get(DeprovisioningPlan, plan_id)
+        if row is None:
+            raise LookupError(f"Unknown deprovisioning plan '{plan_id}'.")
+        plan = row.plan or {}
+        employee_id = str(row.employee_id)
+
+    records = executed_actions(employee_id)
+    out = []
+    for i, a in enumerate(plan.get("actions") or []):
+        if not isinstance(a, dict):
+            continue
+        target = str(a.get("target") or "")
+        rec = None
+        for r in records:
+            if (str(r.get("target", "")).lower() == target.lower()
+                    and str(r.get("type", "")) == str(a.get("type", ""))):
+                rec = r
+                break
+        if rec is None and a.get("type") != "recover_asset":
+            rec = _revoked(employee_id, target, records=records)
+        out.append({
+            **a,
+            "step": a.get("step", i + 1),
+            "index": i,
+            "done": rec is not None,
+            "done_at": (rec or {}).get("executed_at"),
+            "done_via": (rec or {}).get("connector"),
+        })
+    return out
+
+
+def execute_one_action(plan_id: str, *, index: int, executed_by: str,
+                       executor_user_id: int | None = None,
+                       note: str = "") -> dict[str, Any]:
+    """Carry out a single step of an approved plan.
+
+    Deprovisioning is not one event. The laptop comes back at a desk on
+    Tuesday, AWS goes the hour notice is confirmed because it is privileged,
+    and the mailbox converts on the last day. A single "run the plan" button
+    asserted that all of it happened at one instant, by one person, and always
+    succeeded -- so the audit trail recorded a fiction even when the work was
+    done properly.
+
+    The same two guards as the batch route: the plan must be authorised, and
+    not by the person carrying it out.
+    """
+    with session_scope() as s:
+        row = s.get(DeprovisioningPlan, plan_id)
+        if row is None:
+            raise LookupError(f"Unknown deprovisioning plan '{plan_id}'.")
+        if row.status == "pending":
+            raise PermissionError(
+                "This plan has not been authorised yet. An HR account must "
+                "authorise it before anything can be revoked."
+            )
+        if (executor_user_id is not None
+                and row.approved_by_user_id == executor_user_id):
+            raise PermissionError(
+                "The person who authorised a deprovisioning plan cannot also "
+                "carry it out. Ask a colleague."
+            )
+        plan = dict(row.plan or {})
+        actions = [a for a in (plan.get("actions") or []) if isinstance(a, dict)]
+        if not 0 <= index < len(actions):
+            raise LookupError(f"This plan has no step {index + 1}.")
+        action = actions[index]
+        emp_id = str(plan.get("employee_id") or row.employee_id)
+        case_id = str(plan.get("case_id") or row.case_id or "")
+        approved_by = row.approved_by or "unknown"
+
+    record = execute_deprovisioning_action(
+        action, employee_id=emp_id, case_id=case_id,
+        approved_by=approved_by, note=note)
+
+    # The plan is executed once every step has a record -- derived, so it
+    # cannot claim completion while a step is outstanding.
+    remaining = [a for a in action_states(plan_id) if not a["done"]]
+    if not remaining:
+        with session_scope() as s:
+            row = s.get(DeprovisioningPlan, plan_id)
+            if row is not None and row.status != "executed":
+                row.status = "executed"
+                row.executed_by = executed_by
+                row.executed_by_user_id = executor_user_id
+                row.executed_at = _now()
+    return {"record": record, "remaining": len(remaining)}

@@ -3,26 +3,28 @@ import { useParams } from "react-router-dom";
 
 import { Badge, Button, ErrorBox, PageHead, Panel, Skeleton } from "../components/ui.jsx";
 import { fetchJSON, postJSON } from "../lib/api.js";
-import { useAuth } from "../lib/auth.jsx";
 
-/** One person's IT clearance: what they still have, and whether it can go yet.
+/** One person's IT clearance, worked item by item.
  *
- * Replaces three screens that each held part of the answer. The queue said a
- * clearance was open; clicking it landed on HR's case page, which opens with
- * five stages IT does not own; and whether the revocation had been authorised
- * lived on a separate page listing every plan in the company, where one
- * employee appeared four times because each draft inserted another row.
+ * The first version of this page had a single "Run it now" button that
+ * asserted twelve revocations happened at one instant, and an asset list that
+ * was computed from the clearance stage rather than from anything anybody had
+ * observed -- so the only way to say a YubiKey was back was to complete the
+ * clearance, which was itself meant to depend on the YubiKey being back.
  *
- * Everything here is about one person, and the authorisation state sits beside
- * the actions it gates rather than on a page of its own. IT still cannot
- * authorise -- that is HR's, and the server enforces it. It can now see the
- * answer without leaving the work.
+ * Deprovisioning is not one event. AWS goes the hour notice is confirmed
+ * because it is privileged; the laptop comes back at a desk on Tuesday; the
+ * mailbox converts on the last day. Each is logged when it happens, by the
+ * person who did it. That record is what the sign-off is checked against.
  */
 
+const ASSET_STATE = {
+  returned: { label: "Back", tone: "b-ok" },
+  written_off: { label: "Written off", tone: "b-neutral" },
+  outstanding: { label: "Not back", tone: "b-warn" },
+};
+
 const PLAN_STATE = {
-  /* `label` is one word because the badge title-cases whatever it is given --
-     right for "pending", absurd for "Waiting For HR To Authorise". The
-     sentence the reader actually needs is the prose beside it. */
   pending: {
     tone: "b-warn",
     label: "unauthorised",
@@ -31,78 +33,90 @@ const PLAN_STATE = {
   approved: {
     tone: "b-ok",
     label: "authorised",
-    detail: "HR has authorised it. Running it revokes real access.",
+    detail: "Work through it a step at a time. Each one revokes real access.",
   },
   executed: {
     tone: "b-neutral",
-    label: "run",
-    detail: "Already run. The access above is what it left behind.",
+    label: "done",
+    detail: "Every step has been carried out.",
   },
 };
 
-/** What the systems say right now, beside the buttons that change it.
- *  A revoke control next to a stale list is how something gets revoked twice,
- *  or not at all. */
-function Position({ access, assets }) {
-  const accounts = access?.accounts || [];
-  const active = access?.still_active || [];
-  const privileged = access?.privileged_still_active || [];
-  const outstanding = assets?.outstanding || [];
+/** One asset, and what IT says happened to it.
+ *
+ * Three states, not two. An asset that is never coming back gets written off
+ * and charged to the final settlement -- treating that as forever outstanding
+ * would block the clearance behind one missing dongle.
+ */
+function AssetRow({ asset, busy, onLog }) {
+  const [writingOff, setWritingOff] = useState(false);
+  const [note, setNote] = useState("");
+  const state = ASSET_STATE[asset.state] ?? ASSET_STATE.outstanding;
 
   return (
-    <div className="itc-position">
-      <div className="itc-col">
-        <h4>
-          {active.length
-            ? `${active.length} of ${accounts.length} accounts still active`
-            : `All ${accounts.length} accounts revoked`}
-        </h4>
-        {privileged.length > 0 && (
-          <p className="sla-over">
-            {`${privileged.length} of them privileged: ${privileged.join(", ")}.`}
-          </p>
-        )}
-        <ul className="itc-list">
-          {accounts.map((a) => (
-            <li key={a.system} className={a.active ? undefined : "is-done"}>
-              <span className="itc-tick" aria-hidden="true">{a.active ? "○" : "✓"}</span>
-              <span>{a.system}</span>
-              {a.privileged && a.active && <span className="itc-flag">privileged</span>}
-            </li>
-          ))}
-          {!accounts.length && <li className="empty">No access systems on record.</li>}
-        </ul>
+    <li className={asset.state === "returned" ? "is-done" : undefined}>
+      <div className="itc-asset-head">
+        <span className="itc-asset-name">{asset.asset}</span>
+        <Badge value={asset.state} label={state.label} className={state.tone} />
       </div>
 
-      <div className="itc-col">
-        <h4>
-          {outstanding.length
-            ? `${outstanding.length} asset${outstanding.length === 1 ? "" : "s"} not back`
-            : "Every asset returned"}
-        </h4>
-        <ul className="itc-list">
-          {(assets?.assets || []).map((a) => (
-            <li key={a.asset} className={a.returned ? "is-done" : undefined}>
-              <span className="itc-tick" aria-hidden="true">{a.returned ? "✓" : "○"}</span>
-              <span>{a.asset}</span>
-            </li>
-          ))}
-          {!(assets?.assets || []).length && (
-            <li className="empty">No assets on record.</li>
-          )}
-        </ul>
+      {asset.logged_by && (
+        <p className="itc-asset-by">
+          {`${asset.state === "written_off" ? "Written off" : "Logged"} by `}
+          {asset.logged_by}
+          {asset.logged_at ? ` on ${new Date(asset.logged_at).toLocaleDateString()}` : ""}
+          {asset.note ? ` — ${asset.note}` : ""}
+        </p>
+      )}
+
+      <div className="btn-row itc-asset-actions">
+        {asset.state !== "returned" && (
+          <Button busy={busy} onClick={() => onLog(asset.asset, "returned", "")}>
+            Mark returned
+          </Button>
+        )}
+        {asset.state === "returned" && (
+          <Button variant="ghost" busy={busy}
+                  onClick={() => onLog(asset.asset, "outstanding", "")}>
+            Undo
+          </Button>
+        )}
+        {asset.state !== "written_off" && (
+          <button type="button" className="linkish"
+                  onClick={() => setWritingOff((v) => !v)}>
+            {writingOff ? "Cancel" : "Write it off"}
+          </button>
+        )}
       </div>
-    </div>
+
+      {writingOff && (
+        <div className="itc-writeoff">
+          <input
+            type="text"
+            value={note}
+            placeholder="Why — this is charged to their final settlement."
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <Button
+            variant="danger"
+            busy={busy}
+            disabled={!note.trim()}
+            onClick={() => { onLog(asset.asset, "written_off", note.trim()); setWritingOff(false); }}
+          >
+            Write off
+          </Button>
+        </div>
+      )}
+    </li>
   );
 }
 
 export default function ITClearance() {
   const { caseId } = useParams();
-  const { user } = useAuth();
   const [state, setState] = useState({ status: "loading", data: null, error: null });
   const [busy, setBusy] = useState(null);
   const [actionError, setActionError] = useState(null);
-  const [open, setOpen] = useState(false);
+  const [signOffNote, setSignOffNote] = useState("");
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -141,6 +155,12 @@ export default function ITClearance() {
   const { case: c, stage, confirmation, plan, access, assets, can_act: canAct } = data;
   const planState = plan ? (PLAN_STATE[plan.status] ?? PLAN_STATE.pending) : null;
   const done = stage.status === "completed";
+  const outstanding = assets.outstanding || [];
+  const live = access.still_active || [];
+  const blocked = outstanding.length > 0 || live.length > 0;
+
+  const logAsset = (asset, assetState, note) => act(`asset:${asset}`, () => postJSON(
+    `/api/it/clearance/${caseId}/assets`, { asset, state: assetState, note }));
 
   return (
     <div className="itc-view">
@@ -158,34 +178,77 @@ export default function ITClearance() {
       <div className="case-status-row">
         <Badge value={stage.status} />
         <span className="muted">
-          {stage.owner ? `Yours` : "Unassigned"}
-          {stage.owner && !stage.mine ? ` — held by ${stage.owner}` : ""}
-          {confirmation?.confirmed
-            ? ` · ${c.employee} confirmed their side`
-            : done ? "" : ` · waiting on ${c.employee} to confirm`}
+          {stage.owner ? (stage.mine ? "Yours" : `Held by ${stage.owner}`) : "Unassigned"}
+          {confirmation?.confirmed && ` · ${c.employee} says their side is done`}
         </span>
       </div>
 
       {actionError && <ErrorBox>{actionError}</ErrorBox>}
 
-      <Panel title="Access and assets">
-        <Position access={access} assets={assets} />
+      <Panel title={outstanding.length
+        ? `Assets — ${outstanding.length} not accounted for`
+        : "Assets — all accounted for"}>
+        <p className="hint" style={{ marginTop: -6 }}>
+          You are the record. Mark each one as you physically take it back.
+        </p>
+        <ul className="itc-assets">
+          {(assets.assets || []).map((a) => (
+            <AssetRow
+              key={a.asset}
+              asset={a}
+              busy={busy === `asset:${a.asset}`}
+              onLog={logAsset}
+            />
+          ))}
+          {!(assets.assets || []).length && (
+            <li className="empty">No assets are on record against this person.</li>
+          )}
+        </ul>
       </Panel>
 
-      <Panel title="Revoking their access">
+      <Panel title={live.length
+        ? `Access — ${live.length} of ${(access.accounts || []).length} still live`
+        : "Access — everything revoked"}>
+        {(access.privileged_still_active || []).length > 0 && (
+          <p className="sla-over">
+            {`Privileged and still live: ${access.privileged_still_active.join(", ")}. `}
+            Policy says these go first.
+          </p>
+        )}
+        <ul className="itc-list">
+          {(access.accounts || []).map((a) => (
+            <li key={a.system} className={a.active ? undefined : "is-done"}>
+              <span className="itc-tick" aria-hidden="true">{a.active ? "○" : "✓"}</span>
+              <span>{a.system}</span>
+              {a.privileged && a.active && <span className="itc-flag">privileged</span>}
+              {a.revoked_at && (
+                <span className="muted">
+                  {` revoked ${new Date(a.revoked_at).toLocaleDateString()}`}
+                </span>
+              )}
+            </li>
+          ))}
+          {!(access.accounts || []).length && (
+            <li className="empty">No access systems on record.</li>
+          )}
+        </ul>
+        <p className="hint">
+          Revoked when a step of the authorised plan below says so — not when the
+          stage is signed off.
+        </p>
+      </Panel>
+
+      <Panel title="The deprovisioning plan">
         {!plan && (
           <>
             <p>
-              {`No deprovisioning plan has been drafted for ${c.employee} yet. `}
-              Drafting one lists every account and asset to deal with, in order,
-              and sends it to HR to authorise. Nothing is revoked by drafting.
+              {`Nothing drafted for ${c.employee} yet. A plan lists every account `}
+              and asset to deal with, in order, and goes to HR to authorise.
+              Drafting revokes nothing.
             </p>
             <div className="btn-row">
-              <Button
-                busy={busy === "draft"}
-                onClick={() => act("draft", () => postJSON(
-                  "/api/agents/it_deprovisioning/run", { employee_id: c.employee_id }))}
-              >
+              <Button busy={busy === "draft"} onClick={() => act("draft", () => postJSON(
+                "/api/agents/it_deprovisioning/run", { employee_id: c.employee_id }))}>
                 Draft the plan
               </Button>
             </div>
@@ -198,93 +261,114 @@ export default function ITClearance() {
               <Badge value={plan.status} label={planState.label} className={planState.tone} />
               <span className="muted">{planState.detail}</span>
             </div>
-
             <p className="plan-meta">
-              {plan.action_count} action{plan.action_count === 1 ? "" : "s"}
+              {`${plan.done_count} of ${plan.action_count} steps carried out`}
               {plan.privileged_count > 0 && (
                 <> · <span className="sla-over">{plan.privileged_count} privileged</span></>
               )}
               {plan.approved_by && <> · authorised by {plan.approved_by}</>}
-              {plan.executed_by && <> · run by {plan.executed_by}</>}
             </p>
-            {plan.summary && <p className="plan-summary">{plan.summary}</p>}
 
-            <button type="button" className="linkish" aria-expanded={open}
-                    onClick={() => setOpen((v) => !v)}>
-              {open ? "Hide the actions" : `Show all ${plan.action_count} actions`}
-            </button>
-
-            {open && (
-              <table className="orch-plan">
-                <thead>
-                  <tr><th>#</th><th>Action</th><th>Target</th><th>When</th></tr>
-                </thead>
-                <tbody>
-                  {plan.actions.map((a, i) => (
-                    <tr key={i} className={a.privileged ? "is-privileged" : undefined}>
-                      <td>{a.step ?? i + 1}</td>
-                      <td>
-                        {String(a.type || "").replace(/_/g, " ")}
-                        {a.detail && <div className="orch-plan-detail">{a.detail}</div>}
-                      </td>
-                      <td>{a.target}</td>
-                      <td>{a.when || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {plan.can_execute && (
-              <>
-                <div className="btn-row">
-                  <Button variant="danger" busy={busy === "run"}
-                          onClick={() => act("run", () => postJSON(
-                            "/api/agents/it_deprovisioning/execute",
-                            { plan_id: plan.plan_id }))}>
-                    Run it now
-                  </Button>
-                </div>
-                <p className="plan-hint">This revokes real access.</p>
-              </>
-            )}
+            <table className="orch-plan itc-steps">
+              <thead>
+                <tr><th>#</th><th>Action</th><th>Target</th><th /></tr>
+              </thead>
+              <tbody>
+                {plan.actions.map((a) => (
+                  <tr key={a.index}
+                      className={[a.privileged ? "is-privileged" : "",
+                                  a.done ? "is-done" : ""].filter(Boolean).join(" ")}>
+                    <td data-label="Step">{a.step}</td>
+                    <td data-label="Action">
+                      {String(a.type || "").replace(/_/g, " ")}
+                      {a.detail && <div className="orch-plan-detail">{a.detail}</div>}
+                    </td>
+                    <td data-label="Target">{a.target}</td>
+                    <td className="itc-step-action">
+                      {a.done ? (
+                        <span className="muted">
+                          {a.done_at
+                            ? `done ${new Date(a.done_at).toLocaleDateString()}`
+                            : "done"}
+                        </span>
+                      ) : plan.can_execute ? (
+                        <Button
+                          variant="danger"
+                          busy={busy === `step:${a.index}`}
+                          onClick={() => act(`step:${a.index}`, () => postJSON(
+                            `/api/it/clearance/${caseId}/actions`,
+                            { plan_id: plan.plan_id, index: a.index }))}
+                        >
+                          {a.type === "recover_asset" ? "Log it" : "Revoke"}
+                        </Button>
+                      ) : (
+                        <span className="muted">waiting on HR</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
             {plan.can_approve && (
               <>
                 <div className="btn-row">
-                  <Button busy={busy === "approve"}
-                          onClick={() => act("approve", () => postJSON(
-                            `/api/deprovisioning/${plan.plan_id}/approve`, {}))}>
+                  <Button busy={busy === "approve"} onClick={() => act("approve", () => postJSON(
+                    `/api/deprovisioning/${plan.plan_id}/approve`, {}))}>
                     Authorise this plan
                   </Button>
                 </div>
                 <p className="plan-hint">
-                  Authorising revokes nothing. IT runs it separately, and it cannot
-                  be the same person.
+                  Authorising revokes nothing. IT works through it, and it cannot be
+                  the same person.
                 </p>
               </>
-            )}
-
-            {plan.status === "pending" && !plan.can_approve && (
-              <p className="plan-hint">
-                You cannot authorise your own plan — that is HR's, deliberately.
-              </p>
             )}
           </>
         )}
       </Panel>
 
-      <Panel title="The clearance stage">
-        {canAct ? (
+      <Panel title="Sign off the clearance">
+        {!canAct && <p className="empty">Your role cannot move this stage.</p>}
+        {canAct && done && (
+          <p className="stage-confirmed">Signed off. Reopening it is HR's call.</p>
+        )}
+        {canAct && !done && (
           <>
-            <p className="hint" style={{ marginTop: -6 }}>
-              {done
-                ? "Signed off. Reopening is HR's call."
-                : confirmation?.confirmed
-                  ? `${c.employee} says their side is done. Check it against the lists above before signing off.`
-                  : `This cannot be completed until ${c.employee} confirms their side.`}
-            </p>
+            {blocked ? (
+              <p className="stage-waiting">
+                {"Still open: "}
+                {[
+                  outstanding.length && `${outstanding.length} asset${outstanding.length === 1 ? "" : "s"} not accounted for`,
+                  live.length && `${live.length} account${live.length === 1 ? "" : "s"} still live`,
+                ].filter(Boolean).join(", ")}
+                {". You can still sign off, but say why — it goes on the record "}
+                with your name.
+              </p>
+            ) : (
+              <p className="stage-confirmed">
+                Every asset accounted for and every account revoked.
+              </p>
+            )}
+            {blocked && (
+              <textarea
+                className="stage-note"
+                rows={2}
+                value={signOffNote}
+                onChange={(e) => setSignOffNote(e.target.value)}
+                placeholder="Why you are signing off with items outstanding."
+              />
+            )}
             <div className="btn-row">
+              <Button
+                busy={busy === "complete"}
+                disabled={blocked && !signOffNote.trim()}
+                onClick={() => act("complete", () => postJSON(
+                  `/api/cases/${caseId}/stages/it/transition`,
+                  { to: "completed", claim: true, note: signOffNote.trim() }))}
+              >
+                Sign off IT clearance
+              </Button>
               {stage.status === "pending" && (
                 <Button variant="ghost" busy={busy === "start"}
                         onClick={() => act("start", () => postJSON(
@@ -293,18 +377,8 @@ export default function ITClearance() {
                   Start it
                 </Button>
               )}
-              {!done && (
-                <Button busy={busy === "complete"}
-                        onClick={() => act("complete", () => postJSON(
-                          `/api/cases/${caseId}/stages/it/transition`,
-                          { to: "completed", claim: true }))}>
-                  Mark IT clearance complete
-                </Button>
-              )}
             </div>
           </>
-        ) : (
-          <p className="empty">Your role cannot move this stage.</p>
         )}
       </Panel>
     </div>

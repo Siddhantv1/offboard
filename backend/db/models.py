@@ -800,3 +800,45 @@ class UserSession(Base):
     user_agent: Mapped[str | None] = mapped_column(Text)
 
     user: Mapped["User"] = relationship(back_populates="sessions")
+
+
+#: What can be true of a company asset at the end of an exit.
+ASSET_STATES = ("returned", "outstanding", "written_off")
+
+
+class AssetReturn(Base):
+    """One company asset, and whether it actually came back.
+
+    This is a *record*, which is the whole point. `systems.asset_status` used
+    to derive "returned" from the IT Clearance stage's status -- so the list an
+    engineer read in order to decide whether to sign off was computed from the
+    sign-off, and the first asset in the array showed as returned for no reason
+    beyond being first. Nothing could express "the YubiKey was handed in at
+    reception on Tuesday", which is the only fact that matters here and the
+    only one IT is in a position to assert.
+
+    `written_off` is a real outcome, not a failure state: an asset that is lost
+    or kept gets charged to the final settlement, and treating it as forever
+    outstanding would block the clearance behind one missing dongle.
+    """
+
+    __tablename__ = "asset_returns"
+    __table_args__ = (
+        CheckConstraint("state in ('returned','outstanding','written_off')",
+                        name="ck_asset_return_state"),
+        UniqueConstraint("employee_id", "asset", name="uq_asset_return_item"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    employee_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    case_id: Mapped[str | None] = mapped_column(String(32), index=True)
+    asset: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="outstanding",
+        server_default="outstanding")
+    logged_by: Mapped[str | None] = mapped_column(Text)
+    logged_by_user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+    note: Mapped[str] = mapped_column(Text, default="", server_default="")
+    logged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())

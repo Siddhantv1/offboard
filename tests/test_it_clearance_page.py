@@ -24,7 +24,7 @@ from backend import auth
 from backend.agents.it_deprovisioning import approve_plan
 from backend.data_store import store
 from backend.db import session_scope
-from backend.db.models import (CaseStage, DeprovisioningAction,
+from backend.db.models import (AssetReturn, CaseStage, DeprovisioningAction,
                                DeprovisioningPlan, Employee, ExitCase, User)
 from backend.main import app
 
@@ -67,6 +67,13 @@ def case():
            "employee_id": str(emp.meta["id"])}
     yield ids
     with session_scope() as s:
+        # `add_employee` hands out emp ids sequentially and this fixture
+        # deletes the row, so the next run reuses the id. Anything keyed on
+        # employee_id and left behind is inherited by a later test as if it
+        # had logged it itself -- which is exactly how an asset showed as
+        # already returned in a test that never touched it.
+        s.execute(delete(AssetReturn).where(
+            AssetReturn.employee_id == ids["employee_id"]))
         s.execute(delete(DeprovisioningAction).where(
             DeprovisioningAction.employee_id == ids["employee_id"]))
         s.execute(delete(DeprovisioningPlan).where(
@@ -205,3 +212,133 @@ def test_an_authorised_plan_is_not_silently_replaced(case, monkeypatch):
 
     with session_scope() as s:
         assert s.get(DeprovisioningPlan, pid).status == "approved"
+
+
+# -- assets are a record, not an inference ------------------------------------
+def test_it_logs_an_asset_back_with_their_name_on_it(client, people, case):
+    """There was no way to say a YubiKey had come back. `asset_status` inferred
+    it from the IT Clearance stage, so the only way to assert it was to
+    complete the clearance -- which was meant to depend on it."""
+    _login(client, people["it"])
+    r = client.post(f"/api/it/clearance/{case['case_id']}/assets",
+                    json={"asset": "MacBook Pro", "state": "returned"})
+    assert r.status_code == 200, r.text
+
+    body = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    row = next(a for a in body["assets"]["assets"] if a["asset"] == "MacBook Pro")
+    assert row["state"] == "returned"
+    assert row["logged_by"] == "Pytest IT"
+    assert row["logged_at"]
+
+
+def test_an_asset_nobody_has_logged_is_outstanding_not_returned(client, people, case):
+    """Absence of a record is not evidence of return."""
+    _login(client, people["it"])
+    body = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    assert body["assets"]["outstanding"] == ["MacBook Pro"]
+
+
+def test_completing_the_stage_no_longer_marks_assets_returned(client, people, case):
+    """The circularity. The list an engineer read to decide whether to sign off
+    was computed from the sign-off, so it could never contradict them."""
+    from backend.stages import transition
+
+    _login(client, people["it"])
+    transition(case_id=case["case_id"], stage_key="it", to_status="completed",
+               actor=auth.Identity(user_id=None, email=people["hr"], role="hr",
+                                   employee_id=None, full_name="Pytest HR",
+                                   must_change_password=False),
+               note="probe: signing off with items outstanding")
+
+    body = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    assert body["stage"]["status"] == "completed"
+    assert body["assets"]["outstanding"] == ["MacBook Pro"], (
+        "completing the stage silently claimed the asset was back")
+
+
+def test_writing_an_asset_off_needs_a_reason(client, people, case):
+    """It is charged to their final settlement. A bare click is not enough."""
+    _login(client, people["it"])
+    bare = client.post(f"/api/it/clearance/{case['case_id']}/assets",
+                       json={"asset": "MacBook Pro", "state": "written_off"})
+    assert bare.status_code == 422
+    assert "why" in bare.json()["detail"].lower()
+
+    ok = client.post(f"/api/it/clearance/{case['case_id']}/assets",
+                     json={"asset": "MacBook Pro", "state": "written_off",
+                           "note": "Never returned; charged to settlement."})
+    assert ok.status_code == 200
+
+
+def test_a_written_off_asset_stops_blocking_the_clearance(client, people, case):
+    """Otherwise one missing dongle holds a clearance open forever."""
+    _login(client, people["it"])
+    client.post(f"/api/it/clearance/{case['case_id']}/assets",
+                json={"asset": "MacBook Pro", "state": "written_off",
+                      "note": "Lost in transit."})
+    body = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    assert body["assets"]["outstanding"] == []
+    assert body["assets"]["written_off"] == ["MacBook Pro"]
+
+
+# -- revocation happens one step at a time ------------------------------------
+def test_a_step_can_be_carried_out_on_its_own(client, people, case):
+    """A single button that ran twelve revocations at one instant recorded a
+    fiction. AWS goes the hour notice is confirmed; the mailbox converts on the
+    last day."""
+    pid = _add_plan(case["employee_id"], case["case_id"])
+    _login(client, people["hr"])
+    client.post(f"/api/deprovisioning/{pid}/approve", json={})
+
+    _login(client, people["it"])
+    r = client.post(f"/api/it/clearance/{case['case_id']}/actions",
+                    json={"plan_id": pid, "index": 0})
+    assert r.status_code == 200, r.text
+    assert r.json()["remaining"] == 1
+
+    plan = client.get(f"/api/it/clearance/{case['case_id']}").json()["plan"]
+    assert [a["done"] for a in plan["actions"]] == [True, False]
+    assert plan["status"] == "approved", "the plan finished before its last step"
+
+
+def test_the_plan_is_done_only_when_every_step_is(client, people, case):
+    pid = _add_plan(case["employee_id"], case["case_id"])
+    _login(client, people["hr"])
+    client.post(f"/api/deprovisioning/{pid}/approve", json={})
+
+    _login(client, people["it"])
+    for index in (0, 1):
+        client.post(f"/api/it/clearance/{case['case_id']}/actions",
+                    json={"plan_id": pid, "index": index})
+
+    plan = client.get(f"/api/it/clearance/{case['case_id']}").json()["plan"]
+    assert plan["status"] == "executed"
+    assert plan["done_count"] == plan["action_count"]
+
+
+def test_an_unauthorised_plan_cannot_be_worked_step_by_step_either(
+        client, people, case):
+    """The per-step route must not become the way round the authorisation."""
+    pid = _add_plan(case["employee_id"], case["case_id"])
+    _login(client, people["it"])
+    r = client.post(f"/api/it/clearance/{case['case_id']}/actions",
+                    json={"plan_id": pid, "index": 0})
+    assert r.status_code == 403
+    assert "authorised" in r.json()["detail"]
+
+
+def test_revoking_a_step_is_what_marks_the_account_revoked(client, people, case):
+    """Not completing the stage. `access_status` used to treat a completed
+    clearance as proof that five accounts had been killed."""
+    pid = _add_plan(case["employee_id"], case["case_id"])
+    _login(client, people["hr"])
+    client.post(f"/api/deprovisioning/{pid}/approve", json={})
+
+    _login(client, people["it"])
+    before = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    assert "Okta/SSO" in before["access"]["still_active"]
+
+    client.post(f"/api/it/clearance/{case['case_id']}/actions",
+                json={"plan_id": pid, "index": 0})
+    after = client.get(f"/api/it/clearance/{case['case_id']}").json()
+    assert "Okta/SSO" not in after["access"]["still_active"]

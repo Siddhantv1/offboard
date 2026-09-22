@@ -125,9 +125,15 @@ describe("SLA Escalation: recording the chase", () => {
     expect(body.note).toMatch(/Manager Sign-off/);
   });
 
-  it("is clear that nothing was emailed", () => {
+  it("records the chase without sending anything", async () => {
+    /* Asserts the behaviour, not the sentence. An earlier version pinned the
+       exact copy and broke the moment somebody reworded it, which is the habit
+       this file's own docstring warns against. What must stay true is that the
+       button writes to the timeline and posts nowhere else. */
     draw(<SlaEscalation result={breach} />);
-    expect(document.body.textContent).toMatch(/nothing is emailed/i);
+    fireEvent.click(screen.getByRole("button", { name: /record this chase/i }));
+    await waitFor(() => expect(postJSON).toHaveBeenCalledTimes(1));
+    expect(postJSON.mock.calls[0][0]).toMatch(/\/escalate$/);
   });
 
   it("offers nothing when the sweep found no breach", () => {

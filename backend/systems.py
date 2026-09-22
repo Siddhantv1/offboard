@@ -26,6 +26,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
+
 # (no import from .agents here: agents import this module, so that would be circular)
 from .data_store import store
 from .db import session_scope
@@ -104,27 +106,53 @@ def _now() -> str:
 def asset_status(case_id: str) -> dict[str, Any]:
     """IT asset management: which assigned devices have been logged as returned.
 
-    Demo rule: assets count as returned once the IT Clearance stage is
-    completed; while it's in progress the first asset (the laptop) is returned
-    and the rest are outstanding; pending means nothing has come back yet."""
+    Read from `asset_returns`, which is a record of what IT logged. It used to
+    be derived from the IT Clearance stage: completed meant everything was
+    back, in progress meant the first item in the array was back and the rest
+    were not. So the list an engineer consulted in order to decide whether to
+    sign off was computed from the sign-off, and the MacBook on case-001 showed
+    as returned because it was first in the list. It evidenced nothing.
+
+    An asset with no row has not been dealt with, which reads as outstanding.
+    That is the honest default: absence of a record is not evidence of return.
+    """
+    from .db import session_scope
+    from .db.models import AssetReturn
+
     case_meta, emp = _case_and_employee(case_id)
     assets = [str(a) for a in emp.get("assets_assigned") or []]
     stage = _stage(case_meta, "IT Clearance")
     status = str(stage.get("status", "pending")).lower()
-    items = []
-    for i, asset in enumerate(assets):
-        if status == "completed":
-            returned = True
-        elif status == "in_progress":
-            returned = i == 0
-        else:
-            returned = False
-        items.append({"asset": asset, "returned": returned})
+    emp_id = str(emp.get("id", ""))
+
+    with session_scope() as s:
+        logged = {
+            r.asset: r for r in s.scalars(
+                select(AssetReturn).where(AssetReturn.employee_id == emp_id)
+            ).all()
+        }
+        items = []
+        for asset in assets:
+            row = logged.get(asset)
+            state = row.state if row else "outstanding"
+            items.append({
+                "asset": asset,
+                "state": state,
+                # Kept for the agents and views that ask the yes/no question.
+                # A written-off asset is settled, not awaited.
+                "returned": state == "returned",
+                "settled": state in ("returned", "written_off"),
+                "logged_by": row.logged_by if row else None,
+                "logged_at": row.logged_at if row else None,
+                "note": (row.note or None) if row else None,
+            })
+
     return {
         "system": "IT Asset Management",
-        "employee_id": emp.get("id"),
+        "employee_id": emp_id,
         "assets": items,
-        "outstanding": [a["asset"] for a in items if not a["returned"]],
+        "outstanding": [a["asset"] for a in items if not a["settled"]],
+        "written_off": [a["asset"] for a in items if a["state"] == "written_off"],
         "stage_status": status,
         "stage_owner": stage.get("owner") or "unassigned",
     }
@@ -133,14 +161,22 @@ def asset_status(case_id: str) -> dict[str, Any]:
 def access_status(case_id: str) -> dict[str, Any]:
     """Identity provider / IT: which system accounts are still active.
 
-    Demo rule: access is revoked only when IT Clearance is completed. For a
-    termination, anything privileged still active is flagged as a policy
-    breach (policy 2.2: revoke immediately)."""
+    An account is revoked when there is a record of revoking it, and not
+    otherwise. It used to also count as revoked whenever IT Clearance was
+    completed -- `not (stage_done or rec)` -- which meant marking the stage
+    done silently asserted that five accounts had been killed. That is the same
+    circularity the asset list had: the page reported as fact the thing the
+    reader was about to decide, so it could never contradict them.
+
+    Now a completed clearance with live access says so. On the seeded corpus
+    that is a true and uncomfortable statement, which is the point.
+
+    For a termination, anything privileged still active is a policy breach
+    (policy 2.2: revoke immediately)."""
     case_meta, emp = _case_and_employee(case_id)
     emp_id = str(emp.get("id", ""))
     systems = [str(s) for s in emp.get("access_systems") or []]
     stage = _stage(case_meta, "IT Clearance")
-    stage_done = str(stage.get("status", "")).lower() == "completed"
     # Fetched once for the whole loop: per-account lookups would be one query
     # each, and this runs inside the orchestrator's compliance re-check.
     executed = executed_actions(emp_id)
@@ -148,7 +184,7 @@ def access_status(case_id: str) -> dict[str, Any]:
     for s in systems:
         priv = s.lower() in PRIVILEGED
         rec = _revoked(emp_id, s, records=executed)
-        active = not (stage_done or rec)
+        active = rec is None
         entry: dict[str, Any] = {"system": s, "active": active, "privileged": priv}
         if rec:
             entry["revoked_at"] = rec.get("executed_at")
