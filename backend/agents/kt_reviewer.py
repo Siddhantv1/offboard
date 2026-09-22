@@ -76,4 +76,26 @@ class KTReviewerAgent(BaseAgent):
             f"KT document:\n\n{doc_to_context(doc)}"
         )
         result = llm.complete_json(SYSTEM, user)
-        return {"kt_id": doc.title, "review": result}
+
+        # Carry the case and the stage the review is a judgement about.
+        # Without them the verdict was a document the manager read and then
+        # went somewhere else to act on -- so Knowledge Transfer stayed exactly
+        # as it was however carefully it had been reviewed. `kt_id` alone does
+        # not identify a case; the employee does.
+        case = store.exit_case_for_employee(emp_id) if emp_id else None
+        case_id = str(case.meta.get("case_id")) if case else None
+        stage_status = None
+        if case:
+            stage_status = next(
+                (str(s.get("status")) for s in (case.meta.get("stages") or [])
+                 if isinstance(s, dict) and s.get("name") == "Knowledge Transfer"),
+                None,
+            )
+        return {
+            "kt_id": doc.title,
+            "employee_id": emp_id or None,
+            "case_id": case_id,
+            "stage_key": "kt",
+            "stage_status": stage_status,
+            "review": result,
+        }

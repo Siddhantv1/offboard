@@ -430,3 +430,54 @@ def test_an_account_with_no_case_gets_a_clear_404(client):
     finally:
         with session_scope() as s:
             s.execute(delete(User).where(User.email == email))
+
+
+# -- being asked for it at all ------------------------------------------------
+def test_a_leaver_who_owes_an_interview_is_flagged_on_sign_in(client, employee):
+    """The page existed and nothing pointed at it.
+
+    An exit interview nobody is asked for is one nobody records, and
+    `interview_trends` compares departments and quarters -- a comparison that
+    means nothing at a response rate near zero. The flag is what raises the
+    prompt on sign-in.
+    """
+    email, password, _ = employee
+    r = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["exit_interview_outstanding"] is True
+
+
+def test_the_flag_clears_once_it_is_submitted(client, employee):
+    email, password, _ = employee
+    _login(client, email, password)
+    assert client.post("/api/me/case/interview",
+                       json={"answers": _full_answers(),
+                             "submitted": True}).status_code == 200
+
+    me = client.get("/api/auth/me").json()["user"]
+    assert me["exit_interview_outstanding"] is False
+
+
+def test_a_draft_does_not_clear_the_flag(client, employee):
+    """Saving progress is not recording an interview."""
+    email, password, _ = employee
+    _login(client, email, password)
+    first = exit_interview.QUESTIONS[0]["id"]
+    client.post("/api/me/case/interview", json={"answers": {first: "halfway"}})
+    assert client.get("/api/auth/me").json()["user"]["exit_interview_outstanding"] is True
+
+
+def test_staff_are_never_prompted(client, employee):
+    """Only the person leaving has an interview to record."""
+    suffix = uuid.uuid4().hex[:8]
+    email = f"pytest-interview-hr-{suffix}@example.com"
+    with session_scope() as s:
+        s.add(User(email=email, password_hash=auth.hash_password("x" * 12),
+                   role="hr", full_name="Pytest Interview HR"))
+    try:
+        _login(client, email, "x" * 12)
+        me = client.get("/api/auth/me").json()["user"]
+        assert me["exit_interview_outstanding"] is False
+    finally:
+        with session_scope() as s:
+            s.execute(delete(User).where(User.email == email))

@@ -43,6 +43,7 @@ from typing import Any
 from sqlalchemy import select
 
 from .db import session_scope
+from .data_store import store
 from .db.models import ExitInterviewResponse
 
 #: The exit interview, as a person would actually be asked it.
@@ -271,3 +272,22 @@ def submitted_for_case(case_id: str) -> dict[str, Any]:
                 for q in QUESTIONS
             ] if submitted else [],
         }
+
+
+def is_outstanding(employee_id: str | None) -> bool:
+    """Does this person still owe us their exit interview?
+
+    Cheap enough to answer on every `/api/auth/me`: one indexed lookup, and
+    only for an account that has an exit case at all. It drives the prompt the
+    leaver sees when they sign in -- an interview nobody is asked for is an
+    interview nobody records, and the whole instrument is worthless with a
+    response rate near zero.
+    """
+    if not employee_id:
+        return False
+    case = store.exit_case_for_employee(employee_id)
+    if not case:
+        return False
+    with session_scope() as session:
+        row = _row(session, str(case.meta.get("case_id")))
+        return not (row and row.submitted_at)

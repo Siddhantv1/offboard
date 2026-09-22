@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from .. import auth
+from .. import exit_interview
 from ..auth import CurrentUser, OptionalUser
 from ..config import COOKIE_SECURE
 
@@ -29,7 +30,7 @@ def login(response: Response, payload: dict[str, Any] | None = None) -> dict[str
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     auth.set_session_cookie(response, token, secure=COOKIE_SECURE)
     auth.set_csrf_cookie(response, secure=COOKIE_SECURE)
-    return {"user": identity.as_json()}
+    return {"user": _with_prompts(identity)}
 
 
 @router.post("/logout")
@@ -40,11 +41,27 @@ def logout(request: Request, response: Response) -> dict[str, str]:
     return {"status": "signed out"}
 
 
+def _with_prompts(identity: auth.Identity) -> dict[str, Any]:
+    """The signed-in user, plus anything the app should ask them for on sight.
+
+    Computed here rather than on `Identity` so the dataclass stays a pure
+    description of the session -- it is held past the DB session and must not
+    imply a query. The only prompt today is the exit interview: an interview
+    nobody is asked for is one nobody records.
+    """
+    payload = identity.as_json()
+    payload["exit_interview_outstanding"] = (
+        identity.role == "employee"
+        and exit_interview.is_outstanding(identity.employee_id)
+    )
+    return payload
+
+
 @router.get("/me")
 def whoami(user: OptionalUser) -> dict[str, Any]:
     """Who the browser is, or null. Deliberately 200-with-null rather than 401
     so the app can ask on load without treating "not signed in" as an error."""
-    return {"user": user.as_json() if user else None}
+    return {"user": _with_prompts(user) if user else None}
 
 
 @router.post("/password")

@@ -14,39 +14,8 @@ from fastapi import Depends, HTTPException
 
 from ..auth import CurrentUser, Identity
 from ..data_store import Doc, store
-
-
-def _visible_to(user: Identity, case_meta: dict[str, Any]) -> bool:
-    """Is this exit case within the caller's scope?
-
-    Separate from the role guard on purpose: passing `require_roles("manager")`
-    says you are *a* manager, not that this is *your* case.
-    """
-    if user.role in ("hr", "it"):
-        # HR owns the process; IT clears access on every case. Both legitimately
-        # see the whole book of work.
-        return True
-
-    if user.role == "employee":
-        return bool(user.employee_id) and str(
-            case_meta.get("employee_id") or ""
-        ) == user.employee_id
-
-    if user.role == "manager":
-        employee_id = str(case_meta.get("employee_id") or "")
-        employee = store.employee(employee_id) if employee_id else None
-        if employee is None:
-            return False
-        manager_email = str(employee.meta.get("manager_email") or "").strip().lower()
-        # Both guards matter. `add_employee` writes "" for an absent manager,
-        # so without the emptiness check a manager account with a blank email
-        # would match every such employee. And `manager_email` is stored with
-        # .strip() but no .lower() while `User.email` is lowercased on write,
-        # so a mixed-case address in the corpus would silently match nothing --
-        # a scope check that fails closed and reads as "no work assigned".
-        return bool(manager_email) and manager_email == (user.email or "").strip().lower()
-
-    return False
+# Re-exported: this used to live here, and it is still the name routes use.
+from ..scoping import can_see_case, identity_for  # noqa: F401
 
 
 def scoped_case(case_id: str, user: CurrentUser) -> Doc:
@@ -67,7 +36,7 @@ def scoped_case(case_id: str, user: CurrentUser) -> Doc:
     case = store.exit_case(case_id)
     if case is None:
         raise HTTPException(status_code=404, detail=f"Unknown exit case '{case_id}'.")
-    if not _visible_to(user, case.meta):
+    if not can_see_case(user, case.meta):
         raise HTTPException(
             status_code=403, detail="This exit case is outside your scope."
         )
@@ -86,7 +55,7 @@ ScopedCase = Annotated[Doc, Depends(scoped_case)]
 
 def visible_cases(user: Identity) -> list[Doc]:
     """Every exit case within the caller's scope, in store order."""
-    return [c for c in store.exit_cases() if _visible_to(user, c.meta)]
+    return [c for c in store.exit_cases() if can_see_case(user, c.meta)]
 
 
 def visible_employees(user: Identity) -> list[Doc]:

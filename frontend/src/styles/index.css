@@ -1844,3 +1844,14 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .rk-applied { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .rk-applied li { font-size: 14px; line-height: 1.5; }
 .rk-applied-why { display: block; font-size: 13px; color: var(--muted); }
+
+/* The sign-in prompt asking a leaver to record their exit interview.
+   Shares the auth-screen backdrop; a card rather than a modal because there is
+   nothing behind it to return to yet. */
+.prompt-card { max-width: 480px; padding: 32px; background: var(--surface);
+               border: 1px solid var(--line); border-radius: var(--radius);
+               box-shadow: var(--shadow); }
+.prompt-card h1 { margin: 0 0 14px; font-size: 22px; line-height: 1.25; }
+.prompt-card p { margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
+.prompt-card .prompt-quiet { color: var(--muted); font-size: 14px; }
+.prompt-card .btn-row { margin-top: 20px; }

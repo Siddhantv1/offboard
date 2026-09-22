@@ -19,10 +19,22 @@ from sqlalchemy import func, select
 from .base import AgentMeta, BaseAgent, Field, llm, register
 from ..db import session_scope
 from ..db.models import CaseStage, User
+from ..data_store import store
 from ..policy import STAGE_KEY_BY_NAME, STAGE_OWNERS
 
 
-def approver_roster(stage_name: str) -> list[dict[str, Any]]:
+def _the_employees_manager(case_id: str) -> str | None:
+    """The email of the manager this case's employee actually reports to."""
+    case = store.exit_case(case_id)
+    if not case:
+        return None
+    employee = store.employee(str(case.meta.get("employee_id") or ""))
+    if not employee:
+        return None
+    return str(employee.meta.get("manager_email") or "").strip().lower() or None
+
+
+def approver_roster(stage_name: str, case_id: str = "") -> list[dict[str, Any]]:
     """Who can hold this stage, and how loaded each of them is.
 
     Workload is the count of clearance stages assigned to that account and not
@@ -34,6 +46,18 @@ def approver_roster(stage_name: str) -> list[dict[str, Any]]:
     so nobody is ever "out of office" here; the field stays in the shape
     because the prompt's delegation rule reads it, and wiring a real calendar
     would fill it without changing anything else.
+
+    **A manager stage has a roster of exactly one.** Knowledge Transfer and
+    Manager Sign-off belong to the person the leaver reports to -- not to
+    whichever manager happens to be least busy. Without `case_id` this returned
+    all six managers and the model picked on workload, which put Anjali Desai
+    on case-007 although Lokesh Ranjan reports to Ritesh Sharma. That
+    assignment could never be worked: a manager only sees their own reports'
+    cases, so case-007 was invisible to her, while Ritesh -- who could see
+    it -- did not own the stage. The stage sat on nobody's queue.
+
+    IT, HR and Finance stay open rosters. Any IT engineer can clear IT access;
+    only one person can sign off a leaver's handover.
     """
     stage_key = STAGE_KEY_BY_NAME.get(stage_name)
     if not stage_key:
@@ -41,6 +65,18 @@ def approver_roster(stage_name: str) -> list[dict[str, Any]]:
     roles = STAGE_OWNERS.get(stage_key, frozenset())
     if not roles:
         return []
+
+    restrict_to_email: str | None = None
+    if roles == frozenset({"manager"}):
+        if not case_id:
+            # No case, so no reporting line to honour. Returning every manager
+            # here is a list to look at, not a recommendation to act on -- the
+            # agent refuses to mark it assignable without a case anyway.
+            restrict_to_email = None
+        else:
+            restrict_to_email = _the_employees_manager(case_id)
+            if not restrict_to_email:
+                return []
 
     with session_scope() as s:
         # Open stages per owner, in one query rather than one per candidate.
@@ -51,11 +87,12 @@ def approver_roster(stage_name: str) -> list[dict[str, Any]]:
             .group_by(CaseStage.owner_user_id)
         ).all())
 
-        people = s.scalars(
-            select(User)
-            .where(User.role.in_(tuple(roles)), User.is_active.is_(True))
-            .order_by(User.full_name, User.email)
-        ).all()
+        stmt = (select(User)
+                .where(User.role.in_(tuple(roles)), User.is_active.is_(True))
+                .order_by(User.full_name, User.email))
+        if restrict_to_email:
+            stmt = stmt.where(func.lower(User.email) == restrict_to_email)
+        people = s.scalars(stmt).all()
 
         return [{
             "name": u.full_name or u.email,
@@ -73,8 +110,8 @@ def approver_roster(stage_name: str) -> list[dict[str, Any]]:
 
 #: Kept as a name because tests and the result view import it. It is now a
 #: function of the database rather than a constant.
-def _roster_for(stage: str) -> list[dict[str, Any]]:
-    return approver_roster(stage)
+def _roster_for(stage: str, case_id: str = "") -> list[dict[str, Any]]:
+    return approver_roster(stage, case_id)
 
 
 def stage_state(case_id: str, stage_key: str | None) -> str | None:
@@ -132,8 +169,18 @@ class SmartRoutingAgent(BaseAgent):
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
         stage = (inputs.get("stage") or "").strip()
         case_id = (inputs.get("case_id") or "").strip()
-        roster = approver_roster(stage)
+        roster = approver_roster(stage, case_id)
         if not roster:
+            # Two different absences, and telling them apart is the difference
+            # between "go make an account" and "this case has no manager".
+            manager_stage = STAGE_OWNERS.get(
+                STAGE_KEY_BY_NAME.get(stage) or "") == frozenset({"manager"})
+            if manager_stage and case_id:
+                return {
+                    "error": f"{stage} belongs to the manager this person reports "
+                             "to, and that manager has no account here. Create one "
+                             "under People & access, or correct the employee record.",
+                }
             return {
                 "error": f"Nobody holds the role that owns '{stage}'. "
                          "Create an account for that role under People & access.",

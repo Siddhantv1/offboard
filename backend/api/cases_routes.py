@@ -26,7 +26,7 @@ from ..db import session_scope
 from ..policy import STAGE_OWNERS, may_run_agent
 from .. import exit_interview
 from .. import stages as stage_service
-from .deps import ScopedCase, visible_cases
+from .deps import ScopedCase, can_see_case, visible_cases
 
 router = APIRouter(prefix="/api", tags=["cases"])
 logger = logging.getLogger(__name__)
@@ -691,6 +691,24 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
                        f"{assignee.role}, which does not own this stage.",
             )
         label = assignee.full_name or assignee.email
+        assignee_identity = Identity(
+            user_id=assignee.id, email=assignee.email, role=assignee.role,
+            employee_id=assignee.employee_id, full_name=assignee.full_name,
+            must_change_password=False,
+        )
+
+    # Holding the right role is not enough: a manager only sees their own
+    # reports' cases, so assigning one a case outside their line creates work
+    # that shows on nobody's queue -- invisible to them, and not owned by the
+    # person who can see it. Smart Routing did exactly this on case-007, giving
+    # Lokesh Ranjan's sign-off to Anjali Desai when he reports to Ritesh Sharma.
+    if not can_see_case(assignee_identity, case.meta):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label} cannot see {case.meta.get('case_id')}, so the stage "
+                   "would sit on nobody's queue. Knowledge Transfer and Manager "
+                   "Sign-off belong to the manager this person reports to.",
+        )
 
     try:
         return stage_service.assign_owner(

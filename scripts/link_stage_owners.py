@@ -153,6 +153,63 @@ def mismatches(session) -> list[dict[str, Any]]:
     return out
 
 
+def unworkable(session) -> list[dict[str, Any]]:
+    """Stages assigned to someone who cannot see the case they are on.
+
+    A manager sees only their own reports' cases. Smart Routing used to pick
+    the least-loaded manager for a sign-off without asking who the leaver
+    reports to, so it could hand Lokesh Ranjan's sign-off to Anjali Desai --
+    who has no view of his case at all. The stage then appears on nobody's
+    queue: filtered out of hers, and not owned by the manager who can see it.
+
+    Distinct from `mismatches`. There the two owner columns disagree with each
+    other; here they agree perfectly and both name the wrong person.
+    """
+    from backend.api.deps import can_see_case
+    from backend.auth import Identity
+    from backend.data_store import store
+
+    users = {u.id: u for u in session.scalars(select(User)).all()}
+    out: list[dict[str, Any]] = []
+
+    for case in store.exit_cases():
+        case_id = str(case.meta.get("case_id"))
+        rows = session.scalars(
+            select(CaseStage).where(CaseStage.case_id == case_id,
+                                    CaseStage.owner_user_id.isnot(None))
+        ).all()
+        employee = store.employee(str(case.meta.get("employee_id") or ""))
+        manager_email = str(
+            (employee.meta.get("manager_email") if employee else "") or ""
+        ).strip().lower()
+
+        for stage in rows:
+            holder = users.get(stage.owner_user_id)
+            if holder is None:
+                continue
+            identity = Identity(
+                user_id=holder.id, email=holder.email, role=holder.role,
+                employee_id=holder.employee_id, full_name=holder.full_name,
+                must_change_password=False,
+            )
+            if can_see_case(identity, case.meta):
+                continue
+            correct = next(
+                (u for u in users.values()
+                 if (u.email or "").strip().lower() == manager_email
+                 and u.is_active),
+                None,
+            )
+            out.append({
+                "stage": stage,
+                "case_id": case_id,
+                "holder": holder.full_name or holder.email,
+                "correct": correct,
+                "should_be": manager_email or None,
+            })
+    return out
+
+
 def repair(session, *, dry_run: bool = False) -> list[str]:
     """Point every mismatched row back at the person it names.
 
@@ -176,6 +233,22 @@ def repair(session, *, dry_run: bool = False) -> list[str]:
                 stage.owner_user_id = None
             notes.append(f"{where}: {name} was routing to {m['linked_to']} "
                          f"-> cleared ({name} has no account)")
+
+    for u in unworkable(session):
+        stage = u["stage"]
+        where = f"{u['case_id']} {stage.stage_key}"
+        if u["correct"] is not None:
+            if not dry_run:
+                stage.owner_user_id = u["correct"].id
+                stage.owner = u["correct"].full_name or u["correct"].email
+            notes.append(f"{where}: {u['holder']} cannot see this case "
+                         f"-> reassigned to {u['correct'].full_name or u['correct'].email}")
+        else:
+            if not dry_run:
+                stage.owner_user_id = None
+                stage.owner = ""
+            notes.append(f"{where}: {u['holder']} cannot see this case, and "
+                         f"{u['should_be'] or 'its manager'} has no account -> cleared")
 
     if dry_run:
         session.expunge_all()

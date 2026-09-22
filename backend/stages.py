@@ -315,6 +315,21 @@ def assign_owner(*, case_id: str, stage_key: str, assignee_user_id: int | None,
                 "if it needs redoing."
             )
 
+        # Defence in depth. The assign route checks this too, with a better
+        # message; this is what stops a caller that never goes through a route
+        # -- the orchestrator -- creating work that shows on nobody's queue.
+        if assignee_user_id is not None:
+            from .db.models import User
+            from .scoping import can_see_case, identity_for
+
+            holder = s.get(User, assignee_user_id)
+            if holder is not None and not can_see_case(identity_for(holder),
+                                                       case.to_meta()):
+                raise TransitionError(
+                    f"{assignee_label} cannot see {case_id}, so {stage.name} "
+                    "would sit on nobody's queue."
+                )
+
         previous = (stage.owner or "").strip()
         previous_id = stage.owner_user_id
         set_stage_owner(stage, assignee_user_id, assignee_label)
