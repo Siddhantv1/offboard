@@ -40,8 +40,7 @@ function ConfirmStage({ stageKey, state, onConfirmed }) {
       <div className="confirm-done">
         <p>
           <b>You have confirmed your side of {name}.</b>{" "}
-          IT is verifying it against their own records — you do not need to do
-          anything else.
+          We'll let you know when it is verified.
         </p>
         {state.note && <p className="muted">You added: “{state.note}”</p>}
       </div>

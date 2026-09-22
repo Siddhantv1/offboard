@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { fetchJSON } from "../lib/api.js";
 import { useAgents } from "../lib/agents.jsx";
@@ -108,6 +108,13 @@ function TopbarUser() {
       <ThemeToggle />
       <span className="topbar-user-name">{user?.full_name || user?.email}</span>
       <span className="topbar-user-role">{ROLE_LABEL[user?.role] ?? user?.role}</span>
+      {/* /settings existed as a route and was linked from nowhere in the app,
+          so changing your own password or theme was unreachable without typing
+          the URL. It belongs beside the account, not in the sidebar, because
+          it is about the person rather than the work. */}
+      <NavLink to="/settings" className="topbar-settings" title="Your settings">
+        Settings
+      </NavLink>
       <button type="button" className="btn btn-ghost topbar-signout" onClick={handleSignOut}>
         Sign out
       </button>

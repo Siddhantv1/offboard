@@ -1878,3 +1878,11 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .case-todo b { display: inline; }
 /* Anchor-jumping to a panel should not tuck it under the sticky topbar. */
 .panel[id] { scroll-margin-top: 84px; }
+
+/* The settings link in the topbar. Quiet by default -- it is a destination you
+   look for, not one that should compete with the work on the page. */
+.topbar-settings { font-size: 13px; color: var(--muted); text-decoration: none;
+                   padding: 4px 8px; border-radius: var(--radius-sm); }
+.topbar-settings:hover,
+.topbar-settings:focus-visible { color: var(--deep); background: var(--mint); }
+.topbar-settings.active { color: var(--deep); font-weight: 500; }

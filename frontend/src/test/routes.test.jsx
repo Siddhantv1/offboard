@@ -151,6 +151,27 @@ describe("the route table", () => {
     },
   );
 
+  /* Reached another way, deliberately, and each one is checked by hand:
+       /settings      -- the topbar, beside the account it belongs to
+       /faq           -- the agent catalogue in the sidebar, which every role
+                         has because faq_chatbot is in every role's agent set
+     Anything else a role may open must be in that role's sidebar. Twice now a
+     page has been permitted to a role and linked from nowhere: HR could not
+     reach the deprovisioning page it alone can authorise, and IT could not
+     reach any case whose clearance it had already finished. Both looked to the
+     user like the feature was missing. */
+  const REACHED_ELSEWHERE = new Set(["/settings", "/faq"]);
+
+  it.each(ROLES)("gives %s a way to every page it may open", (role) => {
+    const linked = new Set((NAV[role] ?? []).map((i) => i.to));
+    const orphans = partitionRoutes(role).mine
+      .map((r) => r.path)
+      .filter((path) => !path.includes(":")
+        && !linked.has(path)
+        && !REACHED_ELSEWHERE.has(path));
+    expect(orphans, `${role} may open these and has no link to them`).toEqual([]);
+  });
+
   it("keeps the exit interview to the employee alone", () => {
     const route = ROUTES.find((r) => r.path === "/interview");
     expect(route, "/interview is missing from the route table").toBeTruthy();

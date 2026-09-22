@@ -151,7 +151,6 @@ function ExitInterview({ interview, employee }) {
     return (
       <p className="stage-waiting">
         {`${employee || "The employee"} has not sent their exit interview yet. `}
-        It is theirs to fill in, and nothing of it is shown here until they do.
       </p>
     );
   }

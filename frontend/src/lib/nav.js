@@ -27,12 +27,20 @@ export const NAV = {
   it: [
     { to: "/", icon: "◇", label: "My queue", end: true },
     { to: "/queue/all", icon: "◫", label: "All IT clearance" },
+    // IT may read every case, and had no way to open one. A clearance they
+    // have finished leaves their queue -- the queue is open work -- so without
+    // this an engineer could not look up a case they cleared last week, or any
+    // case whose IT stage was already done.
+    { to: "/cases", icon: "▤", label: "Exit cases" },
     { to: "/deprovisioning", icon: "⊘", label: "Deprovisioning" },
     { to: "/admin/users", icon: "◈", label: "People & access" },
   ],
   manager: [
     { to: "/", icon: "◇", label: "My team's exits", end: true },
     { to: "/queue/all", icon: "◫", label: "Awaiting sign-off" },
+    // Scoped to their own reports by `can_see_case`, so this is their team's
+    // history rather than the whole company's.
+    { to: "/cases", icon: "▤", label: "Exit cases" },
   ],
   employee: [
     { to: "/", icon: "◔", label: "My exit case", end: true },
