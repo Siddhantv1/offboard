@@ -314,11 +314,9 @@ export default function MyCase() {
         ))}
       </Panel>
 
-      <Panel title="Questions">
+      <Panel title="Have a Question?">
         <p>
-          The FAQ assistant answers from the published exit policy — notice
-          periods, what happens to your assets, when your final settlement
-          lands. <Link to="/faq">Ask a question</Link>.
+          The FAQ chatbot assistant answers from the published policy documents. <Link to="/faq">Ask a question</Link>.
         </p>
       </Panel>
     </div>

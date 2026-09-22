@@ -258,6 +258,14 @@ export default function CaseDetail() {
   const c = data.case;
   const mayAction = new Set(data.may_action || []);
 
+  /* Paperwork nobody has ruled on yet. This is the reason HR opens the page,
+     and it used to be the sixth panel down, under the stage controls and the
+     agent menu -- so the page read as "here are some buttons" and the review
+     queue was something you found by scrolling. */
+  const awaitingReview = uploads.filter(
+    (d) => !["accepted", "rejected"].includes(String(d.verdict || "")),
+  );
+
   return (
     <div className="case-detail">
       <PageHead
@@ -277,6 +285,18 @@ export default function CaseDetail() {
         <span className="muted">Currently at: <b>{c.current_stage}</b></span>
       </div>
 
+      {user?.role === "hr" && awaitingReview.length > 0 && (
+        <div className="case-todo">
+          <b>
+            {`${awaitingReview.length} document${awaitingReview.length === 1 ? "" : "s"} `}
+            {awaitingReview.length === 1 ? "is" : "are"} waiting on your decision.
+          </b>{" "}
+          <a href="#submitted-documents" className="linkish">Review them</a>
+          {" — "}
+          {awaitingReview.map((d) => d.document_name).join(", ")}
+        </div>
+      )}
+
       <Panel title="Clearance stages">
         {(c.stages || []).map((s) => (
           <StageRow
@@ -289,6 +309,32 @@ export default function CaseDetail() {
             onChanged={load}
           />
         ))}
+      </Panel>
+
+      <Panel title="Documents — still outstanding" className="result-panel">
+        <DocumentCollection
+          showWho={false}
+          result={{ employee: c.employee_name, case_id: c.case_id, status: data.documents }}
+        />
+      </Panel>
+
+      <Panel title="Documents — submitted for review" id="submitted-documents">
+        <SubmittedDocuments
+          documents={uploads}
+          imageUrl={(id) => `/api/cases/${caseId}/documents/${id}/image`}
+          // Only HR may overturn a verdict. A manager can read the scan on
+          // their own team's case, which is what they need to sign off, but
+          // accepting paperwork is HR's call and the server enforces that too.
+          onReviewed={user?.role === "hr"
+            ? async (docId, verdict, note) => {
+                await postJSON(
+                  `/api/cases/${caseId}/documents/${docId}/review`,
+                  { verdict, note },
+                );
+                load();
+              }
+            : undefined}
+        />
       </Panel>
 
       {!!(data.actions || []).length && (
@@ -310,31 +356,6 @@ export default function CaseDetail() {
           </div>
         </Panel>
       )}
-
-      <Panel title="Documents outstanding" className="result-panel">
-        <DocumentCollection
-          result={{ employee: c.employee_name, case_id: c.case_id, status: data.documents }}
-        />
-      </Panel>
-
-      <Panel title="What they have sent">
-        <SubmittedDocuments
-          documents={uploads}
-          imageUrl={(id) => `/api/cases/${caseId}/documents/${id}/image`}
-          // Only HR may overturn a verdict. A manager can read the scan on
-          // their own team's case, which is what they need to sign off, but
-          // accepting paperwork is HR's call and the server enforces that too.
-          onReviewed={user?.role === "hr"
-            ? async (docId, verdict, note) => {
-                await postJSON(
-                  `/api/cases/${caseId}/documents/${docId}/review`,
-                  { verdict, note },
-                );
-                load();
-              }
-            : undefined}
-        />
-      </Panel>
 
       <Panel title="Exit interview">
         <ExitInterview interview={interview} employee={c.employee_name} />

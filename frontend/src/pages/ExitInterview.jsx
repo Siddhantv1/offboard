@@ -168,7 +168,7 @@ export default function ExitInterview() {
       {head}
       <Panel title="Your answers">
         <p className="hint" style={{ marginTop: -6 }}>
-          Your answers are autosaved. Please verify all your answers before submitting, once you do it cannot be changed.
+          Your answers can be saved. Please verify all your answers before submitting, once you do it cannot be changed.
         </p>
 
         {questions.map((q) => (

@@ -291,3 +291,16 @@ def is_outstanding(employee_id: str | None) -> bool:
     with session_scope() as session:
         row = _row(session, str(case.meta.get("case_id")))
         return not (row and row.submitted_at)
+
+
+def was_submitted(case_id: str) -> bool:
+    """Has the leaver on this case sent their interview?
+
+    Read by `systems.hrms_status`, which is what `multi_system_clearance` and
+    `compliance` -- and through them the orchestrator's verdict -- believe
+    about the world. Before this they believed only the old transcript corpus,
+    so an interview submitted through the product changed nothing anywhere.
+    """
+    with session_scope() as session:
+        row = _row(session, case_id)
+        return bool(row and row.submitted_at)

@@ -24,6 +24,7 @@ from ..auth import CurrentUser, HRUser, Identity, StaffUser
 from ..data_store import store
 from ..db import session_scope
 from ..policy import STAGE_OWNERS, may_run_agent
+from .. import checklist_progress
 from .. import exit_interview
 from .. import stages as stage_service
 from .deps import ScopedCase, can_see_case, visible_cases
@@ -355,11 +356,22 @@ def _latest_checklist_run(employee_id: str) -> dict[str, Any]:
             .order_by(AgentRun.started_at.desc(), AgentRun.id.desc())
             .limit(1)
         )
-        return {
-            "employee_id": employee_id,
-            "result": row.result if row else None,
-            "generated_at": row.finished_at if row else None,
-        }
+        row_finished = row.finished_at if row else None
+        result = row.result if row else None
+
+    # Annotated at read time, not regenerated. The stored run is the wording;
+    # what has actually been done comes from the systems that know. See
+    # `checklist_progress`.
+    if isinstance(result, dict) and isinstance(result.get("checklist"), dict):
+        case = store.exit_case_for_employee(employee_id)
+        if case:
+            result = {**result, "checklist": checklist_progress.annotate(
+                result["checklist"], str(case.meta.get("case_id")))}
+    return {
+        "employee_id": employee_id,
+        "result": result,
+        "generated_at": row_finished,
+    }
 
 
 @router.get("/me/case/checklist")

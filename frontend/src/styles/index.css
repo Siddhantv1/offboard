@@ -1855,3 +1855,26 @@ input[type="file"].doc-file:disabled + .doc-file-label { opacity: .6; cursor: de
 .prompt-card p { margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
 .prompt-card .prompt-quiet { color: var(--muted); font-size: 14px; }
 .prompt-card .btn-row { margin-top: 20px; }
+
+/* A checklist item the systems have confirmed is finished.
+   Struck through rather than hidden: the point of a checklist is seeing what
+   you have got through, not watching the list shrink. */
+.rk-tasks li.is-done .rk-task-text { text-decoration: line-through;
+                                     text-decoration-thickness: 1px;
+                                     color: var(--muted); }
+.rk-task-tick { display: inline-block; width: 1.1em; margin-right: 2px;
+                color: var(--deep); font-weight: 600; }
+.rk-tasks li.is-done .rk-task-tick { color: var(--ok); }
+.rk-task-evidence { color: var(--muted); font-size: 12.5px; }
+.rk-progress { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius-sm);
+               background: var(--inset); font-size: 14px; line-height: 1.55; }
+
+/* What this case is waiting on the reader for, said before the controls.
+   The document review used to be the sixth panel down, so the page opened with
+   buttons and the queue was something you found by scrolling. */
+.case-todo { margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line);
+             border-left: 3px solid var(--warn); border-radius: var(--radius-sm);
+             background: var(--warn-wash); font-size: 14px; line-height: 1.55; }
+.case-todo b { display: inline; }
+/* Anchor-jumping to a panel should not tuck it under the sticky topbar. */
+.panel[id] { scroll-margin-top: 84px; }

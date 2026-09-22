@@ -23,13 +23,12 @@ const STATE = {
     tone: "b-warn",
     label: "Needed now",
     blurb: null,
-    cta: "Choose a scan or photo",
+    cta: "Upload document (PNG, JPG)",
   },
   in_review: {
     tone: "b-warn",
     label: "Being checked",
-    blurb: "We could not confirm it automatically, so HR will look. Nothing "
-         + "more is needed from you unless they come back.",
+    blurb: "Your document has been received. HR will review it.",
     cta: "Replace it",
   },
   not_yet_due: {

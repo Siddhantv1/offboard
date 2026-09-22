@@ -239,17 +239,32 @@ export function TaskList({ items, textKey = "task", ownerKey = "owner",
   // section heading, so drop it rather than repeat it down the page.
   const varied = toneKey
     && new Set(items.map((i) => String(i?.[toneKey] ?? ""))).size > 1;
+
+  /* `done` is tri-state and absent entirely on a staff-side result, so the
+     marker is opt-in per row: true ticks it, false leaves it open, and
+     undefined (nothing authoritative tracks this line) shows nothing rather
+     than implying it is being watched. */
   return (
     <ul className="rk-tasks">
-      {items.map((it, i) => (
-        <li key={i}>
+      {items.map((it, i) => {
+        const done = typeof it === "string" ? undefined : it.done;
+        return (
+        <li key={i} className={done === true ? "is-done" : undefined}>
           <div className="rk-task-head">
+            {done != null && (
+              <span className="rk-task-tick" aria-hidden="true">
+                {done ? "✓" : "○"}
+              </span>
+            )}
             <span className="rk-task-text">
               {typeof it === "string" ? it : it[textKey] ?? it.item ?? it.system ?? it.topic}
             </span>
-            {varied && it[toneKey] && <Tag value={it[toneKey]} />}
+            {varied && it[toneKey] && !done && <Tag value={it[toneKey]} />}
           </div>
-          {typeof it !== "string" && (it[noteKey] || it.why || it[ownerKey]) && (
+          {done && it.evidence && (
+            <p className="rk-task-note rk-task-evidence">{it.evidence}</p>
+          )}
+          {typeof it !== "string" && !done && (it[noteKey] || it.why || it[ownerKey]) && (
             <p className="rk-task-note">
               {it[noteKey] || it.why}
               {it[ownerKey] && (
@@ -258,7 +273,8 @@ export function TaskList({ items, textKey = "task", ownerKey = "owner",
             </p>
           )}
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

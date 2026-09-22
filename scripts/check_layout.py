@@ -26,14 +26,18 @@ PASSWORD = "offboard-demo-2026"
 #: skipped rather than failed -- a 403 page is a valid render.
 ROLES = [
     ("hr", "hr@perficient.com",
-     ["/", "/cases", "/orchestrator", "/deprovisioning", "/employees/new", "/settings"]),
+     # A case detail page is included deliberately: it is the densest page in
+     # the product and was swept only as a list. Its own layout -- two document
+     # panels, the review queue, the timeline -- went unchecked for months.
+     ["/", "/cases", "/cases/case-001", "/orchestrator", "/deprovisioning",
+      "/employees/new", "/settings"]),
     # /admin/users is IT's now, not HR's -- account administration is access
     # management. Swept under the role that can actually reach it, or the sweep
     # would only ever be measuring the 403 page.
     ("it", "sanya.kapoor@perficient.com",
      ["/", "/queue/all", "/deprovisioning", "/admin/users", "/settings"]),
     ("manager", "vikram.sharma@perficient.com",
-     ["/", "/queue/all", "/cases", "/settings"]),
+     ["/", "/queue/all", "/cases", "/cases/case-001", "/settings"]),
     ("employee", "aarav.mehta@perficient.com",
      ["/", "/faq", "/interview", "/settings"]),
 ]

@@ -85,8 +85,23 @@ export default function Checklist({ result: r }) {
      in the shape we were given, so take whichever is present. */
   const employee = r.employee || c.employee;
 
+  /* Present only on the employee's own view, where the list is annotated
+     against real state. A staff-side run has no progress to report because
+     nothing has been overlaid on it. */
+  const progress = c.progress;
+
   return (
     <>
+      {progress?.tracked > 0 && (
+        <p className="rk-progress">
+          <b>{`${progress.done} of ${progress.tracked} done.`}</b>{" "}
+          {progress.done === progress.tracked
+            ? "Everything we can track is finished."
+            : "Ticked off automatically as each one is actually confirmed — "
+              + "you do not need to tell us."}
+        </p>
+      )}
+
       <Facts
         items={[
           { label: "Employee", value: employee },

@@ -172,14 +172,27 @@ def access_status(case_id: str) -> dict[str, Any]:
 def hrms_status(case_id: str) -> dict[str, Any]:
     """HRMS: HR clearance facts -- NDA reaffirmation, exit interview, relieving letter.
 
-    Demo rule: NDA and interview are done when HR Clearance is in progress or
-    completed; the relieving letter only on completion. An exit interview also
-    counts as done if one exists in the interviews corpus."""
+    Demo rule: NDA is done when HR Clearance is in progress or completed; the
+    relieving letter only on completion.
+
+    The exit interview is not a demo rule. It is true when the person has
+    actually submitted one -- which used to mean only "a transcript exists in
+    the corpus", from before the product could ask them. So a leaver could fill
+    in all seven questions and every agent reading system state would still
+    report the interview as not done, because it was looking somewhere the new
+    answers never land. `interview_submitted` checks the table they submit into.
+    """
+    from .exit_interview import was_submitted
+
     case_meta, emp = _case_and_employee(case_id)
     stage = _stage(case_meta, "HR Clearance")
     status = str(stage.get("status", "pending")).lower()
     emp_id = str(emp.get("id", ""))
-    has_interview = any(str(iv.meta.get("employee_id", "")) == emp_id for iv in store.interviews())
+    has_interview = (
+        was_submitted(case_id)
+        or any(str(iv.meta.get("employee_id", "")) == emp_id
+               for iv in store.interviews())
+    )
     started = status in ("in_progress", "completed")
     return {
         "system": "HRMS",

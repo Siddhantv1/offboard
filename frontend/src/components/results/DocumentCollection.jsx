@@ -5,7 +5,11 @@ import GenericResult from "./GenericResult.jsx";
 
 /** What is still outstanding, first. The generic renderer buried that under
  *  bookkeeping fields; for this agent the missing list is the whole point. */
-export default function DocumentCollection({ result: r }) {
+/** `showWho` is off where the page already names the case. Embedded on the
+ *  case page this heading repeated the page title between two document
+ *  panels, which read as a third, unrelated section and was a good part of why
+ *  that page felt confusing. */
+export default function DocumentCollection({ result: r, showWho = true }) {
   if (!r || r.error) return <GenericResult value={r} />;
 
   const docs = Array.isArray(r.status?.documents) ? r.status.documents : [];
@@ -23,7 +27,9 @@ export default function DocumentCollection({ result: r }) {
       <TruncationNote result={r} />
 
       <div className="doc-head">
-        <h3 className="doc-who">{[r.employee, r.case_id].filter(Boolean).join(" — ")}</h3>
+        {showWho && (
+          <h3 className="doc-who">{[r.employee, r.case_id].filter(Boolean).join(" — ")}</h3>
+        )}
         <div className="doc-meter">
           <span style={{ width: `${due ? (received.length / due) * 100 : 0}%` }} />
         </div>

@@ -69,8 +69,10 @@ export function Button({
   );
 }
 
-export const Panel = ({ title, actions, children, className = "" }) => (
-  <section className={`panel ${className}`.trim()}>
+// `id` is forwarded so a panel can be linked to from elsewhere on the page --
+// the case page points HR straight at the documents waiting on them.
+export const Panel = ({ title, actions, children, className = "", id }) => (
+  <section id={id} className={`panel ${className}`.trim()}>
     {(title || actions) && (
       <div className="panel-head">
         {title && <h3>{title}</h3>}
