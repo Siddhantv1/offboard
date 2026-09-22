@@ -1139,9 +1139,16 @@ a.back:focus-visible,
     background: rgba(15, 46, 45, .34);
   }
 
-  .topbar { padding-left: 60px; }
+  /* The topbar has a fixed 60px inset for the drawer button, so its right-hand
+     cluster has very little room. Adding the Settings link pushed it 32px past
+     the edge for an employee -- the longest role pill of the four. Shed the
+     identity labels, which the person already knows, and keep the controls. */
+  .topbar { padding-left: 60px; padding-right: 16px; }
   .content { padding: 20px 16px; }
-  .topbar-user-name { display: none; }
+  .topbar-user { gap: 6px; }
+  .topbar-user-name,
+  .topbar-user-role { display: none; }
+  .topbar-settings { padding: 4px 6px; }
 
   /* Tables reflow to stacked rows, each cell labelled by its column. */
   .dtable thead { display: none; }
