@@ -515,18 +515,20 @@ class DataStore:
             if status == "exiting":
                 case = _insert_case(s, emp, last_working_day=last_working_day)
                 case_doc = _doc(case)
-                if emp.email and not s.scalar(select(User).where(User.email == emp.email)):
-                    secret = generate_temp_password()
-                    s.add(User(
-                        email=emp.email,
-                        password_hash=hash_password(secret),
-                        role="employee",
-                        employee_id=emp.id,
-                        full_name=emp.name,
-                        must_change_password=True,
-                    ))
-                    credential = {"email": emp.email, "password": secret}
+                credential = _issue_login(s, emp)
         return emp_doc, case_doc, credential
+
+    def issue_login(self, employee_id: str) -> dict[str, str] | None:
+        """Give a leaver a way in, if they have not got one.
+
+        Returns the one-time credential, or None when they already have an
+        account. Idempotent, so it is safe on a second resignation.
+        """
+        with session_scope() as s:
+            emp = s.get(Employee, str(employee_id or "").strip())
+            if emp is None:
+                raise ValueError(f"Unknown employee {employee_id!r}.")
+            return _issue_login(s, emp)
 
     def set_employee_status(self, employee_id: str, status: str) -> Doc:
         """Move somebody between active and exiting.
@@ -555,6 +557,33 @@ class DataStore:
             if emp is None:
                 raise ValueError(f"Unknown employee {emp_id!r}.")
             return _doc(_insert_case(s, emp, last_working_day=last_working_day))
+
+
+def _issue_login(session: Session, emp: Employee) -> dict[str, str] | None:
+    """A one-time login for a leaver who has none.
+
+    Shared by `add_employee` and `set_employee_status` because both create the
+    same situation: somebody now has an exit case and a part to play in it.
+    It lived only in `add_employee`, so a person hired as active and marked as
+    leaving months later -- which is how almost every real resignation
+    happens -- got the case and no way to sign in. They could not confirm their
+    IT handover, answer the exit interview, or download their own relieving
+    letter, and nothing said why.
+    """
+    if not emp.email:
+        return None
+    if session.scalar(select(User).where(User.email == emp.email)):
+        return None
+    secret = generate_temp_password()
+    session.add(User(
+        email=emp.email,
+        password_hash=hash_password(secret),
+        role="employee",
+        employee_id=emp.id,
+        full_name=emp.name,
+        must_change_password=True,
+    ))
+    return {"email": emp.email, "password": secret}
 
 
 def _insert_case(session: Session, emp: Employee, *,

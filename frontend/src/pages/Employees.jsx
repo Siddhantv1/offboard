@@ -87,9 +87,19 @@ export default function Employees() {
       const body = { status };
       if (lastWorkingDay) body.last_working_day = lastWorkingDay;
       const data = await patchJSON(`/api/employees/${person.id}`, body);
-      if (data.case_was_created) {
-        setNote(`${person.name} is now exiting — ${data.case.case_id} is open with `
-                + "all five clearances pending.");
+      if (data.case_was_created || data.credential) {
+        const bits = [];
+        if (data.case_was_created) {
+          bits.push(`${person.name} is now exiting — ${data.case.case_id} is open `
+                    + "with all five clearances pending.");
+        }
+        // Shown once and never again: it is hashed the moment it is stored.
+        if (data.credential) {
+          bits.push(`Their one-time password is ${data.credential.password} — `
+                    + "send it to them now, it cannot be shown again. They need "
+                    + "it to confirm their handover and collect their letters.");
+        }
+        setNote(bits.join(" "));
       }
       load();
     } catch (e) {

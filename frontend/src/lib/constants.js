@@ -45,8 +45,7 @@ export const EMPLOYEE_FIELDS = [
     type: "select",
     required: false,
     optionsFrom: "managers",
-    help: "Only managers with an account appear here — they are the only ones "
-        + "a sign-off can actually reach. Ask IT to add one under People & access.",
+    help: "",
   },
   { name: "location", label: "Location", required: false, placeholder: "e.g. Bengaluru, IN" },
   { name: "employment_type", label: "Employment type", required: false, placeholder: "Full-time" },

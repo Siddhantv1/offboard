@@ -884,12 +884,19 @@ def update_employee_status(employee_id: str, user: HRUser,
 
     existing = store.exit_case_for_employee(employee_id)
     created = None
-    if status == "exiting" and existing is None:
-        try:
-            created = store.add_exit_case(
-                emp, last_working_day=str(payload.get("last_working_day") or "") or None)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    credential = None
+    if status == "exiting":
+        if existing is None:
+            try:
+                created = store.add_exit_case(
+                    emp,
+                    last_working_day=str(payload.get("last_working_day") or "") or None)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        # They have a part to play now -- confirming the IT handover, the exit
+        # interview, downloading their own letters -- and none of it is
+        # possible without a way in.
+        credential = store.issue_login(employee_id)
 
     # The case is deliberately NOT deleted when someone is set back to active.
     # A withdrawn resignation is a real thing and the case is the record that
@@ -902,6 +909,7 @@ def update_employee_status(employee_id: str, user: HRUser,
         "status": status,
         "case": created.meta if created else (existing.meta if existing else None),
         "case_was_created": created is not None,
+        "credential": credential,
     }
 
 

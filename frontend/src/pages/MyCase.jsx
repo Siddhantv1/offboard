@@ -171,8 +171,7 @@ function IssuedDocuments({ state }) {
   return (
     <Panel title="You're all set">
       <p className="allset-lead">
-        Every clearance is complete. These are yours to keep — download them
-        now, while you still have access to this account.
+        All clearance stages are complete. Please download your documents from below.
       </p>
       <ul className="allset-docs">
         {state.documents.map((d) => (
@@ -185,9 +184,6 @@ function IssuedDocuments({ state }) {
           </li>
         ))}
       </ul>
-      <p className="hint">
-        HR can re-send any of these later if you lose them.
-      </p>
     </Panel>
   );
 }
