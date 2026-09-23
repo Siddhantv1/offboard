@@ -5,7 +5,8 @@ import DocumentUpload from "../components/DocumentUpload.jsx";
 import Checklist from "../components/results/Checklist.jsx";
 import { Badge, Button, ErrorBox, Panel, Skeleton } from "../components/ui.jsx";
 import { fetchJSON, postJSON } from "../lib/api.js";
-import { STAGE_NAMES } from "../lib/stages.js";
+import { docStagesForStep, EMPLOYEE_STEPS, STAGE_KEY_BY_NAME, STAGE_NAMES }
+  from "../lib/stages.js";
 
 /** The employee's half of a two-sided clearance.
  *
@@ -188,6 +189,185 @@ function IssuedDocuments({ state }) {
   );
 }
 
+/** Where the exit has got to, step by step and strictly in order.
+ *
+ * Two facts per step, and they are deliberately separate because on real cases
+ * they disagree.
+ *
+ * `status` is **position**: a step is done when every clearance it covers is
+ * completed, the step the person is on is the first that is not, and the rest
+ * are ahead. That is the strict order the timeline draws.
+ *
+ * `tone` and `label` are **what is actually happening** to those clearances.
+ * Four teams work to their own records and the server has never refused an
+ * out-of-order sign-off — on the live data, Nisha Reddy's HR clearance is
+ * signed off while her manager has not looked at the handover. Colouring a
+ * step from its position alone would have told her Finance had not started
+ * while Finance was working on it, and a page that contradicts the person's
+ * own inbox is worse than one that shows nothing.
+ *
+ * So: position decides the order and the run of teal; the stage decides the
+ * words. A step is only described as waiting on the one before it when every
+ * clearance under it really is still pending.
+ */
+export function walkSteps(caseStages = []) {
+  const byName = Object.fromEntries((caseStages || []).map((s) => [s.name, s]));
+
+  const rows = EMPLOYEE_STEPS.map((step) => {
+    const stages = step.stages.map((key) => byName[STAGE_NAMES[key]]).filter(Boolean);
+    const done = stages.length > 0 && stages.every((s) => s.status === "completed");
+    // "Started" counts a completed half too: a handover that is written and
+    // waiting on the manager is under way, not untouched.
+    const started = stages.some((s) => s.status !== "pending");
+    return {
+      step,
+      stages,
+      done,
+      started,
+      label: done ? "Cleared" : started ? "In progress" : "Not started",
+      tone: done ? "cleared" : started ? "open" : "waiting",
+    };
+  });
+
+  const currentIdx = rows.findIndex((r) => !r.done);
+  return rows.map((r, i) => ({
+    ...r,
+    status: r.done ? "done" : i === currentIdx ? "current" : "ahead",
+  }));
+}
+
+/** The four steps across the top, as one row you can read at a glance.
+ *
+ * This replaced a page that opened with the document uploader: eleven forms,
+ * every stage's paperwork at once, above any statement of where the exit
+ * actually was. The first question a leaver has is "what is happening and is
+ * it my turn", and answering it took scrolling past the answer to a different
+ * question.
+ */
+function StepTimeline({ rows, active, onPick }) {
+  return (
+    <ol className="xtl" aria-label="Clearance steps">
+      {rows.map((r, i) => (
+        <li
+          key={r.step.key}
+          className={["xtl-step", `is-${r.status}`, `tone-${r.tone}`,
+                      r.step.key === active ? "is-active" : ""]
+            .filter(Boolean).join(" ")}
+        >
+          <button
+            type="button"
+            className="xtl-btn"
+            aria-current={r.step.key === active ? "step" : undefined}
+            onClick={() => onPick(r.step.key)}
+          >
+            <span className="xtl-dot" aria-hidden="true">
+              {r.done ? "✓" : i + 1}
+            </span>
+            <span className="xtl-name">{r.step.label}</span>
+            <span className="xtl-state">{r.label}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** One step's own section: its clearances, the part that is theirs to do, and
+ *  only the documents this step asks for. */
+function StepSection({ row, previous, confirmations, docs, onConfirmed, onUploaded }) {
+  const wanted = docStagesForStep(row.step);
+  const mine = (docs?.checklist || []).filter((d) => wanted.includes(d.stage));
+
+  /* A cleared step is waiting on nobody. `document_status` keeps a form due
+     once its stage has opened -- completed included -- which is right for the
+     audit and wrong on this page: it put "Needed now" under a signed-off
+     clearance, which is the contradiction this was reported for. The row and
+     its upload stay; only the demand goes. */
+  const checklist = row.done
+    ? mine.map((d) => (d.state === "needed" || d.state === "rejected"
+      ? { ...d, state: "not_collected" } : d))
+    : mine;
+
+  /* A progress meter for this step alone. The whole-case summary the API
+     returns would be wrong here in the way that matters most -- it would show
+     a step with nothing outstanding as 60% done, because of forms belonging to
+     a step three along. */
+  const accepted = checklist.filter((d) => d.state === "accepted").length;
+  const due = checklist.filter((d) => d.state !== "not_yet_due").length;
+  const summary = {
+    submitted: accepted,
+    required_now: due,
+    completion_pct: Math.round((100 * accepted) / Math.max(1, due)),
+    all_in: accepted === due,
+  };
+
+  return (
+    <Panel title={row.step.label}>
+      <p className="hint" style={{ marginTop: -6 }}>{row.step.blurb}</p>
+
+      {/* Only when it is true. Saying "finance starts after the handover" over
+          a finance clearance that is already in progress -- which is exactly
+          the shape of four of the live cases -- would contradict the badge
+          two lines below it. */}
+      {row.status === "ahead" && !row.started && previous && (
+        <p className="stage-waiting">
+          {`${previous.step.label} comes first — this one starts once it is `}
+          cleared. You can still send anything asked for below early.
+        </p>
+      )}
+
+      {row.stages.map((s) => {
+        const key = STAGE_KEY_BY_NAME[s.name];
+        return (
+          <div className="stage-row" key={s.name}>
+            <div className="stage-head">
+              <span className="stage-name">{s.name}</span>
+              <Badge value={s.status} />
+              {s.days_open > 0 && <span className="stage-days">{s.days_open}d open</span>}
+            </div>
+            <p className="stage-owner">
+              {s.owner ? `With ${s.owner}` : "Not yet assigned"}
+            </p>
+            {confirmations[key] && (
+              <div className="step-confirm">
+                <ConfirmStage stageKey={key} state={confirmations[key]}
+                              onConfirmed={onConfirmed} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {checklist.length ? (
+        <div className="step-docs">
+          <h4>Documents for this step</h4>
+          <DocumentUpload
+            checklist={checklist}
+            summary={summary}
+            fileUrl={(id) => `/api/me/case/documents/${id}/file`}
+            onUploaded={onUploaded}
+            /* The other half of a clearance signed off over missing paperwork.
+               The case page now asks whoever does it to confirm; this is what
+               the leaver was already being shown when it had happened -- a
+               cleared step above "2 still need something from you". The forms
+               stay listed, because they are still what the file is missing,
+               but nothing here is theirs to chase any more. */
+            note={row.done && !summary.all_in
+              ? `${row.step.label} was signed off without `
+                + `${summary.required_now - summary.submitted} of these. They are `
+                + "listed for your record — send one only if you are asked to."
+              : undefined}
+          />
+        </div>
+      ) : (
+        <p className="step-nodocs">
+          No documents are collected at this step.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 /** The employee's own exit case: where it stands, and the paperwork they owe.
  *
  * Resolved server-side from the session, so there is no case id to pick and
@@ -200,6 +380,9 @@ export default function MyCase() {
   const [docs, setDocs] = useState(null);
   const [interview, setInterview] = useState(null);
   const [issued, setIssued] = useState(null);
+  // null means "follow the case". Set only by clicking another step, so the
+  // page tracks the exit until the person deliberately looks elsewhere.
+  const [picked, setPicked] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -270,11 +453,17 @@ export default function MyCase() {
   }
 
   const c = data.case;
+  const rows = walkSteps(c.stages);
   // `current_stage` deliberately stays put once everything is finished, so
   // reading it back verbatim would claim the case is still at whichever
   // stage happened to be last.
   const allStagesDone = (c.stages || []).length > 0
     && c.stages.every((s) => s.status === "completed");
+
+  const current = rows.find((r) => r.status === "current") ?? rows[rows.length - 1];
+  const activeKey = picked ?? current?.step.key;
+  const activeIdx = rows.findIndex((r) => r.step.key === activeKey);
+  const active = rows[activeIdx] ?? current;
 
   return (
     <div className="my-case">
@@ -288,31 +477,33 @@ export default function MyCase() {
         </p>
       </div>
 
+      {/* First thing on the page once it is true. Everything below it is then
+          history, and burying the one screen the whole process is for under
+          four cleared steps made finishing the exit feel like it had not
+          happened. */}
+      {issued?.ready && <IssuedDocuments state={issued} />}
+
       <div className="case-status-row">
         <Badge value={c.overall_status} />
         <span className="muted">
           {allStagesDone
-            ? <>All five clearances are <b>complete</b></>
+            ? <>Every clearance is <b>complete</b></>
             : <>Currently at: <b>{c.current_stage}</b></>}
           {c.last_working_day && <> · last working day {c.last_working_day}</>}
         </span>
       </div>
 
-      {Object.entries(data.confirmations || {}).map(([key, conf]) => (
-        <Panel key={key} title={`Your part of ${STAGE_NAMES[key] ?? key}`}>
-          <ConfirmStage stageKey={key} state={conf} onConfirmed={onConfirmed} />
-        </Panel>
-      ))}
+      <StepTimeline rows={rows} active={activeKey} onPick={setPicked} />
 
-      {docs && (
-        <Panel title="Your documents">
-          <DocumentUpload
-            checklist={docs.checklist}
-            summary={docs.summary}
-            imageUrl={(id) => `/api/me/case/documents/${id}/image`}
-            onUploaded={onUploaded}
-          />
-        </Panel>
+      {active && (
+        <StepSection
+          row={active}
+          previous={rows[activeIdx - 1]}
+          confirmations={data.confirmations || {}}
+          docs={docs}
+          onConfirmed={onConfirmed}
+          onUploaded={onUploaded}
+        />
       )}
 
       {interview && (
@@ -341,27 +532,6 @@ export default function MyCase() {
 
       <Panel title="Your exit checklist">
         <MyChecklist />
-      </Panel>
-
-      {issued?.ready && <IssuedDocuments state={issued} />}
-
-      <Panel title="Clearance stages">
-        <p className="hint" style={{ marginTop: -6 }}>
-          Following are the stages of your exiting. IT, HR, Finance and your
-          manager.
-        </p>
-        {(c.stages || []).map((s) => (
-          <div className="stage-row" key={s.name}>
-            <div className="stage-head">
-              <span className="stage-name">{s.name}</span>
-              <Badge value={s.status} />
-              {s.days_open > 0 && <span className="stage-days">{s.days_open}d open</span>}
-            </div>
-            <p className="stage-owner">
-              {s.owner ? `With ${s.owner}` : "Not yet assigned"}
-            </p>
-          </div>
-        ))}
       </Panel>
 
       {issued && !issued.ready && <IssuedDocuments state={issued} />}

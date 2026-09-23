@@ -7,16 +7,8 @@ import { Badge, Button, ErrorBox, Panel, PageHead, Skeleton } from "../component
 import { fetchJSON, postJSON } from "../lib/api.js";
 import { useAuth } from "../lib/auth.jsx";
 import { humanize } from "../lib/format.js";
-import { STAGE_KEY_BY_NAME as KEY_BY_NAME } from "../lib/stages.js";
-
-/** What you can move a stage to from where it is now. Mirrors
- *  `backend/stages.py:LEGAL` -- the server is authoritative and will refuse
- *  anything else, this just avoids offering a button that cannot work. */
-const NEXT = {
-  pending: [["in_progress", "Start"], ["completed", "Mark complete"]],
-  in_progress: [["completed", "Mark complete"], ["pending", "Send back"]],
-  completed: [["in_progress", "Reopen"]],
-};
+import { DOC_STAGES_FOR, NEXT_STATUS as NEXT, STAGE_KEY_BY_NAME as KEY_BY_NAME }
+  from "../lib/stages.js";
 
 /** Whether the leaver has done their half of a two-sided stage.
  *
@@ -62,31 +54,54 @@ export function EmployeeSide({ confirmation, employee }) {
   );
 }
 
-function StageRow({ caseId, stage, canAct, confirmation, employee, onChanged }) {
+function StageRow({ caseId, stage, canAct, confirmation, employee, missing = [],
+                   onChanged }) {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
 
   const stageKey = KEY_BY_NAME[stage.name];
 
-  async function move(to) {
+  /* Paperwork this stage asks for that is due and has not arrived.
+     Scoped to the stage rather than the whole case, because that is where the
+     contradiction the leaver sees comes from: their page now groups every
+     document under the step that asks for it, so a step marked complete above
+     a list of documents it is still waiting for says two things at once. */
+  const owed = missing
+    .filter((m) => (DOC_STAGES_FOR[stageKey] || []).includes(m.stage))
+    .map((m) => m.document);
+
+  async function move(to, extraNote = "") {
     setBusy(to);
     setError(null);
     try {
       await postJSON(`/api/cases/${caseId}/stages/${stageKey}/transition`, {
         to,
-        note: note.trim(),
+        // The override goes in the audit trail rather than only on screen. A
+        // sign-off over missing paperwork is a decision somebody made, and the
+        // record should say so with their name on it.
+        note: [note.trim(), extraNote].filter(Boolean).join(" "),
         claim: true,
       });
       setNote("");
       setShowNote(false);
+      setConfirmComplete(false);
       onChanged();
     } catch (e) {
       setError(e.message);
     } finally {
       setBusy(null);
     }
+  }
+
+  function onPick(to) {
+    if (to === "completed" && owed.length && !confirmComplete) {
+      setConfirmComplete(true);
+      return;
+    }
+    move(to);
   }
 
   const options = NEXT[stage.status] ?? [];
@@ -111,7 +126,7 @@ function StageRow({ caseId, stage, canAct, confirmation, employee, onChanged }) 
               variant={to === "completed" ? "primary" : "ghost"}
               busy={busy === to}
               disabled={busy !== null}
-              onClick={() => move(to)}
+              onClick={() => onPick(to)}
             >
               {label}
             </Button>
@@ -120,6 +135,34 @@ function StageRow({ caseId, stage, canAct, confirmation, employee, onChanged }) 
                   onClick={() => setShowNote((v) => !v)}>
             {showNote ? "Hide note" : "Add a note"}
           </button>
+        </div>
+      )}
+
+      {canAct && confirmComplete && (
+        <div className="stage-confirm" role="alert">
+          <p className="stage-confirm-lead">
+            <b>
+              {`${stage.name} is still waiting on ${owed.length} document${
+                owed.length === 1 ? "" : "s"}.`}
+            </b>{" "}
+            {`Are you sure you want to mark this stage as complete for ${employee || "the employee"} ?`}
+          </p>
+          <p className="stage-confirm-docs">{owed.join(", ")}</p>
+          <div className="btn-row">
+            <Button
+              variant="danger"
+              busy={busy === "completed"}
+              onClick={() => move("completed",
+                `Completed with ${owed.length} document${owed.length === 1 ? "" : "s"} `
+                + `still outstanding: ${owed.join(", ")}.`)}
+            >
+              Complete anyway
+            </Button>
+            <Button variant="ghost" disabled={busy !== null}
+                    onClick={() => setConfirmComplete(false)}>
+              Cancel
+            </Button>
+          </div>
         </div>
       )}
 
@@ -323,6 +366,7 @@ export default function CaseDetail() {
             canAct={mayAction.has(KEY_BY_NAME[s.name])}
             confirmation={(data.employee_confirmations || {})[KEY_BY_NAME[s.name]]}
             employee={c.employee_name}
+            missing={data.documents?.missing || []}
             onChanged={load}
           />
         ))}
@@ -338,7 +382,7 @@ export default function CaseDetail() {
       <Panel title="Documents — submitted for review" id="submitted-documents">
         <SubmittedDocuments
           documents={uploads}
-          imageUrl={(id) => `/api/cases/${caseId}/documents/${id}/image`}
+          fileUrl={(id) => `/api/cases/${caseId}/documents/${id}/file`}
           // Only HR may overturn a verdict. A manager can read the scan on
           // their own team's case, which is what they need to sign off, but
           // accepting paperwork is HR's call and the server enforces that too.

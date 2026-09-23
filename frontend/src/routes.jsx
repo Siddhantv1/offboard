@@ -19,6 +19,7 @@ import ExitInterview from "./pages/ExitInterview.jsx";
 import Employees from "./pages/Employees.jsx";
 import Home from "./pages/Home.jsx";
 import ITClearance from "./pages/ITClearance.jsx";
+import ManagerSignoff from "./pages/ManagerSignoff.jsx";
 import MyCase from "./pages/MyCase.jsx";
 import Orchestrator from "./pages/Orchestrator.jsx";
 import Queue from "./pages/Queue.jsx";
@@ -53,8 +54,17 @@ export const ROUTES = [
      it opens with five clearance stages IT does not own and buries the access
      position. IT gets a page about one person's clearance instead. */
   { path: "/cases", roles: ["hr", "manager"], element: <CaseList /> },
-  { path: "/cases/:caseId", roles: ["hr", "manager"], element: <CaseDetail /> },
+  /* The case page itself is HR's. A manager was given it because the queue had
+     nowhere else to click through to, and it is as wrong for them as it was
+     for IT: five clearance stages, three they cannot move, two panels of
+     document review that is HR's alone to action, and no sign of the handover
+     document their whole decision turns on. They get a page about the handover
+     instead. The *list* stays theirs -- their queue holds open stages only, so
+     dropping it would make a finished exit unreachable. */
+  { path: "/cases/:caseId", roles: ["hr"], element: <CaseDetail /> },
   { path: "/it/clearance/:caseId", roles: ["it", "hr"], element: <ITClearance /> },
+  { path: "/manager/signoff/:caseId", roles: ["manager", "hr"],
+    element: <ManagerSignoff /> },
   /* HR only now. It is an authorisation queue across every case, which is
      HR's job; IT's half of it moved onto the clearance page for the person it
      concerns. */

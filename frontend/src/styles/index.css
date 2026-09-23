@@ -1356,6 +1356,17 @@ a.back:focus-visible,
   display: block; max-width: 100%; max-height: 420px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
 }
+/* A PDF gets the browser's own viewer. Taller than the image cap because a
+   page of A4 scaled to 420px is unreadable, which would defeat the point of
+   accepting PDFs in the first place. */
+.doc-pdf {
+  display: block; width: 100%; height: 560px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--inset);
+}
+@media (max-width: 620px) {
+  .doc-pdf { height: 380px; }
+}
 .doc-done { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .doc-file-label.is-urgent {
   border-color: var(--danger); color: var(--danger); font-weight: 500;
@@ -2015,3 +2026,143 @@ select option:checked { background: var(--mint); color: var(--deep); }
 @media (max-width: 560px) {
   .allset-docs li { flex-direction: column; align-items: stretch; gap: 8px; }
 }
+
+/* ---- the leaver's step timeline -------------------------------------------
+   Four steps across the top of their own case, in the order the exit is
+   actually walked (knowledge transfer, IT, finance, HR) rather than the order
+   the stages happen to be stored in.
+
+   The connector sits on each step's left edge rather than being one line under
+   the row, so it colours per gap: teal behind the steps already passed, a
+   hairline ahead of them. Every state also carries a word ("Cleared", "In
+   progress", "Not started") -- a dimmed step is not information to a screen
+   reader, and is not reliable on a phone in daylight either.
+
+   `is-*` is the step's POSITION in the order and drives the connector; `tone-*`
+   is what is actually happening to its clearances and drives the dot. They
+   are separate because on the live data they disagree: a finance clearance can
+   be in progress two steps ahead of where the exit nominally is, and a dashed
+   "not started" dot over a badge reading "in progress" is the contradiction
+   this page exists to remove. */
+.xtl {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  list-style: none; margin: 0 0 22px; padding: 0;
+}
+.xtl-step { position: relative; }
+/* Left half of the gap belongs to this step, right half to the previous one;
+   together they meet under the midpoint between the two dots. */
+.xtl-step::before {
+  content: ""; position: absolute; top: 20px; left: -50%; width: 100%;
+  height: 2px; background: var(--line);
+}
+.xtl-step:first-child::before { display: none; }
+/* Everything before the current step is cleared by definition, so the run of
+   teal stops exactly where the work does. */
+.xtl-step.is-done::before,
+.xtl-step.is-current::before { background: var(--teal-soft); }
+
+.xtl-btn {
+  display: grid; justify-items: center; gap: 5px; width: 100%;
+  background: none; border: 0; padding: 8px 6px 10px; font: inherit;
+  color: var(--ink); cursor: pointer; border-radius: var(--radius-sm);
+}
+.xtl-btn:hover { background: var(--mint); }
+.xtl-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+.xtl-dot {
+  position: relative; z-index: 1;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: var(--surface); color: var(--muted);
+  border: 2px solid var(--line-strong);
+}
+.xtl-step.tone-cleared .xtl-dot {
+  background: var(--deep); border-color: var(--deep); color: var(--surface);
+}
+.xtl-step.tone-open .xtl-dot { border-color: var(--teal); color: var(--teal); }
+.xtl-step.tone-waiting .xtl-dot { border-style: dashed; }
+
+.xtl-name { font-size: 13px; font-weight: 550; text-align: center; line-height: 1.3; }
+.xtl-state { font-size: 11.5px; color: var(--muted); text-align: center; }
+.xtl-step.tone-waiting .xtl-name { color: var(--muted); font-weight: 500; }
+/* Mint means "selected" everywhere else in the app; it means it here too. */
+.xtl-step.is-active .xtl-btn { background: var(--mint); }
+
+@media (max-width: 620px) {
+  .xtl { grid-auto-flow: row; }
+  .xtl-step::before { top: -6px; left: 21px; width: 2px; height: 14px; }
+  .xtl-btn {
+    grid-template-columns: 26px 1fr; justify-items: start; align-items: center;
+    column-gap: 12px; row-gap: 0; padding: 8px;
+  }
+  .xtl-dot { grid-row: 1 / span 2; }
+  .xtl-name, .xtl-state { text-align: left; grid-column: 2; }
+}
+
+/* One step's own section. The uploader used to open the page with all eleven
+   forms at once; here it only ever shows the ones this step asks for. */
+.step-docs { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.step-docs h4 { margin: 0 0 12px; font-size: 13px; font-weight: 550; }
+.step-nodocs { color: var(--muted); font-size: 13px; margin: 14px 0 0; }
+.step-confirm { margin-top: 10px; }
+
+/* Completing a clearance whose paperwork has not arrived.
+   Not a browser confirm(): the thing worth showing is *which* documents, and
+   an alert box cannot list them or carry the override into the audit note. */
+.stage-confirm {
+  margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--warn-wash); border: 1px solid var(--warn);
+}
+.stage-confirm-lead { margin: 0; font-size: 13.5px; line-height: 1.55; }
+.stage-confirm-docs { margin: 8px 0 10px; font-size: 13px; color: var(--muted); }
+
+/* ---- the manager's handover workspace ------------------------------------
+   Their whole part in an exit is two stages and one judgement, and the
+   document the judgement rests on was not on any page they could reach. */
+.kt-meta {
+  display: flex; gap: 16px; flex-wrap: wrap; font-size: 13.5px;
+  margin: -6px 0 12px;
+}
+/* A native <details>: the handover runs to a couple of thousand words, and the
+   reader's first question is whether one exists and who is taking the work
+   over. No JS, and it stays open across a re-render because the browser owns
+   the state rather than React. */
+.kt-body > summary {
+  cursor: pointer; font-size: 13px; font-weight: 550; color: var(--teal);
+  padding: 8px 0; list-style-position: outside;
+}
+.kt-body > summary:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.is-kt-md {
+  border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px;
+  font-size: 14px; line-height: 1.65; max-width: 74ch;
+}
+.is-kt-md > :first-child { margin-top: 0; }
+.is-kt-md > :last-child { margin-bottom: 0; }
+.is-kt-md p { margin: 0 0 10px; }
+.is-kt-md ul, .is-kt-md ol { margin: 6px 0 12px; padding-left: 20px; }
+.is-kt-md li { margin: 4px 0; }
+.is-kt-md h1, .is-kt-md h2, .is-kt-md h3, .is-kt-md h4 {
+  font-family: var(--serif); font-size: 15px; font-weight: 600; margin: 16px 0 6px;
+}
+.is-kt-md code {
+  font-size: 12.5px; background: var(--inset); padding: 1px 5px;
+  border-radius: 4px;
+}
+/* Rendered Markdown is the only source of blockquotes in the app, and they
+   arrive wherever it is rendered -- the handover, a drafted reminder, a chat
+   reply -- so this is one rule rather than three. In a KT document the quote
+   is reliably the line that matters most ("reviewer to flag this as a critical
+   gap"), which is why it gets a rule down the side rather than the browser's
+   bare indent. */
+blockquote {
+  margin: 12px 0; padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--teal-soft); color: var(--muted);
+}
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
+
+/* Picking work up from the queue that lists it. The name and the button sit
+   together so the row still says who holds it. */
+.queue-owner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.queue-claim { padding: 4px 12px; font-size: 12.5px; white-space: nowrap; }

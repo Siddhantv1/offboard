@@ -339,10 +339,10 @@ export default function ITClearance() {
                 {"Still open: "}
                 {[
                   outstanding.length && `${outstanding.length} asset${outstanding.length === 1 ? "" : "s"} not accounted for`,
-                  live.length && `${live.length} account${live.length === 1 ? "" : "s"} still live`,
+                  live.length && `${live.length} account${live.length === 1 ? "" : "s"} are still active`,
                 ].filter(Boolean).join(", ")}
-                {". You can still sign off, but say why — it goes on the record "}
-                with your name.
+                {". "}
+                You may choose to override and clear the stage for them.
               </p>
             ) : (
               <p className="stage-confirmed">

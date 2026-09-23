@@ -38,8 +38,12 @@ ROLES = [
      # The clearance workspace, not a case page: IT no longer has /cases or the
      # all-plans Deprovisioning page, and this is where its queue now lands.
      ["/", "/queue/all", "/it/clearance/case-001", "/admin/users", "/settings"]),
+    # The handover workspace, not a case page: /cases/:id is HR's now, for the
+    # same reason IT lost it. case-003 is the dense one -- a filed KT document
+    # rendered in full, the submitted paperwork, and both stages -- so sweeping
+    # a case with nothing on it would measure the empty state only.
     ("manager", "vikram.sharma@perficient.com",
-     ["/", "/queue/all", "/cases", "/cases/case-001", "/settings"]),
+     ["/", "/queue/all", "/cases", "/manager/signoff/case-003", "/settings"]),
     ("employee", "aarav.mehta@perficient.com",
      ["/", "/faq", "/interview", "/settings"]),
 ]

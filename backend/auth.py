@@ -421,6 +421,11 @@ OptionalUser = Annotated[Identity | None, Depends(optional_user)]
 StaffUser = Annotated[Identity, Depends(require_roles("hr", "it", "manager"))]
 #: IT owns access revocation; HR is the escalation path over it.
 DeprovUser = Annotated[Identity, Depends(require_roles("hr", "it"))]
+#: The manager owns Knowledge Transfer and Manager Sign-off; HR is the
+#: escalation path over those too. Same shape as `DeprovUser`, and the same
+#: reasoning: a workspace built for one role, readable by the role that has to
+#: pick the work up when that person is on leave.
+ManagerUser = Annotated[Identity, Depends(require_roles("hr", "manager"))]
 #: Account administration. IT owns it, not HR: creating, disabling and
 #: role-changing logins is access management, which is the same job as
 #: revoking a leaver's systems -- and the team already trusted with the

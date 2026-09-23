@@ -1,7 +1,14 @@
 import { useRef, useState } from "react";
 
+import DocumentPreview from "./DocumentPreview.jsx";
 import { Badge, ErrorBox } from "./ui.jsx";
 import { postForm } from "../lib/api.js";
+
+/** What the person may send. A PDF of the signed form is what they actually
+ *  have; the image types stay for a phone photo of a paper original. Mirrors
+ *  `backend/ocr.ACCEPTED` -- the server sniffs the bytes and refuses anything
+ *  else, so this only saves them picking a file that will be rejected. */
+export const ACCEPT = "application/pdf,image/png,image/jpeg,image/webp,text/html";
 
 /** One row per document, ordered by what needs doing.
  *
@@ -10,7 +17,8 @@ import { postForm } from "../lib/api.js";
  * rejected form five headings down, which is the only row that needs the
  * person to act.
  */
-const ORDER = ["rejected", "needed", "in_review", "not_yet_due", "accepted"];
+const ORDER = ["rejected", "needed", "in_review", "not_collected", "not_yet_due",
+               "accepted"];
 
 const STATE = {
   rejected: {
@@ -23,7 +31,7 @@ const STATE = {
     tone: "b-warn",
     label: "Needed now",
     blurb: null,
-    cta: "Upload document (PNG, JPG)",
+    cta: "Upload document (PDF, PNG, JPG)",
   },
   in_review: {
     tone: "b-warn",
@@ -36,6 +44,17 @@ const STATE = {
     label: "Not needed yet",
     blurb: null,
     cta: "Send it early",
+  },
+  /* Still formally due, and nobody is waiting for it: the clearance that asked
+     for it was signed off without it. "Needed now" here is the contradiction
+     an employee reported -- a finished stage sitting above forms the same page
+     says they still owe. The row stays, because the file really is missing it,
+     and the upload stays, because HR does sometimes come back and ask. */
+  not_collected: {
+    tone: "b-neutral",
+    label: "Not received",
+    blurb: null,
+    cta: "Send it anyway",
   },
   accepted: {
     tone: "b-ok",
@@ -50,11 +69,11 @@ function when(value) {
   return String(value).slice(0, 10);
 }
 
-function Row({ row, imageUrl, onUploaded }) {
+function Row({ row, fileUrl, onUploaded }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [showScan, setShowScan] = useState(false);
+  const [showFile, setShowFile] = useState(false);
 
   const s = STATE[row.state] ?? STATE.needed;
   const latest = row.latest;
@@ -111,23 +130,26 @@ function Row({ row, imageUrl, onUploaded }) {
           Sent {when(latest.uploaded_at)}
           {latest.filename && <> · <span className="mono">{latest.filename}</span></>}
           {row.attempts > 1 && <> · {row.attempts} attempts</>}
-          {latest.has_image && (
+          {latest.has_file && (
             <>
               {" · "}
               <button type="button" className="linkish"
-                      aria-expanded={showScan}
-                      onClick={() => setShowScan((v) => !v)}>
-                {showScan ? "hide scan" : "view scan"}
+                      aria-expanded={showFile}
+                      onClick={() => setShowFile((v) => !v)}>
+                {showFile ? "hide document" : "view document"}
               </button>
             </>
           )}
         </div>
       )}
 
-      {showScan && latest?.has_image && (
-        <div className="doc-scan">
-          <img src={imageUrl(latest.id)} alt={`Scan of ${row.document}`} />
-        </div>
+      {showFile && latest?.has_file && (
+        <DocumentPreview
+          src={fileUrl(latest.id)}
+          contentType={latest.content_type}
+          filename={latest.filename}
+          label={`${row.document}, as sent`}
+        />
       )}
 
       {row.can_upload && (
@@ -137,7 +159,7 @@ function Row({ row, imageUrl, onUploaded }) {
             id={inputId}
             className="doc-file"
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept={ACCEPT}
             disabled={busy}
             onChange={(e) => send(e.target.files?.[0])}
           />
@@ -156,7 +178,12 @@ function Row({ row, imageUrl, onUploaded }) {
   );
 }
 
-export default function DocumentUpload({ checklist, summary, imageUrl, onUploaded }) {
+/** `note` replaces the line under the meter. The default nags -- "2 still need
+ *  something from you" -- and a caller sometimes knows that is no longer true:
+ *  a clearance signed off over missing paperwork leaves rows that are still
+ *  formally due and are no longer anybody's to chase. */
+export default function DocumentUpload({ checklist, summary, fileUrl, onUploaded,
+                                         note }) {
   const [showDone, setShowDone] = useState(false);
 
   const sorted = [...checklist].sort(
@@ -186,14 +213,14 @@ export default function DocumentUpload({ checklist, summary, imageUrl, onUploade
           <span style={{ width: `${summary.completion_pct}%` }} />
         </div>
         <p className="doc-progress-note">
-          {needsAction.length
+          {note ?? (needsAction.length
             ? `${needsAction.length} still need${needsAction.length === 1 ? "s" : ""} something from you.`
-            : "Nothing is waiting on you right now."}
+            : "Nothing is waiting on you right now.")}
         </p>
       </div>
 
       {open.map((r) => (
-        <Row key={r.document} row={r} imageUrl={imageUrl} onUploaded={onUploaded} />
+        <Row key={r.document} row={r} fileUrl={fileUrl} onUploaded={onUploaded} />
       ))}
 
       {!!done.length && (
@@ -207,7 +234,7 @@ export default function DocumentUpload({ checklist, summary, imageUrl, onUploade
             {showDone ? "Hide" : "Show"} the {done.length} already accepted
           </button>
           {showDone && done.map((r) => (
-            <Row key={r.document} row={r} imageUrl={imageUrl} onUploaded={onUploaded} />
+            <Row key={r.document} row={r} fileUrl={fileUrl} onUploaded={onUploaded} />
           ))}
         </div>
       )}

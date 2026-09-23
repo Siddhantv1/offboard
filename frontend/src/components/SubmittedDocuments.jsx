@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import DocumentPreview from "./DocumentPreview.jsx";
 import { Badge, Button, Empty, ErrorBox } from "./ui.jsx";
 import { postJSON } from "../lib/api.js";
 
@@ -17,14 +18,14 @@ function when(value) {
 
 /** Everything an employee has sent on a case, with the scan itself.
  *
- * `imageUrl` differs per caller: staff read through the case route (scoped to
+ * `fileUrl` differs per caller: staff read through the case route (scoped to
  * their own team), the employee through their own. The component does not know
  * or care which -- it just renders what it is given.
  *
  * `onReviewed` is only passed where the viewer may override a verdict, which
  * is what makes the review controls appear.
  */
-export default function SubmittedDocuments({ documents, imageUrl, onReviewed }) {
+export default function SubmittedDocuments({ documents, fileUrl, onReviewed }) {
   const [openId, setOpenId] = useState(null);
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState(null);
@@ -61,14 +62,14 @@ export default function SubmittedDocuments({ documents, imageUrl, onReviewed }) 
             <div className="subdoc-head">
               <span className="subdoc-name">{d.document_name}</span>
               <Badge value={d.verdict} label={v.label} className={v.tone} />
-              {d.has_image && (
+              {d.has_file && (
                 <button
                   type="button"
                   className="linkish"
                   aria-expanded={open}
                   onClick={() => setOpenId(open ? null : d.id)}
                 >
-                  {open ? "Hide scan" : "View scan"}
+                  {open ? "Hide document" : "View document"}
                 </button>
               )}
             </div>
@@ -88,16 +89,17 @@ export default function SubmittedDocuments({ documents, imageUrl, onReviewed }) 
               </p>
             )}
 
-            {open && d.has_image && (
+            {open && d.has_file && (
               <div className="subdoc-scan">
-                {/* Loaded on demand: these are whole images in the database,
-                    so rendering every one on page load would be megabytes for
-                    a list most people only skim. */}
-                <img src={imageUrl(d.id)} alt={`Scan of ${d.document_name}`} />
-                <a href={imageUrl(d.id)} target="_blank" rel="noreferrer"
-                   className="linkish">
-                  Open full size
-                </a>
+                {/* Loaded on demand: these are whole files in the database, so
+                    rendering every one on page load would be megabytes for a
+                    list most people only skim. */}
+                <DocumentPreview
+                  src={fileUrl(d.id)}
+                  contentType={d.content_type}
+                  filename={d.filename}
+                  label={`${d.document_name}, as sent`}
+                />
               </div>
             )}
 

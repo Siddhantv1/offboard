@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { Badge, DataTable, EmptyState, ErrorBox, PageHead, Skeleton } from "../components/ui.jsx";
-import { fetchJSON } from "../lib/api.js";
+import { Badge, Button, DataTable, EmptyState, ErrorBox, PageHead, Skeleton } from "../components/ui.jsx";
+import { fetchJSON, postJSON } from "../lib/api.js";
 import { useAuth } from "../lib/auth.jsx";
+import { caseHref } from "../lib/nav.js";
 
 const COPY = {
   it: {
@@ -43,6 +44,8 @@ const COPY = {
 export default function Queue({ scope = "mine" }) {
   const { user } = useAuth();
   const [state, setState] = useState({ status: "loading", rows: [], error: null });
+  const [claiming, setClaiming] = useState(null);
+  const [claimError, setClaimError] = useState(null);
 
   const copy = (COPY[user?.role] ?? COPY.hr)[scope];
 
@@ -61,9 +64,33 @@ export default function Queue({ scope = "mine" }) {
 
   const { status, rows, error } = state;
 
-  const rowHref = (r) => (user?.role === "it"
-    ? `/it/clearance/${r.case_id}`
-    : `/cases/${r.case_id}`);
+  const rowHref = (r) => caseHref(user?.role, r.case_id);
+
+  /* Picking work up, from the page that lists it.
+     "All IT clearance" exists so somebody can take a stage whose assignee is
+     away, and it had no way to take one: the only route in was to open that
+     person's clearance page and let `claim: true` ride along on a transition
+     -- so the first thing you could do with a stage was finish it.
+
+     It offers to take a held stage too, not only an unowned one, because on
+     the live data no IT stage is unowned: both open ones name an engineer, and
+     a button that only ever appears on work nobody holds would have appeared
+     never. Taking one is a handover and reads as one -- the label names who it
+     comes from, and `assign_owner` records it against the taker. */
+  const key = (r) => `${r.case_id}:${r.stage_key}`;
+
+  async function claim(r) {
+    setClaiming(key(r));
+    setClaimError(null);
+    try {
+      await postJSON(`/api/cases/${r.case_id}/stages/${r.stage_key}/claim`, {});
+      load();
+    } catch (e) {
+      setClaimError(e.message);
+    } finally {
+      setClaiming(null);
+    }
+  }
 
   const columns = [
     {
@@ -107,8 +134,26 @@ export default function Queue({ scope = "mine" }) {
     {
       key: "owner",
       label: "Owner",
-      render: (r) =>
-        r.claimed ? r.owner || "assigned" : <span className="muted">unclaimed</span>,
+      render: (r) => (r.mine ? (
+        <span>You</span>
+      ) : (
+        <div className="queue-owner">
+          {/* The name stays visible next to the button. A row that read only
+              "Claim" would hide the one fact you need before pressing it. */}
+          <span className={r.owner ? undefined : "muted"}>
+            {r.owner || "unclaimed"}
+          </span>
+          <Button
+            variant="ghost"
+            className="queue-claim"
+            busy={claiming === key(r)}
+            disabled={claiming !== null}
+            onClick={() => claim(r)}
+          >
+            {r.owner ? `Take from ${r.owner.split(" ")[0]}` : "Claim"}
+          </Button>
+        </div>
+      )),
     },
     {
       key: "lwd",
@@ -123,6 +168,7 @@ export default function Queue({ scope = "mine" }) {
 
       {status === "loading" && <Skeleton rows={4} />}
       {error && <ErrorBox>{error}</ErrorBox>}
+      {claimError && <ErrorBox>{claimError}</ErrorBox>}
 
       {status === "done" && !error && (
         rows.length ? (

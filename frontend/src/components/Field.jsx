@@ -1,3 +1,5 @@
+import { ACCEPT } from "./DocumentUpload.jsx";
+
 /** One agent input, rendered from the schema `/api/agents` returns.
  *
  * Uncontrolled on purpose: the parent reads values with FormData on submit,
@@ -42,7 +44,7 @@ export default function Field({ field: f, initial }) {
       </select>
     );
   } else if (f.type === "file") {
-    control = <input {...common} type="file" accept="image/png,image/jpeg,image/webp" />;
+    control = <input {...common} type="file" accept={ACCEPT} />;
   } else if (f.type === "date") {
     // A real picker, and the browser rejects anything that is not a date --
     // which a free-text "YYYY-MM-DD" placeholder never did.

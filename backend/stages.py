@@ -560,11 +560,17 @@ def timeline(case_id: str) -> list[dict[str, Any]]:
 
 
 def queue(session: Session, *, stage_keys: set[str], case_ids: set[str] | None = None,
-          owner_user_id: int | None = None) -> list[dict[str, Any]]:
+          owner_user_id: int | None = None,
+          viewer_user_id: int | None = None) -> list[dict[str, Any]]:
     """Open stages of the given types, newest breach first.
 
     `case_ids` is the caller's visible set (None means unrestricted, i.e. HR
     and IT). `owner_user_id` narrows to one person's own queue.
+
+    `viewer_user_id` decides `mine` on each row, which is a different question
+    from `owner_user_id`: on the all-work page every row is somebody's and the
+    page has to say which are the reader's own before it offers to move one.
+    Matches the field the IT clearance page already publishes.
     """
     stmt = (
         select(CaseStage, ExitCase)
@@ -594,6 +600,8 @@ def queue(session: Session, *, stage_keys: set[str], case_ids: set[str] | None =
             "owner": stage.owner or None,
             "owner_user_id": stage.owner_user_id,
             "claimed": stage.owner_user_id is not None,
+            "mine": (viewer_user_id is not None
+                     and stage.owner_user_id == viewer_user_id),
             "days_open": days,
             "breaching": is_breaching(stage.status, days),
             "blocked_reason": stage.blocked_reason,

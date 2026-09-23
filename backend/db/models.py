@@ -433,9 +433,12 @@ class CaseDocument(Base):
     verdict: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     reason: Mapped[str] = mapped_column(Text, default="")
     validation: Mapped[dict[str, Any]] = mapped_column(DateAwareJSONB, default=dict)
-    # The scan itself. BYTEA is right at this volume (single-page forms, low
-    # rate) and keeps the artifact in the same transaction as its verdict.
-    # Move to object storage behind a key column if rows reach a few MB.
+    # The uploaded file itself -- a scan, a PDF or an HTML form; `content_type`
+    # above says which. The columns are named `image` because that is all this
+    # accepted at first, and renaming them is a migration that buys nothing.
+    # BYTEA is right at this volume (single-page forms, low rate) and keeps the
+    # artifact in the same transaction as its verdict. Move to object storage
+    # behind a key column if rows reach a few MB.
     image: Mapped[bytes | None] = mapped_column(LargeBinary)
     image_bytes: Mapped[int | None] = mapped_column(Integer)
     uploaded_by: Mapped[str | None] = mapped_column(Text)

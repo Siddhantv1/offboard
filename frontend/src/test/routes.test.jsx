@@ -10,7 +10,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-import { NAV } from "../lib/nav.js";
+import { caseHref, NAV } from "../lib/nav.js";
 import AppRoutes, { partitionRoutes, ROUTES } from "../routes.jsx";
 
 // The pages themselves fetch; this suite is about which one is chosen.
@@ -187,6 +187,46 @@ describe("the route table", () => {
     const workspace = ROUTES.find((r) => r.path === "/it/clearance/:caseId");
     expect(workspace, "the IT clearance page is missing").toBeTruthy();
     expect(workspace.roles).toEqual(["it", "hr"]);
+  });
+
+  it("keeps HR's case page away from a manager", () => {
+    /* Same correction IT got, for the same reason. The case page opens with
+       five clearance stages, three a manager cannot move, and devotes two
+       panels to a document review queue that is HR's alone -- while the
+       handover document their entire decision rests on is not on it. They get
+       a workspace about the handover instead.
+
+       The case *list* stays theirs: their queue carries open stages only, so
+       dropping it would make a finished exit unreachable, which is exactly
+       how IT lost sight of clearances it had already completed. */
+    const detail = ROUTES.find((r) => r.path === "/cases/:caseId");
+    expect(detail.roles).toEqual(["hr"]);
+
+    const list = ROUTES.find((r) => r.path === "/cases");
+    expect(list.roles).toContain("manager");
+
+    const workspace = ROUTES.find((r) => r.path === "/manager/signoff/:caseId");
+    expect(workspace, "the manager's sign-off page is missing").toBeTruthy();
+    expect(workspace.roles).toEqual(["manager", "hr"]);
+  });
+
+  it("sends each role to a case page that role can actually open", () => {
+    /* `caseHref` is the only thing standing between the queue, the case list
+       and an agent result, and a 403. Three roles now work a case on three
+       different routes; anything that hardcodes /cases/:id is broken for two
+       of them. */
+    for (const role of ROLES) {
+      const href = caseHref(role, "case-001");
+      const reachable = partitionRoutes(role).mine.map((r) => r.path);
+      const pattern = href.replace("case-001", ":caseId");
+      if (role === "employee") {
+        // No case route at all: their own case is "/" and takes no id.
+        expect(reachable).not.toContain(pattern);
+        continue;
+      }
+      expect(reachable, `${role} is sent to ${href}, which it cannot open`)
+        .toContain(pattern);
+    }
   });
 
   it("leaves the cross-case authorisation queue with HR", () => {

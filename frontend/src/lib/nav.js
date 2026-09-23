@@ -47,7 +47,12 @@ export const NAV = {
   employee: [
     { to: "/", icon: "◔", label: "My exit case", end: true },
     { to: "/interview", icon: "✎", label: "Exit interview" },
-    { to: "/faq", icon: "?", label: "Ask a question" },
+    // `agentId` says this entry IS that agent's page under a plain-language
+    // name, and the sidebar drops any agent a fixed entry already covers.
+    // Without it an employee got the same page twice: "Ask a question" here,
+    // and "Exit Process FAQ Chatbot" under a Communication heading below --
+    // their agent catalogue being exactly this one entry.
+    { to: "/faq", icon: "?", label: "Ask a question", agentId: "faq_chatbot" },
   ],
 };
 
@@ -57,6 +62,21 @@ export const ROLE_LABEL = {
   it: "IT",
   manager: "Manager",
   employee: "Employee",
+};
+
+/** Where a role goes to work one case.
+ *
+ * There is no single "the case page" any more, and pretending otherwise is how
+ * links go stale: HR gets the whole case, IT gets the access position, the
+ * manager gets the handover. Each is a different route with different
+ * permissions, so every place that links to "this case" -- the queue, the case
+ * list, an agent result -- asks here rather than hardcoding /cases/:id and
+ * sending two of the three roles to a 403.
+ */
+export const caseHref = (role, caseId) => {
+  if (role === "it") return `/it/clearance/${caseId}`;
+  if (role === "manager") return `/manager/signoff/${caseId}`;
+  return `/cases/${caseId}`;
 };
 
 /** Where "home" is for a role. Used by the error pages, so "back to safety"

@@ -43,10 +43,18 @@ function Sidebar({ onNavigate }) {
 
   // Agent entries come from /api/agents, which the server has already filtered
   // by role -- so the nav cannot offer something the API would refuse.
-  const groups = agents.reduce((acc, a) => {
-    (acc[a.category] ||= []).push(a);
-    return acc;
-  }, {});
+  //
+  // Minus any agent the fixed nav already gives this role a named entry for.
+  // An employee's catalogue is one agent, the FAQ chatbot, and "Ask a
+  // question" above is that page -- so it was listed twice, once in plain
+  // language and once under its catalogue name.
+  const covered = new Set(navFor(user?.role).map((item) => item.agentId).filter(Boolean));
+  const groups = agents
+    .filter((a) => !covered.has(a.id))
+    .reduce((acc, a) => {
+      (acc[a.category] ||= []).push(a);
+      return acc;
+    }, {});
 
   return (
     <aside className="sidebar">

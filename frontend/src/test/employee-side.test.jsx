@@ -7,9 +7,19 @@
  * the corpus.
  */
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { EmployeeSide } from "../pages/CaseDetail.jsx";
+import { DOC_STAGES_FOR, EMPLOYEE_STEPS } from "../lib/stages.js";
+
+// MyCase fetches on mount; only walkSteps is under test here.
+vi.mock("../lib/api.js", () => ({
+  fetchJSON: () => new Promise(() => {}),
+  postJSON: () => new Promise(() => {}),
+  postForm: () => new Promise(() => {}),
+  csrfToken: () => "test-token",
+}));
+const { walkSteps } = await import("../pages/MyCase.jsx");
 
 const ASKS = "returned every company device and handed back your access";
 
@@ -58,5 +68,96 @@ describe("the employee's side of a clearance", () => {
   it("renders nothing for a stage with no employee side", () => {
     const { container } = render(<EmployeeSide confirmation={undefined} employee="X" />);
     expect(container.textContent).toBe("");
+  });
+});
+
+/** The four steps the leaver is walked through.
+ *
+ * Worth pinning because the display order is deliberately NOT the stored
+ * order. Stages arrive as IT, Finance, HR, KT, Manager -- the shape of the
+ * record -- and the page shows KT, IT, Finance, HR, the shape of the process.
+ * Reading the ordinal back would put IT first and tell somebody to hand their
+ * laptop in before their handover.
+ */
+const stage = (name, status) => ({ name, status, owner: "", days_open: 0 });
+
+/** A case in stored order, with the named stages completed. */
+const caseStages = (...completed) =>
+  ["IT Clearance", "Finance Clearance", "HR Clearance",
+   "Knowledge Transfer", "Manager Sign-off"]
+    .map((n) => stage(n, completed.includes(n) ? "completed" : "pending"));
+
+describe("the leaver's step timeline", () => {
+  it("walks knowledge transfer, IT, finance, HR -- not the stored order", () => {
+    expect(walkSteps(caseStages()).map((r) => r.step.key))
+      .toEqual(["kt", "it", "finance", "hr"]);
+  });
+
+  it("puts the person on the first step that is not cleared", () => {
+    const rows = walkSteps(caseStages());
+    expect(rows.map((r) => r.status)).toEqual(["current", "ahead", "ahead", "ahead"]);
+  });
+
+  it("only clears knowledge transfer once the manager has signed off too", () => {
+    // The step covers two stages and the timeline shows one. Clearing on the
+    // KT stage alone would tell the leaver the handover was accepted while
+    // their manager had not looked at it.
+    const half = walkSteps(caseStages("Knowledge Transfer"));
+    expect(half[0].status).toBe("current");
+
+    const both = walkSteps(caseStages("Knowledge Transfer", "Manager Sign-off"));
+    expect(both[0].status).toBe("done");
+    expect(both[1].status).toBe("current");
+  });
+
+  it("does not call a cleared step locked because an earlier one is open", () => {
+    // IT works to its own asset records and finishes whenever the hardware is
+    // back. Saying "not started" over a signed-off clearance would be a lie
+    // the page had no reason to tell.
+    const rows = walkSteps(caseStages("IT Clearance"));
+    expect(rows[0].status).toBe("current");
+    expect(rows[1].status).toBe("done");
+  });
+
+  it("reports whether the step has actually been started, not just its turn", () => {
+    const rows = walkSteps([stage("Knowledge Transfer", "in_progress"),
+                            stage("Manager Sign-off", "pending")]);
+    expect(rows[0].label).toBe("In progress");
+    expect(walkSteps(caseStages())[0].label).toBe("Not started");
+  });
+
+  it("never calls a clearance that is running 'not started' for being ahead", () => {
+    /* case-004, Nisha Reddy, as seeded: IT and HR signed off, Finance in
+       progress, the handover written but not signed off by her manager. Four
+       of the six live cases have a clearance running ahead of where the exit
+       nominally is, so this is the normal shape, not an edge. Position may put
+       Finance third; it may not tell her nobody has started it. */
+    const rows = walkSteps([
+      stage("IT Clearance", "completed"),
+      stage("Finance Clearance", "in_progress"),
+      stage("HR Clearance", "completed"),
+      stage("Knowledge Transfer", "completed"),
+      stage("Manager Sign-off", "pending"),
+    ]);
+    const finance = rows.find((r) => r.step.key === "finance");
+    expect(finance.status).toBe("ahead");
+    expect(finance.label).toBe("In progress");
+    expect(finance.tone).toBe("open");
+
+    // And the handover, half done, is not "Not started" either.
+    expect(rows[0].label).toBe("In progress");
+  });
+
+  it("leaves nothing for the leaver to upload outside a step", () => {
+    // Every document the employee can send has to appear under exactly one
+    // step, or it becomes a requirement with no screen to satisfy it.
+    const covered = EMPLOYEE_STEPS.flatMap((s) => s.stages)
+      .flatMap((k) => DOC_STAGES_FOR[k]);
+    for (const docStage of ["Resignation / Notice", "Knowledge Transfer",
+                            "Finance Clearance", "HR Clearance"]) {
+      expect(covered, `${docStage} has no step`).toContain(docStage);
+    }
+    // ...and under exactly one, so no form is asked for twice.
+    expect(new Set(covered).size).toBe(covered.length);
   });
 });

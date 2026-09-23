@@ -76,7 +76,11 @@ deadline (their last working day). Keep it under 200 words.
 
 Return JSON: {"to": str, "subject": str, "body": str, "urgency": "low|medium|high"}"""
 
-VALIDATE_SYSTEM = """You validate scanned exit paperwork from OCR text.
+VALIDATE_SYSTEM = """You validate exit paperwork from its extracted text.
+
+The text comes either from OCR of a photo or scan, or read exactly out of a \
+PDF or HTML file. The prompt says which. Apply the OCR tolerance below only \
+when it says OCR.
 
 You are given the company's own policy text for this document type. Judge the \
 scan against THOSE stated requirements, not against your general idea of what \
@@ -244,6 +248,24 @@ def record_upload(*, case_id: str, document_name: str, filename: str,
         return None
 
 
+#: Extractors whose output is the document's own characters rather than a
+#: guess at them. Worth telling the model, because `VALIDATE_SYSTEM` instructs
+#: it to forgive garbled characters -- forgiveness that is correct for a photo
+#: and wrong for a PDF's text layer, where a missing field really is missing.
+_EXACT_ENGINES = {"pdf-text", "html-text"}
+
+
+def _source_line(extracted: dict[str, Any]) -> str:
+    engine = str(extracted.get("engine") or "")
+    if engine in _EXACT_ENGINES:
+        return (f"Text read exactly from the file ({engine}) — this is not OCR, "
+                "so anything absent here is genuinely absent from the document")
+    confidence = extracted.get("confidence")
+    return (f"OCR text ({engine}"
+            + (f", avg confidence {confidence}" if confidence is not None else "")
+            + ")")
+
+
 def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: bytes,
                     filename: str = "", content_type: str = "",
                     uploaded_by: str | None = None) -> dict[str, Any]:
@@ -254,18 +276,25 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
     run still reported it missing.
     """
     try:
-        extracted = ocr.extract_text(image_bytes)
-    except ocr.OCRUnavailable as exc:
+        extracted = ocr.extract_document(image_bytes, content_type, filename)
+    except (ocr.OCRUnavailable, ocr.UnreadableUpload) as exc:
         return {"error": str(exc)}
-    except Exception as exc:  # noqa: BLE001 - bad image bytes etc.
-        return {"error": f"Could not read the image: {exc}"}
+    except Exception as exc:  # noqa: BLE001 - corrupt bytes etc.
+        return {"error": f"Could not read that file: {exc}"}
 
     case_id = str(case_meta.get("case_id") or "").strip()
 
     policy_sources: list[str] = []
     if not extracted["text"].strip():
+        # Said in terms of what they sent. "No readable text found in the
+        # image" on a PDF reads as though the upload went to the wrong place.
         judgement = {"verdict": "rejected",
-                     "reason": "No readable text found in the image."}
+                     "reason": {
+                         "pdf": "No readable text in that PDF. If it is a scan, "
+                                "send the scan itself as a PNG or JPG.",
+                         "html": "That HTML file has no visible text in it.",
+                     }.get(extracted.get("kind"),
+                           "No readable text found in the image.")}
     else:
         stage = next((d["stage"] for d in REQUIRED_DOCUMENTS
                       if _norm(d["name"]) == _norm(document_name)), "")
@@ -279,9 +308,8 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
                if policy_text else
                "No policy text was found for this document type; judge on general "
                "completeness and say so in the reason.\n\n")
-            + f"OCR text ({extracted['engine']}"
-            + (f", avg confidence {extracted['confidence']}" if extracted.get("confidence") is not None else "")
-            + f"):\n{extracted['text']}"
+            + _source_line(extracted)
+            + f":\n{extracted['text']}"
         )
         try:
             judgement = llm.complete_json(VALIDATE_SYSTEM, user, max_tokens=800)
@@ -292,13 +320,17 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
             # force the employee to re-upload for no fault of their own.
             judgement = {"verdict": "needs_review",
                          "reason": f"Automatic validation was unavailable ({exc}); "
-                                   "an HR reviewer should check this scan manually."}
+                                   "an HR reviewer should check this document "
+                                   "manually."}
 
     out: dict[str, Any] = {
         "document": document_name,
         "filename": filename,
-        "ocr": {k: extracted[k] for k in
-                ("engine", "seconds", "confidence", "image_size", "text")},
+        # `.get`, because only the image path has an `image_size` -- a PDF
+        # reports `pages` instead and an HTML file neither.
+        "ocr": {k: extracted.get(k) for k in
+                ("engine", "kind", "seconds", "confidence", "image_size",
+                 "pages", "text")},
         "validation": judgement,
         # Which policy documents the judgement was grounded in. Shown to the
         # person who uploaded, so a rejection cites a rule rather than an

@@ -5,6 +5,7 @@ import { Bullets, CheckList, ScoreRing, Section, TaskList, Verdict, bySeverity, 
 import { Button, ErrorBox } from "../ui.jsx";
 import { postJSON } from "../../lib/api.js";
 import { useAuth } from "../../lib/auth.jsx";
+import { caseHref } from "../../lib/nav.js";
 import GenericResult from "./GenericResult.jsx";
 
 /** Act on the verdict.
@@ -37,7 +38,10 @@ function ActOnReview({ caseId, stageStatus, verdict, gaps }) {
     return (
       <p className="rk-assigned">
         {state.message}{" "}
-        <Link to={`/cases/${caseId}`} className="linkish">{caseId}</Link>
+        {/* Where this reader works a case, which is not one place any more:
+            /cases is HR's. Sending a manager there would end a successful
+            sign-off on a 403. */}
+        <Link to={caseHref(user?.role, caseId)} className="linkish">{caseId}</Link>
       </p>
     );
   }
@@ -103,7 +107,7 @@ const VERDICT_LABEL = {
  * Gaps come before the coverage list: someone who has already been told the
  * handover is short wants to know what is missing, not to re-read what is not.
  */
-export default function KTReviewer({ result: r }) {
+export default function KTReviewer({ result: r, actions = true }) {
   if (!r || r.error) return <GenericResult value={r} />;
 
   const v = r.review || r;
@@ -136,10 +140,14 @@ export default function KTReviewer({ result: r }) {
       {/* Directly under the verdict, because the verdict is a recommendation
           and this is the decision it recommends. Putting it after the coverage
           table would make the reader scroll past the evidence to act on it. */}
+      {/* `actions` is off on the manager's workspace, which carries both of
+          their stages in one block of its own -- the same move offered twice
+          on one page is how somebody clicks the wrong one. Everywhere else
+          this view IS the page, and the buttons are the point of it. */}
       <Section
         title={verdict === "ready" ? "Sign it off" : "Decide on it"}
         note={r.case_id ? `Knowledge Transfer on ${r.case_id}` : undefined}
-        when={Boolean(r.case_id)}
+        when={actions && Boolean(r.case_id)}
       >
         <ActOnReview
           caseId={r.case_id}

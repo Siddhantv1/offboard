@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { EmptyState, ErrorBox, PageHead, Skeleton } from "../components/ui.jsx";
 import { fetchJSON } from "../lib/api.js";
 import { useAuth } from "../lib/auth.jsx";
+import { caseHref } from "../lib/nav.js";
 
 /** Exit cases within the caller's scope. HR and IT see everything; a manager
  *  sees only their own reports, which the server decides -- this page just
@@ -43,7 +44,11 @@ export default function CaseList() {
         cases.length ? (
           <div className="grid">
             {cases.map((c) => (
-              <Link key={c.value} to={`/cases/${c.value}`} className="card">
+              /* HR opens the case; a manager opens the handover. Same list,
+                 different workspace -- see `caseHref`. This list stays in a
+                 manager's sidebar because their queue only carries *open*
+                 stages, so without it a finished exit would be unreachable. */
+              <Link key={c.value} to={caseHref(user?.role, c.value)} className="card">
                 <div className="card-top">
                   <div className="card-icon">◫</div>
                   <div>

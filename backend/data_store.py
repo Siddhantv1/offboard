@@ -96,9 +96,12 @@ def _document_meta(d: CaseDocument) -> dict[str, Any]:
         "reason": d.reason,
         "uploaded_at": d.uploaded_at,
         "uploaded_by": d.uploaded_by,
-        # Whether a scan is actually stored, so the UI can decide whether to
-        # offer "view" rather than linking to a 404.
-        "has_image": d.image is not None,
+        # Whether a file is actually stored, so the UI can decide whether to
+        # offer "view" rather than linking to a 404 -- and what it is, so the
+        # UI can pick a viewer. An <img> was the only one for a long time,
+        # which is most of why only images were accepted.
+        "has_file": d.image is not None,
+        "content_type": d.content_type or None,
         "image_bytes": d.image_bytes,
         "reviewed_by": d.reviewed_by,
         "reviewed_at": d.reviewed_at,
@@ -360,13 +363,16 @@ class DataStore:
             case = s.get(ExitCase, case_id)
             return [_document_meta(d) for d in case.documents] if case else []
 
-    def document_image(self, case_id: str, doc_id: int) -> tuple[bytes, str, str] | None:
-        """The stored scan for one upload: (bytes, content_type, filename).
+    def document_file(self, case_id: str, doc_id: int) -> tuple[bytes, str, str] | None:
+        """The stored upload for one document: (bytes, content_type, filename).
 
         Deliberately a separate call from `case_documents`, which is a list
-        view -- these rows hold whole images in BYTEA, and folding them into
-        the listing would send several megabytes to render a table of
-        filenames.
+        view -- these rows hold whole files in BYTEA, and folding them into the
+        listing would send several megabytes to render a table of filenames.
+
+        The columns are still called `image`/`image_bytes`. They pre-date PDF
+        and HTML uploads and renaming them is a migration that buys nothing but
+        a tidier name; the comment on the model says what they really hold.
         """
         with session_scope() as s:
             row = s.get(CaseDocument, doc_id)

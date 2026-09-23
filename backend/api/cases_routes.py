@@ -21,6 +21,7 @@ from ..agents.document_collection import (REQUIRED_DOCUMENTS, document_status,
                                           validate_upload)
 from ..llm import LLMError
 from ..auth import CurrentUser, HRUser, Identity, StaffUser
+from .. import ocr
 from ..data_store import store
 from ..db import session_scope
 from ..policy import STAGE_OWNERS, may_run_agent
@@ -156,7 +157,8 @@ def _upload_checklist(case_meta: dict[str, Any]) -> list[dict[str, Any]]:
                 "uploaded_at": sent.get("uploaded_at"),
                 "reviewed_by": sent.get("reviewed_by"),
                 "review_note": sent.get("review_note"),
-                "has_image": sent.get("has_image"),
+                "has_file": sent.get("has_file"),
+                "content_type": sent.get("content_type"),
             } if sent else None,
         })
     return rows
@@ -180,23 +182,46 @@ def my_case_documents(user: CurrentUser) -> dict[str, Any]:
     }
 
 
-@router.get("/me/case/documents/{doc_id}/image")
-def my_document_image(doc_id: int, user: CurrentUser) -> Response:
-    """The caller's own scan. Scoped by resolving their case from the session,
-    so the doc_id alone grants nothing."""
-    case = _my_case(user)
-    found = store.document_image(str(case.meta.get("case_id")), doc_id)
+#: Types a browser may render on our own origin.
+#:
+#: An uploaded HTML file served inline would execute as a page of this
+#: application, at this application's origin, with the signed-in person's
+#: session attached -- stored XSS, handed to us by the very feature that
+#: accepts HTML. So anything outside this set is sent as an attachment, with a
+#: sandbox policy in case something renders it anyway. PDFs stay inline: the
+#: browser's PDF viewer is not a DOM and the point of accepting them is that
+#: you can read one without downloading it.
+_INLINE_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif",
+                 "application/pdf"}
+
+
+def _stored_file(found: tuple[bytes, str, str] | None) -> Response:
+    """Hand back one stored upload, with the disposition its type has earned."""
     if found is None:
-        raise HTTPException(status_code=404, detail="No scan is stored for that document.")
+        raise HTTPException(status_code=404,
+                            detail="No file is stored for that document.")
     data, content_type, filename = found
-    return Response(
-        content=data,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "private, no-store",
-        },
-    )
+    inline = content_type.split(";")[0].strip().lower() in _INLINE_TYPES
+    headers = {
+        "Content-Disposition":
+            f'{"inline" if inline else "attachment"}; filename="{filename}"',
+        # Personal paperwork: never let a shared cache hold it.
+        "Cache-Control": "private, no-store",
+        # Without this a browser may sniff past the type we declared and
+        # render as HTML something we deliberately sent as a download.
+        "X-Content-Type-Options": "nosniff",
+    }
+    if not inline:
+        headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    return Response(content=data, media_type=content_type, headers=headers)
+
+
+@router.get("/me/case/documents/{doc_id}/file")
+def my_document_file(doc_id: int, user: CurrentUser) -> Response:
+    """The caller's own upload. Scoped by resolving their case from the
+    session, so the doc_id alone grants nothing."""
+    case = _my_case(user)
+    return _stored_file(store.document_file(str(case.meta.get("case_id")), doc_id))
 
 
 @router.post("/me/case/documents")
@@ -235,13 +260,28 @@ async def upload_my_document(user: CurrentUser, request: Request) -> dict[str, A
             status_code=422, detail=f"'{document_name}' is not a document on your checklist."
         )
     if not isinstance(upload, UploadFile):
-        raise HTTPException(status_code=422, detail="Attach a scan or photo of the document.")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Attach the document — {ocr.ACCEPTED_LABEL}.")
 
     data = await upload.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="That file is too large (max 10 MB).")
     if not data:
         raise HTTPException(status_code=422, detail="That file is empty.")
+
+    # The type gate, and until now there wasn't one: the route took whatever
+    # bytes arrived and only failed further in, when PIL could not open them,
+    # as "Could not read the image" -- so an .exe was stored in the database
+    # before anything objected. Sniffed rather than trusted, because the
+    # declared type is a claim by the uploader and this decision also governs
+    # how the file is handed back out again.
+    kind = ocr.sniff_kind(data, upload.content_type or "", upload.filename or "")
+    if kind is None:
+        raise HTTPException(
+            status_code=415,
+            detail=f"That is not a file we can read. Send a {ocr.ACCEPTED_LABEL} "
+                   "file — a PDF of the signed form is ideal.")
 
     try:
         result = await run_in_threadpool(
@@ -455,6 +495,7 @@ def work_queue(
             stage_keys=stage_keys,
             case_ids=case_ids,
             owner_user_id=user.user_id if scope == "mine" else None,
+            viewer_user_id=user.user_id,
         )
     return {"scope": scope, "stage_keys": sorted(stage_keys), "stages": rows}
 
@@ -922,31 +963,21 @@ def list_case_documents(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
     return {"case_id": case_id, "documents": store.case_documents(case_id)}
 
 
-@router.get("/cases/{case_id}/documents/{doc_id}/image")
-def case_document_image(case: ScopedCase, doc_id: int, user: StaffUser) -> Response:
-    """The stored scan itself.
+@router.get("/cases/{case_id}/documents/{doc_id}/file")
+def case_document_file(case: ScopedCase, doc_id: int, user: StaffUser) -> Response:
+    """The stored upload itself -- a scan, a PDF, or an HTML form.
 
-    Behind `ScopedCase`, so a manager can only pull images from their own
-    team's cases -- these are people's signed personal paperwork, and a
-    guessable `/documents/287/image` with no case scope would be the easiest
-    possible data leak in the app.
+    Behind `ScopedCase`, so a manager can only pull files from their own team's
+    cases -- these are people's signed personal paperwork, and a guessable
+    `/documents/287/file` with no case scope would be the easiest possible data
+    leak in the app.
 
-    `inline` rather than `attachment`: the point is to look at it next to the
-    verdict, not to collect a folder of downloads.
+    Whether it comes back inline or as a download is `_stored_file`'s call, and
+    it turns on the type rather than the reader: the point of a scan or a PDF
+    is to look at it next to the verdict, and the point of refusing to render
+    an uploaded HTML file is that it would run as a page of this app.
     """
-    found = store.document_image(str(case.meta.get("case_id")), doc_id)
-    if found is None:
-        raise HTTPException(status_code=404, detail="No scan is stored for that document.")
-    data, content_type, filename = found
-    return Response(
-        content=data,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            # Personal paperwork: never let a shared cache hold it.
-            "Cache-Control": "private, no-store",
-        },
-    )
+    return _stored_file(store.document_file(str(case.meta.get("case_id")), doc_id))
 
 
 @router.post("/cases/{case_id}/documents/{doc_id}/review")
