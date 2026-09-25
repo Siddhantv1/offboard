@@ -318,8 +318,7 @@ export default function ITClearance() {
                   </Button>
                 </div>
                 <p className="plan-hint">
-                  Authorising revokes nothing. IT works through it, and it cannot be
-                  the same person.
+                  Authorising this plan would allow the IT to work through it.
                 </p>
               </>
             )}

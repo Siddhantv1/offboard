@@ -2145,6 +2145,15 @@ select option:checked { background: var(--mint); color: var(--deep); }
 .is-kt-md h1, .is-kt-md h2, .is-kt-md h3, .is-kt-md h4 {
   font-family: var(--serif); font-size: 15px; font-weight: 600; margin: 16px 0 6px;
 }
+/* An uploaded handover: the text read out of the PDF or the scan, shown as
+   text. Wrapped rather than scrolled sideways -- it is prose, and a horizontal
+   scrollbar inside a <details> is a thing nobody finds. */
+.kt-extracted {
+  border-top: 1px solid var(--line); padding-top: 12px; margin: 4px 0 0;
+  font-family: var(--sans); font-size: 13.5px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; max-width: 74ch;
+  max-height: 460px; overflow-y: auto;
+}
 .is-kt-md code {
   font-size: 12.5px; background: var(--inset); padding: 1px 5px;
   border-radius: 4px;

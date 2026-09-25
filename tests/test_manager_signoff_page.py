@@ -159,11 +159,20 @@ def test_a_manager_cannot_open_somebody_elses_report(client, team):
     assert r.status_code == 403
 
 
-def test_hr_may_read_it_as_the_escalation_path(client, team):
-    """Same grant HR has over IT's clearance workspace, and for the same
-    reason: somebody has to pick the work up when the manager is on leave."""
+def test_hr_does_not_get_a_manager_shaped_view_of_the_case(client, team):
+    """This was given to HR at first, by analogy with IT's clearance page, on
+    the reasoning that HR is the escalation path over every stage. The analogy
+    does not hold. HR already has a page for this case carrying all five
+    stages, where an override is recorded as an escalation -- so admitting them
+    here adds no capability and only puts a second view of the same case, built
+    for somebody else's job, in front of the role the split exists to keep out.
+
+    Clearing a handover for an absent manager still works; it happens on the
+    case page, under HR's own name, marked as acting outside their stage."""
     _login(client, team["hr"])
-    assert client.get(f"/api/manager/signoff/{team['case_id']}").status_code == 200
+    assert client.get(f"/api/manager/signoff/{team['case_id']}").status_code == 403
+    # ...and the capability HR actually needs is still there.
+    assert client.get(f"/api/cases/{team['case_id']}").status_code == 200
 
 
 def test_it_is_not_its_page(client, team):

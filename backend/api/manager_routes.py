@@ -45,13 +45,20 @@ OWNED = ("kt", "manager")
 
 
 def _kt_doc_for(case_id: str, employee_id: str) -> Any:
-    """The handover document for this exit.
+    """The handover document for this exit, from wherever it came.
+
+    `all_kt_docs`, not `kt_docs`. The corpus table holds three handovers
+    written before this product existed; what a leaver uploads through the
+    portal lands in `case_documents`. Reading only the corpus is why a manager
+    whose report had just filed a 2,700-word PDF was told "no handover document
+    has been filed for this exit yet", and then had to force the stage complete
+    over a warning that said the same thing.
 
     Matched on case first and employee second, the same order
     `cases_routes._related_ids` uses: a KT document carries both, and the
     employee is the fallback for one filed before the case existed.
     """
-    for doc in store.kt_docs():
+    for doc in store.all_kt_docs():
         meta = doc.meta
         if str(meta.get("case_id") or "") == case_id:
             return doc
@@ -151,4 +158,7 @@ def manager_signoff(case: ScopedCase, user: ManagerUser) -> dict[str, Any]:
         # One flag for both stages: `STAGE_OWNERS` gives Knowledge Transfer and
         # Manager Sign-off to the same role, so they can never differ.
         "can_act": may_act_on_stage(user.role, "kt"),
+        # Whether this reader may accept or reject the handover paperwork. The
+        # validator stopped writing `accepted` for it, so somebody has to.
+        "can_review": user.role in ("manager", "hr"),
     }

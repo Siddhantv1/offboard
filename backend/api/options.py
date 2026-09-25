@@ -51,7 +51,11 @@ def kt_options(user: Identity) -> list[dict[str, str]]:
     from this list is choosing a person, not a document id."""
     allowed = {str(e.meta.get("id")) for e in visible_employees(user)}
     out = []
-    for d in store.kt_docs():
+    # `all_kt_docs`, not `kt_docs`: the corpus table is three handovers written
+    # before this product existed, so a manager whose report uploaded theirs
+    # through the portal found an empty dropdown and no way to review the
+    # document the portal had just collected.
+    for d in store.all_kt_docs():
         if not (user.is_hr or str(d.meta.get("employee_id") or "") in allowed):
             continue
         reviewed = d.meta.get("reviewed")

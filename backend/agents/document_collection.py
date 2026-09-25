@@ -248,6 +248,35 @@ def record_upload(*, case_id: str, document_name: str, filename: str,
         return None
 
 
+#: Document stages whose acceptance is a named person's judgement, not a
+#: model's.
+#:
+#: The handover is the manager's call. The codebase already says so twice --
+#: `policy.ROLE_AGENTS_EXCEPT` takes the KT reviewer off HR because "reviewing
+#: a handover is the manager's call: they know what the work was and who is
+#: picking it up" -- and then the upload validator quietly overrode both by
+#: writing `accepted` the moment the OCR text looked plausible. Rahul Verma's
+#: handover was accepted by a model that has never met his successor, and the
+#: manager who has arrived to find the decision already made.
+#:
+#: The model's read is kept in full; only the verdict waits. This is the same
+#: rule the employee's own IT confirmation follows: the reading is evidence,
+#: and the sign-off belongs to whoever is accountable for it.
+HUMAN_ACCEPTED_STAGES = frozenset({"Knowledge Transfer"})
+
+
+def _stage_of(document_name: str) -> str:
+    return next((d["stage"] for d in REQUIRED_DOCUMENTS
+                 if _norm(d["name"]) == _norm(document_name)), "")
+
+
+def who_accepts(document_name: str) -> str | None:
+    """The role whose decision this document's verdict is, or None when the
+    model's read stands on its own. Read by the review route to decide who may
+    overturn a verdict, so "who accepts this" is answered in one place."""
+    return "manager" if _stage_of(document_name) in HUMAN_ACCEPTED_STAGES else None
+
+
 #: Extractors whose output is the document's own characters rather than a
 #: guess at them. Worth telling the model, because `VALIDATE_SYSTEM` instructs
 #: it to forgive garbled characters -- forgiveness that is correct for a photo
@@ -296,8 +325,7 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
                      }.get(extracted.get("kind"),
                            "No readable text found in the image.")}
     else:
-        stage = next((d["stage"] for d in REQUIRED_DOCUMENTS
-                      if _norm(d["name"]) == _norm(document_name)), "")
+        stage = _stage_of(document_name)
         policy_text, policy_sources = _policy_requirements(document_name, stage)
 
         user = (
@@ -322,6 +350,21 @@ def validate_upload(case_meta: dict[str, Any], document_name: str, image_bytes: 
                          "reason": f"Automatic validation was unavailable ({exc}); "
                                    "an HR reviewer should check this document "
                                    "manually."}
+
+        # The model read it; it does not get to accept it. Held at
+        # `needs_review` so the document still shows as outstanding -- which is
+        # the truth, because nobody with the authority has looked -- and the
+        # reason it gave is kept as the advice it is.
+        decider = who_accepts(document_name)
+        if decider and str(judgement.get("verdict") or "") == "accepted":
+            judgement = {
+                **judgement,
+                "verdict": "needs_review",
+                "reason": (str(judgement.get("reason") or "").strip()
+                           + f" Read and found in order, but accepting a "
+                             f"{stage.lower()} document is the {decider}'s "
+                             "decision, so it is waiting on them.").strip(),
+            }
 
     out: dict[str, Any] = {
         "document": document_name,

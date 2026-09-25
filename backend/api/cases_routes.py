@@ -533,7 +533,7 @@ def _related_ids(case_meta: dict[str, Any]) -> dict[str, str]:
     employee_id = str(case_meta.get("employee_id") or "")
     ids = {"case_id": case_id, "employee_id": employee_id}
 
-    for doc in store.kt_docs():
+    for doc in store.all_kt_docs():
         if str(doc.meta.get("case_id") or "") == case_id or (
                 employee_id and str(doc.meta.get("employee_id") or "") == employee_id):
             ids["kt_id"] = str(doc.meta.get("kt_id") or doc.slug)
@@ -982,18 +982,39 @@ def case_document_file(case: ScopedCase, doc_id: int, user: StaffUser) -> Respon
 
 @router.post("/cases/{case_id}/documents/{doc_id}/review")
 def review_case_document(
-    case: ScopedCase, doc_id: int, user: HRUser,
+    case: ScopedCase, doc_id: int, user: StaffUser,
     payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """A human overrides the model's verdict on one uploaded document.
+    """A human decides the verdict on one uploaded document.
 
     The verdict this writes is exactly what `ExitCase.submitted_documents()`
-    reads back, so overriding it here is what actually clears (or reinstates)
-    the requirement everywhere else in the app -- not a note bolted on beside
-    an unchanged status.
+    reads back, so it is what actually clears (or reinstates) the requirement
+    everywhere else in the app -- not a note bolted on beside an unchanged
+    status.
+
+    HR was the only role allowed here, and for most documents that is right:
+    a no-dues declaration is HR's to accept. The handover is not. Reviewing it
+    is the manager's call -- the same reason `ROLE_AGENTS_EXCEPT` takes the KT
+    reviewer off HR -- and with no route for them to say so, the model's read
+    stood as the decision. `who_accepts` answers "whose call is this" in one
+    place, shared with the validator that now declines to make it.
     """
+    from ..agents.document_collection import who_accepts
+
     case_id = str(case.meta.get("case_id"))
     payload = payload or {}
+
+    if not user.is_hr:
+        document = next((d for d in store.case_documents(case_id)
+                         if d.get("id") == doc_id), None)
+        if document is None:
+            raise HTTPException(status_code=404, detail="No such document on this case.")
+        if who_accepts(str(document.get("document_name") or "")) != user.role:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Accepting '{document.get('document_name')}' is HR's "
+                       "decision, not yours.",
+            )
     try:
         document = store.review_document(
             case_id, doc_id,

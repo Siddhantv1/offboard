@@ -166,13 +166,19 @@ function StageActions({ caseId, stage, canAct, warn = [], onChanged }) {
   );
 }
 
-/** The handover itself.
+/** The handover itself, from either place it can come from.
  *
- * Collapsed by default and opened with a native <details>: the document runs
- * to a couple of thousand words and the reader's first question is whether one
+ * A corpus handover is Markdown and renders as the document it is. One the
+ * leaver uploaded is a PDF or a scan, and what we hold is the text read out of
+ * it -- so it is shown as text, with the file itself one click away. Running
+ * OCR output through a Markdown renderer would invent headings out of stray
+ * punctuation and quietly drop the lines it decided were markup.
+ *
+ * Collapsed by default behind a native <details>: the document runs to a
+ * couple of thousand words, and the reader's first question is whether one
  * exists and who is taking the work over, not what is in section four.
  */
-function Handover({ kt }) {
+function Handover({ kt, caseId }) {
   if (!kt) {
     return (
       <Empty>
@@ -183,6 +189,8 @@ function Handover({ kt }) {
     );
   }
 
+  const uploaded = kt.source === "upload";
+
   return (
     <>
       <div className="kt-meta">
@@ -190,11 +198,22 @@ function Handover({ kt }) {
         {kt.submitted_date && (
           <span><b>Filed:</b> {String(kt.submitted_date).slice(0, 10)}</span>
         )}
-        <span className="muted">{kt.kt_id}</span>
+        <span className="muted">{uploaded ? kt.filename || kt.kt_id : kt.kt_id}</span>
+        {uploaded && kt.document_id && (
+          <a className="linkish"
+             href={`/api/cases/${caseId}/documents/${kt.document_id}/file`}
+             target="_blank" rel="noreferrer">
+            Open the file they sent
+          </a>
+        )}
       </div>
       <details className="kt-body">
         <summary>Read the handover</summary>
-        <div className="is-kt-md" {...markdownHtml(kt.body || "")} />
+        {uploaded ? (
+          <pre className="kt-extracted">{kt.body}</pre>
+        ) : (
+          <div className="is-kt-md" {...markdownHtml(kt.body || "")} />
+        )}
       </details>
     </>
   );
@@ -228,7 +247,8 @@ export default function ManagerSignoff() {
     );
   }
 
-  const { case: c, stages, kt, review, documents, can_act: canAct } = data;
+  const { case: c, stages, kt, review, documents,
+          can_act: canAct, can_review: canReview } = data;
   const ktStage = stages.find((s) => s.stage_key === "kt");
   const signOffStage = stages.find((s) => s.stage_key === "manager");
 
@@ -270,7 +290,7 @@ export default function ManagerSignoff() {
       </div>
 
       <Panel title="The handover document">
-        <Handover kt={kt} />
+        <Handover kt={kt} caseId={caseId} />
       </Panel>
 
       <Panel title="What the review found">
@@ -313,14 +333,28 @@ export default function ManagerSignoff() {
 
       <Panel title={`What ${c.employee} sent`}>
         <p className="hint" style={{ marginTop: -6 }}>
-          The handover paperwork only. Finance and HR forms are on the same
-          case and are theirs to accept, not yours.
+          The handover paperwork only, and it is yours to accept or refuse.
+          Finance and HR forms are on the same case and are theirs.
         </p>
-        {/* No `onReviewed`: a manager reads the scan to judge the handover.
-            Accepting a document is HR's call and the server enforces it too. */}
+        {/* `onReviewed` is the decision that had no owner. The upload
+            validator used to write "accepted" the moment the text looked
+            plausible, so the handover was signed off by a model that has never
+            met the successor, and the manager arrived to a settled question.
+            It holds at "needs review" now, and this is where it is answered.
+            The server checks the same rule: HR keeps every other document,
+            this one is the manager's. */}
         <SubmittedDocuments
           documents={documents}
           fileUrl={(id) => `/api/cases/${caseId}/documents/${id}/file`}
+          onReviewed={canReview
+            ? async (docId, verdict, note) => {
+                await postJSON(
+                  `/api/cases/${caseId}/documents/${docId}/review`,
+                  { verdict, note },
+                );
+                load();
+              }
+            : undefined}
         />
       </Panel>
 

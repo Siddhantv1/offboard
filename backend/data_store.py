@@ -297,6 +297,82 @@ class DataStore:
                 ))
         return out
 
+    def submitted_kt_docs(self) -> list[Doc]:
+        """Handover documents the leavers actually uploaded, as Docs.
+
+        The `kt_docs` table is a read-only corpus of handovers written before
+        this product existed, and it was the only thing the KT reviewer, its
+        dropdown and the manager's workspace could see. So a leaver could
+        upload their handover through the portal -- the thing the product asks
+        them to do -- and every screen about handovers would go on reporting
+        that none had been filed. Rahul Verma's is a 2,700-word PDF sitting in
+        `case_documents`, and his manager's page said "no handover document has
+        been filed for this exit yet".
+
+        Rendered into the same shape rather than given a parallel pipeline,
+        exactly as `submitted_interviews` does for the other record the product
+        collects: one seam, so `kt_reviewer` reads an uploaded handover without
+        knowing there are two sources.
+
+        Latest upload per case wins, matching `_upload_checklist` -- somebody
+        re-sending a rejected scan owes one document, not a series of attempts.
+        Rejected ones are included, because a manager deciding whether to
+        accept a handover has to be able to read the one that was refused.
+        """
+        out: list[Doc] = []
+        with session_scope() as s:
+            rows = s.scalars(
+                select(CaseDocument)
+                .where(func.lower(CaseDocument.document_name) == "kt document")
+                # Oldest first, so the dict below keeps the newest per case.
+                .order_by(CaseDocument.uploaded_at, CaseDocument.id)
+            ).all()
+            latest: dict[str, CaseDocument] = {r.case_id: r for r in rows}
+            cases = {c.case_id: c for c in s.scalars(select(ExitCase)).all()}
+            for case_id, row in latest.items():
+                # The seeded rows exist only to mark the corpus's
+                # `documents_submitted` as accepted; they hold no file and no
+                # text, so there is nothing to review and offering one would
+                # put an empty document in the dropdown.
+                if not (row.ocr_text or "").strip():
+                    continue
+                case = cases.get(case_id)
+                out.append(Doc(
+                    slug=f"kt-upload-{case_id}",
+                    body=row.ocr_text or "",
+                    meta={k: v for k, v in {
+                        "kt_id": f"kt-up-{case_id}",
+                        "case_id": case_id,
+                        "employee_id": case.employee_id if case else None,
+                        "employee_name": case.employee_name if case else None,
+                        # Whether a *person* has ruled on it, which is what
+                        # the corpus field means and what the dropdown's
+                        # "already reviewed" claims. Not `verdict ==
+                        # "accepted"`: the validator used to write that itself,
+                        # so reading the verdict would have the list announce a
+                        # review nobody performed.
+                        "reviewed": bool(row.reviewed_by),
+                        "verdict": row.verdict,
+                        "submitted_date": (row.uploaded_at.date()
+                                           if row.uploaded_at else None),
+                        "filename": row.filename or None,
+                        # So a reader can open the actual file rather than the
+                        # extracted text.
+                        "document_id": row.id,
+                        "content_type": row.content_type or None,
+                        "source": "upload",
+                    }.items() if v is not None},
+                ))
+        return out
+
+    def all_kt_docs(self) -> list[Doc]:
+        """The historical corpus plus the handovers uploaded here.
+
+        What every reader of a handover should use. `kt_docs()` stays the
+        corpus alone because `tests/golden/store_snapshot.json` pins it.
+        """
+        return [*self.kt_docs(), *self.submitted_kt_docs()]
+
     def all_interviews(self) -> list[Doc]:
         """The historical corpus plus what leavers have submitted here.
 
@@ -320,7 +396,19 @@ class DataStore:
         return self._lookup(ExitCase, ExitCase.case_id, case_id)
 
     def kt_doc(self, kt_id: str) -> Doc | None:
-        return self._lookup(KTDoc, KTDoc.id, kt_id)
+        """A handover from the corpus, or one uploaded here.
+
+        Both, for the same reason `interview()` resolves both: the id comes
+        from a select whose options are built from `all_kt_docs()`, and
+        resolving only the corpus would offer a reviewer an uploaded handover
+        and then refuse to open it.
+        """
+        found = self._lookup(KTDoc, KTDoc.id, kt_id)
+        if found is not None:
+            return found
+        wanted = str(kt_id or "").strip()
+        return next((d for d in self.submitted_kt_docs()
+                     if d.meta.get("kt_id") == wanted), None)
 
     def interview(self, interview_id: str) -> Doc | None:
         """A transcript from the corpus, or an interview submitted here.

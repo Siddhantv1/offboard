@@ -63,7 +63,10 @@ export const ROUTES = [
      dropping it would make a finished exit unreachable. */
   { path: "/cases/:caseId", roles: ["hr"], element: <CaseDetail /> },
   { path: "/it/clearance/:caseId", roles: ["it", "hr"], element: <ITClearance /> },
-  { path: "/manager/signoff/:caseId", roles: ["manager", "hr"],
+  /* Managers only. HR has the case page, which carries all five stages and
+     records an override as an escalation -- a second view of the same case,
+     shaped for somebody else's job, is not an escalation path. */
+  { path: "/manager/signoff/:caseId", roles: ["manager"],
     element: <ManagerSignoff /> },
   /* HR only now. It is an authorisation queue across every case, which is
      HR's job; IT's half of it moved onto the clearance page for the person it

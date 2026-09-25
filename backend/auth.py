@@ -421,11 +421,18 @@ OptionalUser = Annotated[Identity | None, Depends(optional_user)]
 StaffUser = Annotated[Identity, Depends(require_roles("hr", "it", "manager"))]
 #: IT owns access revocation; HR is the escalation path over it.
 DeprovUser = Annotated[Identity, Depends(require_roles("hr", "it"))]
-#: The manager owns Knowledge Transfer and Manager Sign-off; HR is the
-#: escalation path over those too. Same shape as `DeprovUser`, and the same
-#: reasoning: a workspace built for one role, readable by the role that has to
-#: pick the work up when that person is on leave.
-ManagerUser = Annotated[Identity, Depends(require_roles("hr", "manager"))]
+#: The handover workspace. Managers only, and unlike `DeprovUser` this one
+#: does NOT admit HR.
+#:
+#: It was given to HR at first by analogy with IT's clearance page, on the
+#: reasoning that HR is the escalation path. The analogy does not hold: HR
+#: already has a page for every case, with all five stages on it and the
+#: override recorded as an escalation, so admitting them here adds no
+#: capability -- it only puts a second, manager-shaped view of the same case in
+#: front of the role the split exists to keep out. If HR has to clear a
+#: handover because the manager is away, they do it from the case page, where
+#: the audit trail marks it as somebody acting outside their own stage.
+ManagerUser = Annotated[Identity, Depends(require_roles("manager"))]
 #: Account administration. IT owns it, not HR: creating, disabling and
 #: role-changing logins is access management, which is the same job as
 #: revoking a leaver's systems -- and the team already trusted with the

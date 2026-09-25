@@ -207,7 +207,13 @@ describe("the route table", () => {
 
     const workspace = ROUTES.find((r) => r.path === "/manager/signoff/:caseId");
     expect(workspace, "the manager's sign-off page is missing").toBeTruthy();
-    expect(workspace.roles).toEqual(["manager", "hr"]);
+    /* Managers only, and not HR -- unlike IT's clearance page, which HR can
+       read. The analogy that put HR here does not hold: HR already has a page
+       for this case with all five stages on it, where an override is recorded
+       as an escalation. A second view of the same case, built for somebody
+       else's job, adds no capability and hands it to the role the split exists
+       to keep out. */
+    expect(workspace.roles).toEqual(["manager"]);
   });
 
   it("sends each role to a case page that role can actually open", () => {
