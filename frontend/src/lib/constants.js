@@ -153,8 +153,10 @@ export const ORCH_NAMES = {
 export const ORCH_DESCRIPTION =
   "Runs one exit case end to end and changes it. Six agents work side by side — " +
   "checklist, risk, approver routing, live system clearance, document collection and " +
-  "the IT deprovisioning plan — then the run pauses for you to approve or reject that " +
-  "plan. Once you decide it executes, puts the recommended approver on every " +
-  "unclaimed stage, starts IT clearance, records a chase against anything past its " +
-  "SLA, and compliance rules on the result. It never marks a clearance done: that is " +
-  "a judgement about the real world, and no agent here can see it.";
+  "the IT deprovisioning plan — then the run pauses for you to authorise or reject " +
+  "that plan. Authorising does not revoke anything: IT works the plan step by step " +
+  "on that person's clearance page, so the authorising and the doing are two people. " +
+  "The run then puts the recommended approver on every unclaimed stage, records a " +
+  "chase against anything past its SLA, and compliance rules on the result. It never " +
+  "marks a clearance done: that is a judgement about the real world, and no agent " +
+  "here can see it.";

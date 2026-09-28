@@ -26,6 +26,8 @@ export default function Orchestrator() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [statusText, setStatusText] = useState("Choose a case to watch the agents run.");
+  // Runs paused at the approval gate, from any session. See `loadPending`.
+  const [pending, setPending] = useState([]);
 
   // Live-stream bookkeeping that must not trigger re-renders on every event.
   const sourceRef = useRef(null);
@@ -62,6 +64,22 @@ export default function Orchestrator() {
       .catch((e) => setCasesError(e.message));
   }, []);
 
+  /* Runs waiting on somebody, from any session.
+     The checkpoints were made durable so a run paused at the approval gate
+     would survive a restart, and `GET /api/approvals` was written to list
+     them -- its docstring says a paused run was otherwise "only reachable via
+     the thread_id held in the browser tab that started it". Nothing in the
+     frontend ever called it, so that was still true: the only handle was a
+     `useRef`, and navigating away lost it. The run sat paused in Postgres
+     forever and pressing Run started a second one against the same case. */
+  const loadPending = useCallback(() => {
+    fetchJSON("/api/approvals")
+      .then((d) => setPending(d.approvals || []))
+      .catch(() => setPending([]));
+  }, []);
+
+  useEffect(loadPending, [loadPending]);
+
   const describe = useCallback(() => {
     const seconds = fmtElapsed(Date.now() - startedRef.current);
     if (pausedRef.current) {
@@ -77,7 +95,8 @@ export default function Orchestrator() {
     stopTimer();
     closeStream();
     setRunning(false);
-  }, []);
+    loadPending();
+  }, [loadPending]);
 
   const connect = useCallback(
     (url) => {
@@ -175,6 +194,27 @@ export default function Orchestrator() {
     connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream`);
   }
 
+  /* Pick up a paused run. The interrupt payload already carries everything
+     the approval panel renders, so this needs no extra request -- it restores
+     the thread id the tab lost and hands the same object straight over. */
+  function resume(row) {
+    closeStream();
+    stopTimer();
+    activeRef.current = new Set();
+    pausedRef.current = true;
+    finishedRef.current = false;
+    threadRef.current = row.thread_id;
+    startedRef.current = Date.now();
+
+    setCaseId(row.case_id || "");
+    setNodeStatus({ approval_gate: "paused" });
+    setResult(null);
+    setError(null);
+    setRunning(true);
+    setApproval(row);
+    describe();
+  }
+
   function decide(decision, note) {
     pausedRef.current = false;
     setApproval(null);
@@ -212,6 +252,38 @@ export default function Orchestrator() {
           Run orchestration
         </button>
       </form>
+
+      {!approval && pending.length > 0 && (
+        <div className="panel orch-pending">
+          <div className="panel-head">
+            <h3>{`${pending.length} run${pending.length === 1 ? "" : "s"} waiting on you`}</h3>
+          </div>
+          <p className="hint" style={{ marginTop: -6 }}>
+            Paused at the deprovisioning gate. These survive a restart and are
+            visible to everyone, so a run does not get stranded in the tab that
+            started it.
+          </p>
+          <ul className="orch-pending-list">
+            {pending.map((row) => (
+              <li key={row.thread_id}>
+                <span>
+                  <b>{row.employee || row.case_id}</b>
+                  {row.case_id && <span className="muted">{` · ${row.case_id}`}</span>}
+                  {row.paused_at && (
+                    <span className="muted">
+                      {` · paused ${String(row.paused_at).slice(0, 16).replace("T", " ")}`}
+                    </span>
+                  )}
+                </span>
+                <button type="button" className="btn btn-ghost"
+                        onClick={() => resume(row)}>
+                  Review it
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <OrchDiagram status={nodeStatus} retryLabel={retryLabel} live={running} />
 
