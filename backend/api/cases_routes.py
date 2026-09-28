@@ -359,7 +359,7 @@ def save_my_exit_interview(user: CurrentUser,
 
 
 @router.get("/cases/{case_id}/interview")
-def case_exit_interview(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
+def case_exit_interview(case: ScopedCase, user: HRUser) -> dict[str, Any]:
     """The submitted exit interview for a case the caller can already see.
 
     A sibling endpoint rather than another key on `/api/cases/{case_id}`: the
@@ -367,11 +367,14 @@ def case_exit_interview(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
     detail would pay for them on every load, including the ones that only want
     the stage list.
 
-    `StaffUser` as well as `ScopedCase`, and both matter. `ScopedCase` alone
-    would admit the employee whose case it is -- reading their own answers back
-    is harmless, but it is the /api/me route's job, and keeping this side
-    staff-only means no employee is ever served from a route that takes a case
-    id from the URL.
+    **HR only, and the narrowing is the point.** This was `StaffUser`, which
+    includes `manager` -- and a manager's scope is exactly the people who
+    report to them. So the one role the instrument is partly *about* could read
+    it. Question `manager` asks "how was working with your manager -- what did
+    they do well, and where did you need more from them?", and the form tells
+    the leaver their answers do not affect their evaluation. The UI only ever
+    called this from HR's case page, so the API and the UI disagreed and the
+    API is the one that decides.
     """
     return exit_interview.submitted_for_case(str(case.meta.get("case_id")))
 
@@ -954,30 +957,67 @@ def update_employee_status(employee_id: str, user: HRUser,
     }
 
 
+def may_read_document(user: Identity, document_name: str) -> bool:
+    """Whose paperwork this is to read.
+
+    HR runs document collection and reads all of it. A manager gets the
+    handover and nothing else: the rest of a case's uploads are finance and
+    statutory records -- bank account confirmation, PF transfer/withdrawal
+    form, advance settlement -- and a line manager is not their reader.
+
+    `manager_routes` already filtered its own page down to the handover on
+    exactly that reasoning. The route underneath was still `StaffUser`, so the
+    filtering was a courtesy on one screen rather than a rule: a manager could
+    list every upload on their report's case and pull the bytes of any of them.
+
+    Same answer as the review route uses, so "may I see this" and "may I decide
+    on this" cannot drift apart.
+    """
+    from ..agents.document_collection import who_accepts
+
+    return user.is_hr or who_accepts(document_name) == user.role
+
+
 @router.get("/cases/{case_id}/documents")
 def list_case_documents(case: ScopedCase, user: StaffUser) -> dict[str, Any]:
-    """Every uploaded document on a case, every verdict -- the raw rows behind
+    """The uploads on a case that this caller may read -- the raw rows behind
     Document Collection's `documents_submitted` summary, so a reviewer can see
-    (and override) exactly what the model decided and why."""
+    (and override) exactly what the model decided and why.
+
+    Filtered rather than refused, so a manager gets their handover paperwork
+    and simply does not see the finance forms.
+    """
     case_id = str(case.meta.get("case_id"))
-    return {"case_id": case_id, "documents": store.case_documents(case_id)}
+    return {"case_id": case_id,
+            "documents": [d for d in store.case_documents(case_id)
+                          if may_read_document(user, str(d.get("document_name") or ""))]}
 
 
 @router.get("/cases/{case_id}/documents/{doc_id}/file")
 def case_document_file(case: ScopedCase, doc_id: int, user: StaffUser) -> Response:
     """The stored upload itself -- a scan, a PDF, or an HTML form.
 
-    Behind `ScopedCase`, so a manager can only pull files from their own team's
-    cases -- these are people's signed personal paperwork, and a guessable
-    `/documents/287/file` with no case scope would be the easiest possible data
-    leak in the app.
+    Two checks, both needed. `ScopedCase` says this case is in the caller's
+    scope at all; `may_read_document` says this *document* is theirs to read.
+    Scope alone was not enough -- a manager's scope is their own reports, and
+    their reports' bank details are on those cases.
 
     Whether it comes back inline or as a download is `_stored_file`'s call, and
     it turns on the type rather than the reader: the point of a scan or a PDF
     is to look at it next to the verdict, and the point of refusing to render
     an uploaded HTML file is that it would run as a page of this app.
     """
-    return _stored_file(store.document_file(str(case.meta.get("case_id")), doc_id))
+    case_id = str(case.meta.get("case_id"))
+    document = next((d for d in store.case_documents(case_id)
+                     if d.get("id") == doc_id), None)
+    if document is None:
+        raise HTTPException(status_code=404,
+                            detail="No file is stored for that document.")
+    if not may_read_document(user, str(document.get("document_name") or "")):
+        raise HTTPException(
+            status_code=403,
+            detail=f"'{document.get('document_name')}' is not yours to read.")
+    return _stored_file(store.document_file(case_id, doc_id))
 
 
 @router.post("/cases/{case_id}/documents/{doc_id}/review")
@@ -997,19 +1037,30 @@ def review_case_document(
     is the manager's call -- the same reason `ROLE_AGENTS_EXCEPT` takes the KT
     reviewer off HR -- and with no route for them to say so, the model's read
     stood as the decision. `who_accepts` answers "whose call is this" in one
-    place, shared with the validator that now declines to make it.
-    """
-    from ..agents.document_collection import who_accepts
+    place, shared with the validator that now declines to make it and with
+    `may_read_document`, so seeing a document and deciding on it can never come
+    apart.
 
+    A person may not decide on their own exit. `assert_may_transition` carries
+    that rule for stage moves ("the person leaving approved their own clearance
+    is precisely what an exit audit looks for") and the verdict written here
+    feeds the same completion state, so it carries it too -- a self-reporting
+    manager could otherwise accept their own handover.
+    """
     case_id = str(case.meta.get("case_id"))
     payload = payload or {}
+
+    if user.employee_id and user.employee_id == str(case.meta.get("employee_id") or ""):
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot rule on paperwork for your own exit. Ask HR.")
 
     if not user.is_hr:
         document = next((d for d in store.case_documents(case_id)
                          if d.get("id") == doc_id), None)
         if document is None:
             raise HTTPException(status_code=404, detail="No such document on this case.")
-        if who_accepts(str(document.get("document_name") or "")) != user.role:
+        if not may_read_document(user, str(document.get("document_name") or "")):
             raise HTTPException(
                 status_code=403,
                 detail=f"Accepting '{document.get('document_name')}' is HR's "
