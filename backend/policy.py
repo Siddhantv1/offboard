@@ -17,7 +17,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from .db.models import STAGE_KEY_BY_NAME, STAGE_KEYS, STAGE_STATUSES  # noqa: F401
+from .db.models import (STAGE_KEY_BY_NAME, STAGE_KEYS, STAGE_STATUSES,
+                        effective_days_open)  # noqa: F401
 
 # Days a clearance stage can sit open before it counts as overdue. One knob
 # shared by the dashboard, workflow optimizer, escalation and policy agents,
@@ -121,34 +122,6 @@ def may_run_agent(role: str, agent_id: str) -> bool:
         return False
     allowed = ROLE_AGENTS.get(role, frozenset())
     return allowed == "*" or agent_id in allowed
-
-
-def effective_days_open(stage: Mapping[str, Any], *, now: datetime | None = None) -> int:
-    """How long this stage has really been open.
-
-    `days_open` is a stored integer that nothing increments -- the only two
-    writers are `data_store._insert_case` (which sets 0) and the seeder (which
-    copies the corpus verbatim). So every case created through the product
-    would sit at 0 forever and could never breach SLA, while the hand-authored
-    corpus carries real numbers.
-
-    Taking the max of the two keeps the seeded values authoritative (so the
-    golden snapshot and every agent see exactly what they see today) while
-    letting new cases age for real off `status_changed_at`.
-    """
-    try:
-        stored = int(stage.get("days_open") or 0)
-    except (TypeError, ValueError):
-        stored = 0
-
-    changed_at = stage.get("status_changed_at")
-    if not isinstance(changed_at, datetime):
-        return stored
-
-    if changed_at.tzinfo is None:
-        changed_at = changed_at.replace(tzinfo=timezone.utc)
-    elapsed = ((now or datetime.now(timezone.utc)) - changed_at).days
-    return max(stored, max(0, elapsed))
 
 
 def is_breaching(status: str | None, days: int) -> bool:

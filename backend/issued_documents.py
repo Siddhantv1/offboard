@@ -127,12 +127,67 @@ def _context(case_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return case.meta, (employee.meta if employee else {})
 
 
+def _asset_and_access(case_id: str) -> tuple[list[str], list[str], list[str]]:
+    """(returned, written off, not accounted for) plus live accounts.
+
+    Returns four things in three slots because the caller wants the first three
+    for the settlement statement and the last for readiness; kept in one place
+    so the letter and the gate read the same records.
+    """
+    from .systems import access_status
+
+    try:
+        assets = asset_status(case_id)
+        access = access_status(case_id)
+    except LookupError:
+        return [], [], []
+    returned = [a["asset"] for a in assets.get("assets", [])
+                if a["state"] == "returned"]
+    written_off = list(assets.get("written_off") or [])
+    outstanding = list(assets.get("outstanding") or [])
+    return returned, written_off, outstanding + [
+        f"{s} (still active)" for s in (access.get("still_active") or [])]
+
+
+def _asset_sentence(case_id: str) -> str:
+    """What the relieving letter can honestly say about assets and access."""
+    _, written_off, unaccounted = _asset_and_access(case_id)
+    if not written_off and not unaccounted:
+        return ("Company assets issued to them have been accounted for and "
+                "system access has been revoked.")
+    parts = []
+    if unaccounted:
+        parts.append(f"{len(unaccounted)} item{'s' if len(unaccounted) != 1 else ''} "
+                     "remain unaccounted for")
+    if written_off:
+        parts.append(f"{len(written_off)} "
+                     f"{'has' if len(written_off) == 1 else 'have'} been "
+                     "written off and may be recovered against the final "
+                     "settlement")
+    return ("The clearance was signed off with items outstanding: "
+            + "; ".join(parts) + ". The full-and-final settlement statement "
+            "records the position.")
+
+
 def readiness(case_id: str) -> dict[str, Any]:
     """Whether the leaving documents can be issued, and what is holding them.
 
     Every clearance, not most of them. The letter's whole content is "this
     person has been released", and a release with an open stage has not
     happened.
+
+    Deliberately still the stages, and not the asset and access position.
+    Gating on those as well was tried and is wrong: a person can be released
+    owing a laptop, and the settlement statement exists precisely to record
+    that recovery -- refusing to issue it until the laptop comes back withholds
+    the document whose job is to say the laptop has not.
+
+    The problem that suggested it is real, and lives in `relieving_letter`
+    instead: that letter asserted assets accounted for and access revoked
+    regardless, so IT completing the stage with a note ("YubiKey lost, writing
+    it off") -- which `stages.transition` deliberately permits -- produced a
+    signed statement the company's own `access_status` contradicted. The letter
+    says what is true now.
     """
     case_meta, _ = _context(case_id)
     stages = [s for s in (case_meta.get("stages") or []) if isinstance(s, dict)]
@@ -167,11 +222,17 @@ def relieving_letter(case_id: str) -> bytes:
                 f"This is to confirm that {name} has been relieved from the "
                 f"services of {COMPANY} with effect from the close of business "
                 f"on {_fmt(case_meta.get('last_working_day'))}.", st["body"]),
+            # The second sentence is computed, not asserted. It used to print
+            # unconditionally -- so a clearance signed off over a lost YubiKey,
+            # which `stages.transition` deliberately allows with a note,
+            # produced a letter on company letterhead stating that assets were
+            # accounted for and access revoked while `access_status` for the
+            # same case listed live accounts. The first sentence is safe to
+            # assert: `readiness` gates issuance on every stage being complete.
             Paragraph(
                 "All clearance formalities recorded against this exit — IT, "
                 "Finance, HR, knowledge transfer and manager sign-off — have "
-                "been completed. Company assets issued to them have been "
-                "accounted for and system access has been revoked.", st["body"]),
+                "been completed. " + _asset_sentence(case_id), st["body"]),
             Paragraph(
                 f"We thank {name} for their contribution and wish them well.",
                 st["body"]),
@@ -217,9 +278,7 @@ def settlement_statement(case_id: str) -> bytes:
     st = _styles()
     name = emp.get("name") or case_meta.get("employee_name") or "the employee"
 
-    assets = asset_status(case_id)
-    returned = [a["asset"] for a in assets.get("assets", []) if a["state"] == "returned"]
-    written_off = assets.get("written_off") or []
+    returned, written_off, unaccounted = _asset_and_access(case_id)
 
     stages = {str(s.get("name")): str(s.get("status", ""))
               for s in (case_meta.get("stages") or []) if isinstance(s, dict)}
@@ -236,9 +295,15 @@ def settlement_statement(case_id: str) -> bytes:
         Paragraph(
             "Assets issued to the employee, as recorded by IT at the time of "
             "handover:", st["body"]),
+        # `outstanding` was in neither list, so an asset with no
+        # `asset_returns` row at all -- which is the default state -- appeared
+        # nowhere in the document, under a sentence saying there was nothing to
+        # recover. Two unreturned devices could be neither recovered nor
+        # mentioned.
         _facts_table(
             [(a, "Returned") for a in returned]
             + [(a, "Not returned — recoverable from settlement") for a in written_off]
+            + [(a, "Not accounted for") for a in unaccounted]
             or [("No assets on record", "")]),
         Spacer(1, 14),
     ]
@@ -250,9 +315,21 @@ def settlement_statement(case_id: str) -> bytes:
             "settlement; the amount is determined by payroll from the asset "
             "register, not by this document.", st["body"]))
 
+    if unaccounted:
+        blocks.append(Paragraph(
+            f"{len(unaccounted)} item{'s' if len(unaccounted) != 1 else ''} "
+            "above are not accounted for. They are neither confirmed returned "
+            "nor written off, and this statement makes no claim about them.",
+            st["body"]))
+
+    # Only when it is true. This sentence used to print unconditionally, over a
+    # list that silently omitted everything outstanding.
     blocks.append(Paragraph(
-        "Finance clearance confirms that no dues were outstanding against the "
-        "employee at the time of release, other than any recovery noted above. "
+        ("Finance clearance confirms that no dues were outstanding against the "
+         "employee at the time of release, other than any recovery noted above. "
+         if not unaccounted else
+         "Finance clearance was recorded against this exit. Items above that "
+         "are not accounted for fall outside it. ") +
         "Settlement amounts, notice-period adjustments, leave encashment and "
         "statutory deductions are computed by payroll and issued separately; "
         "this statement records the clearance position only.", st["body"]))

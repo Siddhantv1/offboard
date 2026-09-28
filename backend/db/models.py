@@ -18,8 +18,8 @@ module should know a case has a `case_stages` table behind it.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
-from typing import Any
+from datetime import date, datetime, timezone
+from typing import Any, Mapping
 
 from sqlalchemy import (BigInteger, Boolean, CheckConstraint, Date, DateTime,
                         Float, ForeignKey, Index, Integer, LargeBinary, String,
@@ -329,9 +329,56 @@ class CaseStage(Base):
             "name": self.name,
             "owner": self.owner,
             "status": self.status,
-            "days_open": self.days_open,
+            # The effective number, not the stored column. This published
+            # the raw integer, and `_context.parse_days_open` -- which
+            # dashboard_insights, policy_auditor, sla_escalation,
+            # workflow_optimizer, systems and the orchestrator's escalate node
+            # all read -- took it at face value. Nothing increments that
+            # column, so every case the product created reported 0 forever:
+            # `recompute_case` marked the case at risk off `status_changed_at`
+            # while every agent beside it reported no breach, and the
+            # orchestrator would never escalate a product-created case however
+            # overdue. One number, both paths.
+            "days_open": effective_days_open({
+                "days_open": self.days_open,
+                "status_changed_at": self.status_changed_at,
+            }),
             **(self.extra or {}),
         }
+
+
+
+def effective_days_open(stage: Mapping[str, Any], *,
+                        now: datetime | None = None) -> int:
+    """How long this stage has really been open.
+
+    `days_open` is a stored integer that nothing increments -- the only two
+    writers are `data_store._insert_case` (which sets 0) and the seeder (which
+    copies the corpus verbatim). So every case created through the product
+    would sit at 0 forever and could never breach SLA, while the hand-authored
+    corpus carries real numbers.
+
+    Taking the max of the two keeps the seeded values authoritative (so the
+    golden snapshot and every agent see exactly what they see today) while
+    letting new cases age for real off `status_changed_at`.
+
+    Lives here rather than in `policy` because `CaseStage.to_meta` has to call
+    it and `policy` already imports from this module. `policy` re-exports it,
+    so every existing caller is unchanged.
+    """
+    try:
+        stored = int(stage.get("days_open") or 0)
+    except (TypeError, ValueError):
+        stored = 0
+
+    changed_at = stage.get("status_changed_at")
+    if not isinstance(changed_at, datetime):
+        return stored
+
+    if changed_at.tzinfo is None:
+        changed_at = changed_at.replace(tzinfo=timezone.utc)
+    elapsed = ((now or datetime.now(timezone.utc)) - changed_at).days
+    return max(stored, max(0, elapsed))
 
 
 #: What a `case_stage_events` row records. Only `transition` moves a stage;
