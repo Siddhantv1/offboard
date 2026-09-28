@@ -213,7 +213,36 @@ def transition(
         if case is None:
             raise TransitionError(f"Unknown exit case '{case_id}'.")
 
-        stage = next((x for x in case.stages if x.stage_key == stage_key), None)
+        # Lock the row before reading the status every later decision is made
+        # from. Without this the whole function was a read-modify-write with no
+        # lock, no compare-and-set and no version column, so two concurrent
+        # requests both read the same `from_status`, both passed
+        # `assert_may_transition`, and both wrote.
+        #
+        # The worst shape is not a lost update. HR completes IT Clearance while
+        # an IT engineer sends it back: both read `in_progress`, so the
+        # `HR_ONLY_FROM` guard -- the one that exists to stop a non-HR account
+        # reopening a signed-off clearance -- never sees a completed stage to
+        # refuse. The engineer's write lands second and the clearance is open
+        # again, with two mutually exclusive transitions out of one state in
+        # the timeline that is supposed to be the compliance record.
+        #
+        # `execute_plan` already solved this for deprovisioning with a CAS
+        # update; a row lock is the same guarantee and keeps the rest of this
+        # function reading naturally.
+        # `populate_existing` is not optional here. `s.get(ExitCase, ...)`
+        # above eager-loads `stages` (selectin), so this row is already in the
+        # session's identity map; without it SQLAlchemy takes the lock and then
+        # hands back the values it read *before* waiting for it. The second
+        # caller would block correctly, wake up, and still see the stale
+        # `in_progress` -- which is the same lost update with extra steps, and
+        # is exactly what the race test caught.
+        stage = s.scalars(
+            select(CaseStage)
+            .where(CaseStage.case_id == case_id, CaseStage.stage_key == stage_key)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).first()
         if stage is None:
             raise TransitionError(
                 f"This case has no '{stage_key}' clearance stage."
@@ -276,8 +305,13 @@ def transition(
             from .exit_interview import was_submitted
 
             last_one_open = not [
+                # By key, not by object identity: `stage` is now selected
+                # separately (FOR UPDATE), and relying on the session's
+                # identity map to make `is` work is a footgun for whoever
+                # touches this next.
                 other for other in case.stages
-                if other is not stage and other.status != "completed"
+                if other.stage_key != stage.stage_key
+                and other.status != "completed"
             ]
             if (last_one_open and not was_submitted(case.case_id)
                     and not (note or "").strip()):
