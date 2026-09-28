@@ -36,7 +36,9 @@ const STATE = {
   in_review: {
     tone: "b-warn",
     label: "Under review",
-    blurb: "Your document has been received. HR will review it.",
+    // Filled in per row from `decided_by`: the two handover documents are the
+    // manager's to accept, not HR's, and this said HR for every one of them.
+    blurb: null,
     cta: "Replace it",
   },
   not_yet_due: {
@@ -112,6 +114,18 @@ function Row({ row, fileUrl, onUploaded }) {
       </div>
 
       {s.blurb && <p className="doc-blurb">{s.blurb}</p>}
+
+      {/* Who it is actually with. Nothing is accepted automatically any more —
+          a model reading a document the leaver wrote does not get to say the
+          requirement is met — so "under review" is every document's normal
+          state and it has to name the right desk. */}
+      {row.state === "in_review" && (
+        <p className="doc-blurb">
+          {`Received. ${row.decided_by === "manager"
+            ? "Your manager reviews this one"
+            : "HR will review it"}.`}
+        </p>
+      )}
 
       {/* Why it was refused, in the row that asks you to fix it. */}
       {row.state === "rejected" && latest?.reason && (

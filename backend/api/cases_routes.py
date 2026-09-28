@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
 from ..agents.document_collection import (REQUIRED_DOCUMENTS, document_status,
-                                          validate_upload)
+                                          validate_upload, who_accepts)
 from ..llm import LLMError
 from ..auth import CurrentUser, HRUser, Identity, StaffUser
 from .. import ocr
@@ -148,6 +148,11 @@ def _upload_checklist(case_meta: dict[str, Any]) -> list[dict[str, Any]]:
             # still takes an upload: being early is not a mistake, the paperwork
             # is the same paperwork.
             "can_upload": state != "accepted",
+            # Who the leaver is actually waiting on. Nothing is auto-accepted
+            # any more, so "under review" is now every document's normal state
+            # and the row told all of them it was with HR -- wrong for the two
+            # the manager decides.
+            "decided_by": who_accepts(name),
             "attempts": attempts.get(name, 0),
             "latest": {
                 "id": sent["id"],
