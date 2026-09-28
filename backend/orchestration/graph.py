@@ -501,6 +501,27 @@ def _extra_evidence(state: ExitOrchestrationState) -> str:
     return "\n\n".join(parts)
 
 
+def _was_truncated(value: Any) -> bool:
+    """Did `llm._salvage` repair this response rather than parse it?
+
+    `complete_json` recovers a cut-off answer by cutting back to the last safe
+    comma and stamps `_truncated: True` on the result. That is the right thing
+    to do with a report; it is the wrong thing to read a verdict out of, and
+    until now nothing in the backend looked at the flag at all -- its only
+    reader anywhere was a cosmetic badge in the frontend.
+
+    A compliance response cut off mid-`blockers` keeps `final_verdict:
+    "cleared"` and loses the list of reasons it should not be. The run then
+    ends at END and `_finalize` stamps the case cleared.
+    """
+    if isinstance(value, dict):
+        return bool(value.get("_truncated")) or any(
+            _was_truncated(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_was_truncated(v) for v in value)
+    return False
+
+
 def verify_compliance(state: ExitOrchestrationState) -> dict[str, Any]:
     if state.get("errors"):
         return {}
@@ -509,6 +530,18 @@ def verify_compliance(state: ExitOrchestrationState) -> dict[str, Any]:
     update: dict[str, Any] = {"compliance": result, "log": ["compliance: checked"]}
     if error:
         update["errors"] = [error]
+    elif _was_truncated(result):
+        # Not an error -- the run is fine and the partial reading is worth
+        # keeping -- but it cannot stand as a clearance. Forced to `blocked`,
+        # which routes to `escalate` and leaves a person to look, rather than
+        # ending the run with a verdict half of whose evidence never arrived.
+        verification = result.get("verification")
+        if isinstance(verification, dict):
+            verification["final_verdict"] = "blocked"
+            verification.setdefault("blockers", []).append(
+                "The compliance model's answer was cut off, so this verdict is "
+                "incomplete. A person should check the case.")
+        update["log"] = ["compliance: answer truncated -- treated as blocked"]
     return update
 
 

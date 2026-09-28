@@ -23,6 +23,7 @@ restart silently resurrected every revoked account.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -54,24 +55,43 @@ def executed_actions(employee_id: str) -> list[dict[str, Any]]:
         return [r.to_record() for r in rows]
 
 
+def _tokens(name: str) -> frozenset[str]:
+    """A system or target name as a set of comparable words."""
+    return frozenset(w for w in re.split(r"[^a-z0-9]+", name.lower()) if len(w) > 1)
+
+
 def _revoked(employee_id: str, system: str,
              records: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
-    """The executed action covering `system`, if any (loose name match:
-    'AWS' matches target 'AWS (IAM user + keys)'; 'Okta/SSO' matches 'Okta').
+    """The executed action covering `system`, if any.
+
+    Matching is by whole words, in one direction or the other: an action covers
+    a system when one name's words are a subset of the other's. 'AWS IAM'
+    matches the target 'AWS (IAM user + keys)'; 'Okta/SSO' matches 'Okta'.
+
+    It used to be substring containment plus "any single word of the target
+    appears anywhere in the system name", and that second clause fires on
+    ordinary plan text. An action targeting "AWS IAM user + keys" marked
+    "User Directory" revoked, because "user" is a substring of it. `access_status`
+    then reported an account dead that was live, and `_extra_evidence` tells
+    compliance to treat that snapshot as superseding everything else -- so one
+    revocation could clear several accounts and the run would report the case
+    cleared with them still open.
 
     Pass `records` when checking several systems for one employee -- otherwise
     each call is its own query, and `access_status` checks every account.
     """
     if records is None:
         records = executed_actions(employee_id)
-    s = system.lower()
+    wanted = _tokens(system)
+    if not wanted:
+        return None
     for rec in records:
         # Returning a laptop is not the same as killing an account; conflating
         # them would report access revoked while it is still live.
         if rec.get("type") == "recover_asset":
             continue
-        t = str(rec.get("target", "")).lower()
-        if s in t or any(part and part in s for part in t.replace("/", " ").split()):
+        target = _tokens(str(rec.get("target", "")))
+        if target and (wanted <= target or target <= wanted):
             return rec
     return None
 
@@ -180,10 +200,30 @@ def access_status(case_id: str) -> dict[str, Any]:
     # Fetched once for the whole loop: per-account lookups would be one query
     # each, and this runs inside the orchestrator's compliance re-check.
     executed = executed_actions(emp_id)
+
+    matched = {s: _revoked(emp_id, s, records=executed) for s in systems}
+
+    # One revocation record cannot be proof for several accounts.
+    #
+    # `POLICY_EXCERPT` contains the line "business apps (Salesforce, SAP,
+    # Workday, Jira, Confluence)", so the planner plausibly emits one action
+    # whose target names all five. Executing it writes ONE row -- and
+    # `execute_deprovisioning_action` stamps it done without touching anything
+    # -- which would then answer for five accounts at once. Nobody revoked
+    # five things; one row was written. A record claiming more than one system
+    # is evidence for none of them, and the accounts stay live and visible.
+    claimed: dict[Any, list[str]] = {}
+    for system, rec in matched.items():
+        if rec is not None:
+            claimed.setdefault(rec.get("id", id(rec)), []).append(system)
+    ambiguous = {key for key, names in claimed.items() if len(names) > 1}
+
     accounts = []
     for s in systems:
         priv = s.lower() in PRIVILEGED
-        rec = _revoked(emp_id, s, records=executed)
+        rec = matched[s]
+        if rec is not None and rec.get("id", id(rec)) in ambiguous:
+            rec = None
         active = rec is None
         entry: dict[str, Any] = {"system": s, "active": active, "privileged": priv}
         if rec:
