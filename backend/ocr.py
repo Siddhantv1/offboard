@@ -47,8 +47,35 @@ MAX_SIDE = 1600  # downscale very large photos; accuracy is fine well below this
 #: Pages OCR'd when a PDF turns out to have no text layer. Exit forms are one
 #: to three pages; the cap is what stops a mistakenly-uploaded 200-page manual
 #: occupying the OCR engine for ten minutes while an employee watches a
-#: spinner. The text layer path has no cap -- it costs milliseconds a page.
+#: spinner.
 MAX_OCR_PAGES = 5
+
+#: Images OCR'd in total, across those pages. Capping pages alone left the
+#: other dimension open: a five-page PDF can carry thousands of small image
+#: XObjects, and each one is a separate OCR run.
+MAX_OCR_IMAGES = 12
+
+#: Pages read for their text layer. This had no cap at all, on the reasoning
+#: that a text layer costs milliseconds a page -- true per page, and beside the
+#: point. A valid 594 KB PDF whose page tree references one 80-byte page object
+#: 99,000 times took 78 seconds to read and produced 7.8 MB of text, which then
+#: went into the prompt whole, into `case_documents.ocr_text`, back out on
+#: every manager page load, and into the browser. pypdf's own 100,000-page
+#: ceiling was the only thing bounding it.
+MAX_PDF_PAGES = 40
+
+#: Characters of extracted text kept, whatever the source.
+#:
+#: The last line of defence and the one that matters, because it holds however
+#: the text was produced. Roughly 10k tokens: far more than any exit form, far
+#: less than anything that hurts. The cut is marked in the text so a reader --
+#: and the model -- can see that it happened rather than silently judging a
+#: document by its first few pages.
+MAX_TEXT_CHARS = 40_000
+
+_TRUNCATION_MARK = "\n\n[... truncated: this document is longer than the " \
+                   "reader accepts. Judge only what is above, and say in your " \
+                   "reason that the document was truncated.]"
 
 #: What an upload may be. The extension is what the person sees in their file
 #: dialog; the media type is what the browser sends. Both are advisory -- the
@@ -196,12 +223,22 @@ def extract_document(data: bytes, content_type: str = "",
 
 
 def _finish(text: str, *, engine: str, seconds: float, **extra: Any) -> dict[str, Any]:
-    """The common return shape. `lines` exists for every path because the
-    stored record and the review UI read it regardless of where text came
-    from; for a text layer a line is just a line."""
+    """The common return shape, with the length cap applied once for every path.
+
+    Capping here rather than at each extractor is deliberate: this is the only
+    function all three go through, so a fourth source cannot arrive without a
+    limit. `truncated` is reported so the caller can say so rather than quietly
+    judging a document by its first few pages.
+    """
     lines = [ln for ln in (l.strip() for l in text.splitlines()) if ln]
+    joined = "\n".join(lines)
+    truncated = len(joined) > MAX_TEXT_CHARS
+    if truncated:
+        joined = joined[:MAX_TEXT_CHARS] + _TRUNCATION_MARK
+        lines = [ln for ln in (l.strip() for l in joined.splitlines()) if ln]
+    extra.setdefault("truncated", truncated)
     return {
-        "text": "\n".join(lines),
+        "text": joined,
         "lines": [{"text": ln, "confidence": None} for ln in lines],
         # None, not 0.0: nothing was recognised, so there is no confidence to
         # report. Zero would read as "recognised it, badly".
@@ -233,10 +270,13 @@ def _extract_pdf(data: bytes) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 - corrupt or encrypted file
         raise UnreadableUpload(f"That PDF could not be opened ({exc}).") from exc
 
-    layer = "\n".join((page.extract_text() or "") for page in pages)
+    # Bounded before reading, not after: the cost is in `extract_text()`, so
+    # slicing the result would have already paid it.
+    read = pages[:MAX_PDF_PAGES]
+    layer = "\n".join((page.extract_text() or "") for page in read)
     if layer.strip():
         return _finish(layer, engine="pdf-text", seconds=time.perf_counter() - t0,
-                       kind="pdf", pages=len(pages))
+                       kind="pdf", pages=len(pages), pages_read=len(read))
 
     # No text layer: it is a scan in a PDF wrapper. OCR the embedded images.
     run = _get_engine()
@@ -246,6 +286,12 @@ def _extract_pdf(data: bytes) -> dict[str, Any]:
     scanned = 0
     for page in pages[:MAX_OCR_PAGES]:
         for image in page.images:
+            # Capping pages left this loop unbounded, and each turn of it is a
+            # full OCR run (6-10s on the portable engine). A handful of pages
+            # carrying thousands of image XObjects is the same denial of
+            # service through the other dimension.
+            if scanned >= MAX_OCR_IMAGES:
+                break
             try:
                 img = Image.open(io.BytesIO(image.data))
                 img = ImageOps.exif_transpose(img).convert("RGB")
