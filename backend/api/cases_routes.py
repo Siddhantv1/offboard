@@ -931,27 +931,29 @@ def update_employee_status(employee_id: str, user: HRUser,
     if emp is None:
         raise HTTPException(status_code=404, detail=f"Unknown employee {employee_id!r}.")
 
-    existing = store.exit_case_for_employee(employee_id)
     created = None
     credential = None
     if status == "exiting":
-        if existing is None:
-            try:
-                created = store.add_exit_case(
-                    emp,
-                    last_working_day=str(payload.get("last_working_day") or "") or None)
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-        # They have a part to play now -- confirming the IT handover, the exit
-        # interview, downloading their own letters -- and none of it is
-        # possible without a way in.
-        credential = store.issue_login(employee_id)
+        # One transaction for the case, the login and the status. This was four
+        # -- read "does a case exist", create the case, issue the login, set
+        # the status -- with a check-then-act across them, so two HR tabs both
+        # read None and both created a case. `add_employee` shares one
+        # transaction for exactly this reason; this is the same situation
+        # reached by the other door.
+        try:
+            created, credential = store.start_exit(
+                employee_id,
+                last_working_day=str(payload.get("last_working_day") or "") or None)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    else:
+        # The case is deliberately NOT deleted when someone is set back to
+        # active. A withdrawn resignation is a real thing and the case is the
+        # record that it happened; deleting it would erase a clearance somebody
+        # may already have worked. HR closes the stages instead.
+        store.set_employee_status(employee_id, status)
 
-    # The case is deliberately NOT deleted when someone is set back to active.
-    # A withdrawn resignation is a real thing and the case is the record that
-    # it happened; deleting it would erase a clearance somebody may already
-    # have worked. HR closes the stages instead.
-    store.set_employee_status(employee_id, status)
+    existing = store.exit_case_for_employee(employee_id)
 
     return {
         "employee_id": employee_id,

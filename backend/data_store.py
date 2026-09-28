@@ -665,6 +665,49 @@ class DataStore:
                 raise ValueError(f"Unknown employee {emp_id!r}.")
             return _doc(_insert_case(s, emp, last_working_day=last_working_day))
 
+    def start_exit(self, employee_id: str, *, last_working_day: str | None = None
+                   ) -> tuple[Doc | None, dict[str, str] | None]:
+        """Mark somebody as leaving: the case, the login and the status, once.
+
+        `PATCH /api/employees/{id}` used to do this as four separate
+        transactions with a check-then-act across them -- read "does a case
+        exist", then create the case, then issue the login, then set the
+        status. Two HR tabs both read `None` and both created a case, and
+        `_next_id`'s advisory lock only guaranteed they got *different* ids, so
+        one person ended up with two live exit cases, both with five pending
+        stages, both in the queues, and `exit_case_for_employee` picking
+        between them arbitrarily. A crash between the second and fourth left
+        somebody `active` with a live case.
+
+        `add_employee` shares one transaction for exactly this reason and says
+        so in its docstring; this is the same situation reached by the other
+        door. Returns (case or None if one already existed, credential or None).
+        """
+        emp_id = str(employee_id or "").strip()
+        with session_scope() as s:
+            emp = s.get(Employee, emp_id)
+            if emp is None:
+                raise ValueError(f"Unknown employee {emp_id!r}.")
+
+            # Inside the transaction, and holding the same advisory lock
+            # `_insert_case` takes, so the re-check cannot be raced by another
+            # request that is about to insert.
+            s.execute(select(func.pg_advisory_xact_lock(zlib.crc32(b"case"))))
+            existing = s.scalars(
+                select(ExitCase)
+                .where(ExitCase.employee_id == emp_id)
+                .order_by(ExitCase.initiated_date.desc().nullslast(),
+                          ExitCase.case_id.desc())
+            ).first()
+
+            created = None
+            if existing is None:
+                created = _doc(_insert_case(s, emp,
+                                            last_working_day=last_working_day))
+            credential = _issue_login(s, emp)
+            emp.status = "exiting"
+            return created, credential
+
 
 def _issue_login(session: Session, emp: Employee) -> dict[str, str] | None:
     """A one-time login for a leaver who has none.
