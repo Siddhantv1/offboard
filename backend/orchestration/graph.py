@@ -285,6 +285,11 @@ def approval_gate(state: ExitOrchestrationState) -> dict[str, Any]:
     approval = {
         "decision": verdict,
         "by": str(decision.get("by") or "hr-operator"),
+        # The account behind the name. Without it the approval cannot be
+        # checked against anybody, and `execute_plan` now refuses rather than
+        # skipping its two-person check -- which is what it used to do when
+        # both sides were None.
+        "by_user_id": decision.get("by_user_id"),
         "note": str(decision.get("note") or ""),
         "decided_at": _now(),
         "actions_reviewed": len(plan.get("actions") or []),
@@ -315,19 +320,37 @@ def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
             "log": ["deprov_execute: failed (no plan_id)"],
         }
     try:
-        # The gate above IS the human approval, so record it as one before
-        # running. `execute_plan` refuses an unapproved plan -- that refusal is
-        # what makes it safe for IT to hold the execute button in the UI, and
-        # the orchestrator has to satisfy the same rule rather than bypass it.
+        # The gate above IS the human authorisation, so record it as one --
+        # with the account behind it, so it can be checked against whoever
+        # eventually runs it.
         #
-        # No approver user id: the gate identifies its approver by name (it can
-        # be answered by the API with no session). That leaves the
-        # separation-of-duties check inapplicable rather than violated -- the
-        # executor here is the orchestrator, never the person who approved.
+        # **And then stop.** This used to go straight on to `execute_plan`, and
+        # that made the two-person control a fiction: one HR account posting to
+        # `/api/orchestrate/{case_id}` approved a model-authored plan and
+        # revoked twelve accounts in the same request, with the guard skipped
+        # because both the approver id and the executor id were None. Nobody
+        # else was ever involved, and the record could not say so.
+        #
+        # Authorising and carrying out are two acts by two people. The product
+        # already has the second one: IT works the plan step by step on that
+        # person's clearance page, where each revocation is logged against the
+        # engineer who made it. The orchestrator's job ends at the authorised
+        # plan.
         approve_plan(plan_id, approved_by=approval.get("by", "hr-operator"),
-                     approver_user_id=None, note=approval.get("note", ""))
-        result = execute_plan(plan_id, executed_by="orchestrator",
-                              note=approval.get("note", ""))
+                     approver_user_id=approval.get("by_user_id"),
+                     note=approval.get("note", ""))
+        pending = len([a for a in (plan.get("actions") or []) if isinstance(a, dict)])
+        return {
+            "deprov_execution": {
+                "status": "authorised",
+                "reason": "Authorised, and left for IT to carry out. Revoking "
+                          "access is a separate act by a separate person.",
+                "executed": 0,
+                "awaiting": pending,
+            },
+            "log": [f"deprov_execute: plan authorised, {pending} step(s) left "
+                    "for IT to run"],
+        }
     except PermissionError as exc:
         result = {"status": "error", "reason": str(exc), "executed": 0}
         return {
@@ -342,14 +365,13 @@ def deprov_execute(state: ExitOrchestrationState) -> dict[str, Any]:
             "errors": [f"deprov_execute: {exc}"],
             "log": ["deprov_execute: failed (unknown plan)"],
         }
-    except Exception as exc:  # noqa: BLE001 - a connector failure must not crash the orchestration
+    except Exception as exc:  # noqa: BLE001 - a failure here must not crash the run
         result = {"status": "error", "reason": str(exc), "executed": 0}
         return {
             "deprov_execution": result,
             "errors": [f"deprov_execute: {exc}"],
             "log": ["deprov_execute: failed"],
         }
-    return {"deprov_execution": result, "log": [f"deprov_execute: {result['executed']} action(s) executed"]}
 
 
 def apply_decisions(state: ExitOrchestrationState) -> dict[str, Any]:
@@ -707,16 +729,25 @@ def pending_approvals(limit: int = 100) -> list[dict[str, Any]]:
 
 
 def run_orchestration(
-    case_id: str, *, decision: str = "approve", note: str = "", by: str = "api (auto)"
+    case_id: str, *, decision: str = "approve", note: str = "",
+    by: str = "api (auto)", by_user_id: int | None = None,
 ) -> ExitOrchestrationState:
     """Blocking, non-interactive run (POST endpoint). The approval gate is
-    answered automatically with `decision` so the call can complete."""
+    answered automatically with `decision` so the call can complete.
+
+    `by_user_id` is the account answering that gate. It matters now: the gate
+    only authorises the plan -- IT still carries it out -- and `execute_plan`
+    refuses a plan whose approver has no account behind it, because an
+    unidentified approver cannot satisfy a two-person rule.
+    """
     graph = get_graph()
     config = _config(uuid4().hex)
     state = graph.invoke(_initial_state(case_id), config=config)
     if graph.get_state(config).next:
         state = graph.invoke(
-            Command(resume={"decision": decision, "by": by, "note": note or f"auto-{decision}"}),
+            Command(resume={"decision": decision, "by": by,
+                            "by_user_id": by_user_id,
+                            "note": note or f"auto-{decision}"}),
             config=config,
         )
     return _finalize(dict(state))

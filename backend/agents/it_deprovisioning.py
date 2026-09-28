@@ -171,8 +171,23 @@ def execute_plan(plan_id: str, *, executed_by: str, executor_user_id: int | None
     same plan_id blocks on Postgres's row lock until this transaction commits,
     then finds status already 'executed' and returns the cached result.
 
-    Refuses a plan that has not been approved by someone else. That is what
-    makes it safe for IT to hold this button.
+    Refuses a plan that has not been approved by *somebody identifiable, who is
+    not the executor*. That is what makes it safe for IT to hold this button --
+    and for a while it was not true, which is worth spelling out because the
+    sentence above was load-bearing and false.
+
+    The check used to be `if executor_user_id is not None and approved_by_user_id
+    == executor_user_id`. Both sides default to `None`, and the orchestrator
+    passed `None` for both: `approve_plan(..., approver_user_id=None)` followed
+    by `execute_plan(..., executed_by="orchestrator")`. `None is not None` is
+    False, so the guard was skipped entirely rather than tripped. One HR account
+    posting to `/api/orchestrate/{case_id}` therefore approved and executed a
+    model-authored revocation plan with no second person anywhere, and the row
+    recorded `approved_by=<that person>, approved_by_user_id=NULL`, so the audit
+    trail could not even show it.
+
+    An unidentified approver is now a refusal, not a pass. A machine actor that
+    genuinely has no human behind it has not satisfied a two-person rule.
     """
     with session_scope() as s:
         row = s.get(DeprovisioningPlan, plan_id)
@@ -185,8 +200,19 @@ def execute_plan(plan_id: str, *, executed_by: str, executor_user_id: int | None
                 "This plan has not been approved yet. An HR account must "
                 "approve it before it can be executed."
             )
-        if (executor_user_id is not None
-                and row.approved_by_user_id == executor_user_id):
+        if row.approved_by_user_id is None:
+            raise PermissionError(
+                "This plan was approved without a named account, so there is "
+                f"nobody to check the executor against. It says it was "
+                f"approved by '{row.approved_by or 'unknown'}'. Have an HR "
+                "account approve it again before running it."
+            )
+        if executor_user_id is None:
+            raise PermissionError(
+                "Executing a deprovisioning plan has to be attributable to an "
+                "account. This call supplied no executor."
+            )
+        if row.approved_by_user_id == executor_user_id:
             raise PermissionError(
                 "The person who approved a deprovisioning plan cannot also "
                 "execute it. Ask a colleague to run it."
@@ -333,8 +359,21 @@ def execute_one_action(plan_id: str, *, index: int, executed_by: str,
                 "This plan has not been authorised yet. An HR account must "
                 "authorise it before anything can be revoked."
             )
-        if (executor_user_id is not None
-                and row.approved_by_user_id == executor_user_id):
+        # Same correction as `execute_plan`: an unidentified approver or an
+        # unidentified executor used to make this check vanish rather than
+        # fire, because both sides default to None.
+        if row.approved_by_user_id is None:
+            raise PermissionError(
+                "This plan was authorised without a named account, so there is "
+                "nobody to check you against. Have an HR account authorise it "
+                "again before revoking anything."
+            )
+        if executor_user_id is None:
+            raise PermissionError(
+                "Revoking access has to be attributable to an account. This "
+                "call supplied no executor."
+            )
+        if row.approved_by_user_id == executor_user_id:
             raise PermissionError(
                 "The person who authorised a deprovisioning plan cannot also "
                 "carry it out. Ask a colleague."

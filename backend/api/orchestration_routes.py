@@ -152,7 +152,7 @@ def orchestrate_case(case: ScopedCase, user: HRUser,
     try:
         result = run_orchestration(
             case_id, decision=decision, note=str((payload or {}).get("note") or ""),
-            by=user.full_name or user.email,
+            by=user.full_name or user.email, by_user_id=user.user_id,
         )
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=f"LLM gateway error: {exc}") from exc
@@ -207,7 +207,11 @@ def orchestrate_case_stream(
                        "or been restarted).")
         if str(pending.get("case_id")) != case_id:
             raise HTTPException(status_code=409, detail="That run belongs to a different exit case.")
-        resume = {"decision": decision, "note": note, "by": user.full_name or user.email}
+        resume = {"decision": decision, "note": note,
+                  "by": user.full_name or user.email,
+                  # The account, not just the name: the plan it authorises is
+                  # checked against it before anybody may run it.
+                  "by_user_id": user.user_id}
 
     def events() -> Iterator[str]:
         try:
