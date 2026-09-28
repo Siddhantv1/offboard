@@ -190,9 +190,52 @@ def run_routing(state: ExitOrchestrationState) -> dict[str, Any]:
     return {"routing": routing, "log": [f"smart_routing: {len(routing)} open stage(s)"]}
 
 
+def nothing_left_to_revoke(case_id: str) -> list[str]:
+    """What this person still holds, in words. Empty means the work is done.
+
+    Read from the two records IT actually maintains -- the asset register and
+    the identity provider -- rather than from the stage, which is the same
+    rule `stages._it_clearance_blockers` applies. Asking the stage would let
+    the orchestrator and IT's own clearance page disagree about whether
+    anything is outstanding.
+    """
+    from ..systems import access_status, asset_status
+
+    try:
+        return list(asset_status(case_id).get("outstanding") or []) + \
+            list(access_status(case_id).get("still_active") or [])
+    except LookupError:
+        # No records for this case at all: we cannot say it is finished, so
+        # plan as normal rather than skipping on an absence.
+        return ["unknown"]
+
+
 def run_deprov_plan(state: ExitOrchestrationState) -> dict[str, Any]:
     if state.get("errors"):
         return {}
+
+    # Do not draft a revocation for somebody who has nothing left to revoke.
+    #
+    # This node was the only one of the six that neither checked the state of
+    # the case nor could be skipped: `run_routing`, `apply_decisions` and
+    # `escalate` all pass over completed stages, but this drafted a fresh plan
+    # unconditionally, persisted it as `pending`, and `approval_gate` then
+    # paused -- because its only skip condition is "no plan" and there was
+    # always a plan. So re-running the orchestrator on a finished exit asked a
+    # human to authorise revoking access that was already gone, and
+    # authorising it executed against dead accounts and filed another
+    # `executed` plan. emp-001 accumulated five of them that way, each with
+    # its own timestamp, so the audit record now gives five different answers
+    # to "when was their AWS access revoked".
+    case_id = state["case_id"]
+    outstanding = nothing_left_to_revoke(case_id)
+    if not outstanding:
+        return {
+            "deprov_plan": {},
+            "log": ["deprov_plan: skipped -- every asset is back and every "
+                    "account is already revoked"],
+        }
+
     meta = state.get("case_meta", {})
     try:
         plan = plan_deprovisioning(
@@ -221,8 +264,13 @@ def approval_gate(state: ExitOrchestrationState) -> dict[str, Any]:
         return {}
     plan = state.get("deprov_plan") or {}
     if not plan:
-        return {"approval": {"decision": "skipped", "reason": "no plan to approve"},
-                "log": ["approval_gate: skipped (no plan)"]}
+        # Reached either because planning failed or because there was nothing
+        # to plan. Say which, so a run that skipped the gate legitimately does
+        # not read like a run whose gate went missing.
+        reason = ("nothing left to revoke" if not state.get("errors")
+                  else "no plan to approve")
+        return {"approval": {"decision": "skipped", "reason": reason},
+                "log": [f"approval_gate: skipped ({reason})"]}
 
     decision = interrupt({
         "case_id": state.get("case_id"),
