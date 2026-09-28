@@ -28,7 +28,7 @@ from typing import Any
 
 import frontmatter
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from .auth import generate_temp_password, hash_password
 from .config import DATA_DIR
@@ -323,19 +323,27 @@ class DataStore:
         with session_scope() as s:
             rows = s.scalars(
                 select(CaseDocument)
-                .where(func.lower(CaseDocument.document_name) == "kt document")
+                .where(func.lower(CaseDocument.document_name) == "kt document",
+                       # Empty rows are filtered in the query, not after
+                       # picking the latest. Doing it afterwards meant a newer
+                       # blank upload *hid* an older real handover instead of
+                       # falling back to it: the leaver sends a good PDF, then
+                       # a blank scan, and the manager's page goes back to "no
+                       # handover has been filed" over one that is in the
+                       # table. The seeded marker rows, which carry no file and
+                       # no text, did the same thing after a re-seed.
+                       func.coalesce(func.btrim(CaseDocument.ocr_text), "") != "")
                 # Oldest first, so the dict below keeps the newest per case.
                 .order_by(CaseDocument.uploaded_at, CaseDocument.id)
+                # `image` is a whole file in BYTEA and nothing here reads it;
+                # loading it turned every manager page load and every agent
+                # dropdown into a scan of the uploaded documents table.
+                .options(defer(CaseDocument.image))
             ).all()
             latest: dict[str, CaseDocument] = {r.case_id: r for r in rows}
-            cases = {c.case_id: c for c in s.scalars(select(ExitCase)).all()}
+            cases = {c.case_id: c for c in s.scalars(
+                select(ExitCase).where(ExitCase.case_id.in_(latest))).all()}
             for case_id, row in latest.items():
-                # The seeded rows exist only to mark the corpus's
-                # `documents_submitted` as accepted; they hold no file and no
-                # text, so there is nothing to review and offering one would
-                # put an empty document in the dropdown.
-                if not (row.ocr_text or "").strip():
-                    continue
                 case = cases.get(case_id)
                 out.append(Doc(
                     slug=f"kt-upload-{case_id}",
@@ -582,10 +590,15 @@ class DataStore:
                 name=name,
                 role=role,
                 department=department,
-                email=(str(fields.get("email") or "").strip()
+                # Both addresses lowercased on write. `_issue_login` builds an
+                # account from `email`, and `scoping.can_see_case` compares
+                # `manager_email` against a lowercased `User.email` -- so a
+                # mixed-case address entered here produced an unusable login
+                # and a manager who could see none of their own reports.
+                email=(str(fields.get("email") or "").strip().lower()
                        or f"{name.lower().replace(' ', '.')}@perficient.com"),
                 manager=str(fields.get("manager") or "").strip(),
-                manager_email=str(fields.get("manager_email") or "").strip(),
+                manager_email=str(fields.get("manager_email") or "").strip().lower(),
                 tenure_years=tenure_years,
                 join_date=join_date,
                 location=str(fields.get("location") or "").strip(),
@@ -666,18 +679,25 @@ def _issue_login(session: Session, emp: Employee) -> dict[str, str] | None:
     """
     if not emp.email:
         return None
-    if session.scalar(select(User).where(User.email == emp.email)):
+    # Lowercased, because `auth.authenticate` lowercases what it looks up.
+    # Writing the address verbatim gave a leaver with a mixed-case email an
+    # account they could never sign into -- and, because the existence check
+    # below was the same case-sensitive comparison, a second User row for
+    # somebody who already had one under the lowercase spelling. Two identity
+    # rows for one person is how an access review misses a live account.
+    email = (emp.email or "").strip().lower()
+    if session.scalar(select(User).where(func.lower(User.email) == email)):
         return None
     secret = generate_temp_password()
     session.add(User(
-        email=emp.email,
+        email=email,
         password_hash=hash_password(secret),
         role="employee",
         employee_id=emp.id,
         full_name=emp.name,
         must_change_password=True,
     ))
-    return {"email": emp.email, "password": secret}
+    return {"email": email, "password": secret}
 
 
 def _insert_case(session: Session, emp: Employee, *,

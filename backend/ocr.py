@@ -230,6 +230,13 @@ def _finish(text: str, *, engine: str, seconds: float, **extra: Any) -> dict[str
     limit. `truncated` is reported so the caller can say so rather than quietly
     judging a document by its first few pages.
     """
+    # NUL is valid UTF-8 and invalid in a Postgres `text` column. A UTF-16
+    # HTML file ("save as / Unicode" out of Notepad) decodes to text riddled
+    # with them; `record_upload` then hit psycopg's DataError, swallowed it,
+    # returned None -- and the route answered 200 with a verdict for a document
+    # that had not been stored. Stripped here so no extractor can produce a
+    # string the store cannot hold.
+    text = text.replace("\x00", "")
     lines = [ln for ln in (l.strip() for l in text.splitlines()) if ln]
     joined = "\n".join(lines)
     truncated = len(joined) > MAX_TEXT_CHARS
@@ -342,14 +349,21 @@ class _HTMLText(HTMLParser):
 def _extract_html(data: bytes) -> dict[str, Any]:
     """Visible text out of an HTML file. No OCR, no dependency."""
     t0 = time.perf_counter()
-    for encoding in ("utf-8", "cp1252"):
-        try:
-            source = data.decode(encoding)
-            break
-        except UnicodeDecodeError:
-            continue
+    # UTF-16 first, by its byte-order mark. Without this branch a UTF-16 file
+    # "decoded" as UTF-8 into text with a NUL between every character, which
+    # also meant the parser never saw a tag -- so `<html><body><p>` came
+    # through as visible text and went to the model as the document's wording.
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        source = data.decode("utf-16", errors="replace")
     else:
-        source = data.decode("utf-8", errors="replace")
+        for encoding in ("utf-8", "cp1252"):
+            try:
+                source = data.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            source = data.decode("utf-8", errors="replace")
 
     parser = _HTMLText()
     parser.feed(source)

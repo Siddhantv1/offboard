@@ -54,17 +54,34 @@ def _kt_doc_for(case_id: str, employee_id: str) -> Any:
     has been filed for this exit yet", and then had to force the stage complete
     over a warning that said the same thing.
 
-    Matched on case first and employee second, the same order
-    `cases_routes._related_ids` uses: a KT document carries both, and the
-    employee is the fallback for one filed before the case existed.
+    Case first and employee second, and that means two passes over the list,
+    not two tests inside one. The loop used to return on the first document
+    matching *either* criterion -- and `all_kt_docs()` is corpus-then-uploads,
+    so a pre-product corpus handover always won. Dev Patel could file a fresh
+    one through the portal and his manager would be shown `kt-002` from
+    `data/kt-docs/`, with "Review it again" scoring the old text. The
+    employee-id arm was worse: it would return a *different case's* handover
+    for the same person.
+
+    An upload beats a corpus document on a tie, because it is the one this
+    exit actually collected.
     """
-    for doc in store.all_kt_docs():
-        meta = doc.meta
-        if str(meta.get("case_id") or "") == case_id:
-            return doc
-        if employee_id and str(meta.get("employee_id") or "") == employee_id:
-            return doc
-    return None
+    candidates = list(store.all_kt_docs())
+
+    def _pick(matches: list[Any]) -> Any:
+        if not matches:
+            return None
+        return next((d for d in matches if d.meta.get("source") == "upload"),
+                    matches[0])
+
+    by_case = _pick([d for d in candidates
+                     if str(d.meta.get("case_id") or "") == case_id])
+    if by_case is not None:
+        return by_case
+    if not employee_id:
+        return None
+    return _pick([d for d in candidates
+                  if str(d.meta.get("employee_id") or "") == employee_id])
 
 
 def _latest_review(kt_id: str) -> dict[str, Any] | None:

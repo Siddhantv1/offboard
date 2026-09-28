@@ -383,6 +383,8 @@ export default function MyCase() {
   // null means "follow the case". Set only by clicking another step, so the
   // page tracks the exit until the person deliberately looks elsewhere.
   const [picked, setPicked] = useState(null);
+  // An upload that validated and then failed to persist. A 200 with no row.
+  const [saveError, setSaveError] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -426,6 +428,11 @@ export default function MyCase() {
   }, []);
 
   const onUploaded = useCallback((result) => {
+    // The backend composes a specific "we read it but could not save it"
+    // message and this read only `checklist` and `summary`, so a failed write
+    // came back as a 200 with the row unchanged and nothing on screen. The
+    // person assumes they misclicked, or assumes it worked.
+    setSaveError(result?.persisted?.error || null);
     setDocs((d) => (d ? { ...d, checklist: result.checklist, summary: result.summary } : d));
     // The case itself can change too -- an accepted document clears a
     // requirement -- so refresh it quietly in the background.
@@ -492,6 +499,8 @@ export default function MyCase() {
           {c.last_working_day && <> · last working day {c.last_working_day}</>}
         </span>
       </div>
+
+      {saveError && <ErrorBox>{saveError}</ErrorBox>}
 
       <StepTimeline rows={rows} active={activeKey} onPick={setPicked} />
 
