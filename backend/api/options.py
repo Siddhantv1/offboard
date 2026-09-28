@@ -71,15 +71,52 @@ def kt_options(user: Identity) -> list[dict[str, str]]:
     return out
 
 
+def _newer_interview(candidate: object, current: object) -> bool:
+    """Which of two interviews for one person the reader should be offered.
+
+    The one they filled in here wins. `all_interviews()` is the corpus plus
+    the portal submissions, and for anyone who was already in the seeded data
+    and has since answered the form there is one of each -- two records of the
+    same conversation, differing only in that the corpus row is a stand-in
+    written before this product existed. Offering both asks the reader to pick
+    between two rows labelled with the same person's name, and half the time
+    they will summarise the stand-in.
+
+    Ties (two of the same source, which the data does not currently contain)
+    fall back to the later submission.
+    """
+    cand, cur = candidate.meta, current.meta  # type: ignore[attr-defined]
+    if (cand.get("source") == "portal") != (cur.get("source") == "portal"):
+        return cand.get("source") == "portal"
+    return str(cand.get("submitted_date") or "") > str(cur.get("submitted_date") or "")
+
+
 def interview_options(user: Identity) -> list[dict[str, str]]:
+    """One interview per person, not one per record.
+
+    Deliberately narrower than `all_interviews()`, which stays a union:
+    `interview_trends` compares this quarter against the historical corpus and
+    needs both. This is a picker for a human, and a picker with the same name
+    twice is a picker that gets answered wrong.
+    """
     allowed = {str(e.meta.get("id")) for e in visible_employees(user)}
+    best: dict[str, object] = {}
+    for d in store.all_interviews():
+        employee_id = str(d.meta.get("employee_id") or "")
+        if not (user.is_hr or employee_id in allowed):
+            continue
+        # An interview with no employee on it cannot be collapsed with
+        # anything, so it keys on its own id and always survives.
+        key = employee_id or f"iv:{d.meta.get('interview_id', d.slug)}"
+        if key not in best or _newer_interview(d, best[key]):
+            best[key] = d
+
     return [
         {"value": str(d.meta.get("interview_id", d.slug)),
          "label": _label(d.meta.get("employee_name") or d.meta.get("employee_id"),
                          d.meta.get("department"),
                          d.meta.get("interview_id", d.slug))}
-        for d in store.all_interviews()
-        if user.is_hr or str(d.meta.get("employee_id") or "") in allowed
+        for d in best.values()  # type: ignore[union-attr]
     ]
 
 

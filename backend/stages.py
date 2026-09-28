@@ -256,6 +256,40 @@ def transition(
                     "anyway -- it goes on the record with your name."
                 )
 
+        # Finishing the exit without the leaver's exit interview.
+        #
+        # Gated on the *last* stage rather than on HR Clearance, because that
+        # is what "finishing" actually means: the four clearances are worked by
+        # four teams in whatever order suits them, and naming one of them the
+        # end lets the case be finished around it. This is also what gates the
+        # relieving letter, which `issued_documents.readiness` will release the
+        # moment nothing is outstanding.
+        #
+        # A refusal-with-reason rather than a hard block, deliberately. The
+        # note above on the IT gate records what happened the last time this
+        # process hard-blocked on something only the leaver could supply:
+        # somebody who had already gone, or who never logged in, froze their
+        # own case indefinitely. The interview is worth asking for and is not
+        # worth trapping a case behind, so it costs a sentence on the record
+        # instead.
+        if to_status == "completed":
+            from .exit_interview import was_submitted
+
+            last_one_open = not [
+                other for other in case.stages
+                if other is not stage and other.status != "completed"
+            ]
+            if (last_one_open and not was_submitted(case.case_id)
+                    and not (note or "").strip()):
+                raise TransitionError(
+                    f"{case.employee_name or case.employee_id} has not sent "
+                    f"their exit interview, and completing {stage.name} "
+                    "finishes the exit -- it releases their relieving letter. "
+                    "Ask them to answer it, or add a note saying why you are "
+                    "closing without it; the note goes on the record with "
+                    "your name."
+                )
+
         now = datetime.now(timezone.utc)
         stage.status = to_status
         stage.status_changed_at = now
