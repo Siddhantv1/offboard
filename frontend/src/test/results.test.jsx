@@ -119,3 +119,43 @@ describe("the registry", () => {
     }
   });
 });
+
+describe("the fixtures are not stale", () => {
+  /* Four of them predated the keys that drive the *interactive* half of their
+     view, so the suite rendered a read-only version and a regression in the
+     action path shipped green.
+
+     `kt_reviewer.json` had no `case_id`, so `KTReviewer`'s "Decide on it"
+     section -- gated on `Boolean(r.case_id)` -- never rendered at all.
+     `smart_routing.json` had no `chosen`, so `SmartRouting` took the "the
+     model named someone who is not on the roster" branch and the suite
+     treated that wrong message as the expected output.
+
+     Pinned by key rather than by re-capturing, because a captured fixture
+     goes stale again the next time an agent gains a field; this fails when it
+     does. */
+  const REQUIRED = {
+    kt_reviewer: ["kt_id", "employee_id", "case_id", "stage_key",
+                  "stage_status", "review"],
+    smart_routing: ["stage", "stage_key", "case_id", "routing", "roster",
+                    "chosen", "stage_status", "assignable"],
+    checklist: ["checklist", "employee_id"],
+    end_to_end_automation: ["case_id", "employee", "timeline", "documents",
+                            "applied", "final_status"],
+  };
+  const BY_ID = Object.fromEntries(CASES.map(([id, result]) => [id, result]));
+
+  it.each(Object.keys(REQUIRED))("%s carries every key its agent returns", (id) => {
+    const missing = REQUIRED[id].filter((k) => !(k in BY_ID[id]));
+    expect(missing, `${id}.json is missing ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("smart_routing's chosen approver is a real roster entry with an account", () => {
+    // `SmartRouting` reads `chosen.user_id` to offer the assign, and the
+    // roster in this fixture had no `user_id` on any entry.
+    const { chosen, roster } = BY_ID.smart_routing;
+    expect(chosen).toBeTruthy();
+    expect(chosen.user_id).toEqual(expect.any(Number));
+    expect(roster.map((a) => a.name)).toContain(chosen.name);
+  });
+});

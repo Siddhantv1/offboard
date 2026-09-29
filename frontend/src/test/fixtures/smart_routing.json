@@ -2,18 +2,42 @@
   "stage": "Manager Sign-off",
   "roster": [
     {
-      "name": "Line Manager",
-      "delegate": "Skip-level Manager",
-      "workload": 7,
+      "name": "Vikram Sharma",
+      "email": "vikram.sharma@perficient.com",
+      "user_id": 295,
+      "workload": 1,
       "available": true,
-      "ooo_until": null
+      "ooo_until": null,
+      "delegate": null
+    },
+    {
+      "name": "Karan Malhotra",
+      "email": "karan.malhotra@perficient.com",
+      "user_id": 291,
+      "workload": 3,
+      "available": true,
+      "ooo_until": null,
+      "delegate": null
     }
   ],
   "routing": {
-    "reason": "Line Manager is available and no other options are presented for workload comparison.",
-    "fallback": null,
+    "chosen_approver": "Vikram Sharma",
+    "reason": "Carries one open stage against Karan Malhotra's three, and is available.",
     "confidence": "high",
-    "reroute_from": null,
-    "chosen_approver": "Line Manager"
+    "fallback": "Karan Malhotra",
+    "reroute_from": null
+  },
+  "case_id": "case-001",
+  "stage_key": "manager",
+  "stage_status": "in_progress",
+  "assignable": true,
+  "chosen": {
+    "name": "Vikram Sharma",
+    "email": "vikram.sharma@perficient.com",
+    "user_id": 295,
+    "workload": 1,
+    "available": true,
+    "ooo_until": null,
+    "delegate": null
   }
 }

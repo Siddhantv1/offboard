@@ -179,7 +179,14 @@ export default function ITClearance() {
         <Badge value={stage.status} />
         <span className="muted">
           {stage.owner ? (stage.mine ? "Yours" : `Held by ${stage.owner}`) : "Unassigned"}
-          {confirmation?.confirmed && ` · ${c.employee} completed on their side.`}
+          {/* Both branches, not just the positive one. Only "confirmed" was
+              rendered, so "waiting on the leaver" and "this stage has no
+              employee side at all" both showed as nothing -- on the page
+              built to answer what this person still has. Half the live cases
+              are in the silent state. */}
+          {confirmation && (confirmation.confirmed
+            ? ` · ${c.employee} completed on their side.`
+            : ` · ${c.employee} has not confirmed they returned their devices.`)}
         </span>
       </div>
 

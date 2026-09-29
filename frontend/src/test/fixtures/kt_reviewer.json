@@ -73,5 +73,9 @@
       "List of recurring tasks, such as specific reports, compliance checks, or maintenance jobs, with frequency and ownership.",
       "Links to all relevant code repositories, key design documents, API documentation, and any internal wiki pages (e.g., Confluence)."
     ]
-  }
+  },
+  "employee_id": "emp-001",
+  "case_id": "case-001",
+  "stage_key": "kt",
+  "stage_status": "in_progress"
 }

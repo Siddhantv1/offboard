@@ -200,14 +200,18 @@ export default function ExitInterview() {
           </Button>
         </div>
 
-        {outstanding.length > 0 ? (
+        {/* The confirmation used to live in the `else`, so a *partial* save --
+            the only kind this button exists for -- changed nothing on screen.
+            You wrote three long answers, pressed Save progress, and read the
+            same "4 questions remain" line that was already there. */}
+        {saved && <p className="hint">Answers saved.</p>}
+
+        {outstanding.length > 0 && (
           <p className="hint">
             {`${outstanding.length} question${outstanding.length === 1 ? "" : "s"} `}
             {`remain${outstanding.length === 1 ? "s" : ""} `}
             before you can submit.
           </p>
-        ) : (
-          saved && <p className="hint">Answers saved successfully.</p>
         )}
       </Panel>
     </>

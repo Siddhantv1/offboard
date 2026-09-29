@@ -25,6 +25,9 @@ import GenericResult from "./GenericResult.jsx";
  */
 function AssignAction({ caseId, stageKey, chosen, stageName, stageStatus, assignable }) {
   const [state, setState] = useState({ status: "idle", error: null });
+  // Whether the reopen half of the two-step already landed, so a retry after
+  // a failed assign does not attempt an illegal `in_progress -> in_progress`.
+  const [reopened, setReopened] = useState(false);
   const { user } = useAuth();
 
   /* A completed stage genuinely cannot be assigned -- the queue shows open work
@@ -81,15 +84,26 @@ function AssignAction({ caseId, stageKey, chosen, stageName, stageStatus, assign
         {reopenable && (
           <>
             <div className="btn-row">
+              {/* Two writes, and the second can fail on its own. It used to
+                  re-offer the whole button afterwards: clicking again tried
+                  `in_progress -> in_progress`, which is not in `LEGAL`, so it
+                  errored forever and left a reopened, unowned clearance with
+                  no way forward from this screen. The halves are tracked, so
+                  a retry only retries what did not land. */}
               <Button busy={state.status === "busy"} onClick={() => act(async () => {
-                await postJSON(`/api/cases/${caseId}/stages/${stageKey}/transition`, {
-                  to: "in_progress",
-                  note: `Reopened to reassign to ${chosen.name}.`,
-                });
+                if (!reopened) {
+                  await postJSON(`/api/cases/${caseId}/stages/${stageKey}/transition`, {
+                    to: "in_progress",
+                    note: `Reopened to reassign to ${chosen.name}.`,
+                  });
+                  setReopened(true);
+                }
                 await postJSON(`/api/cases/${caseId}/stages/${stageKey}/assign`,
                                { user_id: chosen.user_id });
               })}>
-                {`Reopen it and assign ${chosen.name}`}
+                {reopened
+                  ? `Assign ${chosen.name}`
+                  : `Reopen it and assign ${chosen.name}`}
               </Button>
             </div>
             <p className="rk-empty">
