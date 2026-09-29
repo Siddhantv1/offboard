@@ -360,10 +360,30 @@ def test_orchestrate_stream_404s_for_an_unknown_case(client, hr_account):
 
 
 def test_orchestrate_stream_rejects_a_partial_resume(client, hr_account):
+    """With a valid token, so the 422 is about the arguments.
+
+    CSRF is verified before them now -- this used to pass no token and get its
+    422 from the argument check, because the token was only demanded on a
+    resume.
+    """
     _login(client, HR_EMAIL, HR_PASSWORD)
     case_id = _a_real_case_id()
-    resp = client.get(f"/api/orchestrate/{case_id}/stream", params={"thread_id": "t1"})
+    resp = client.get(f"/api/orchestrate/{case_id}/stream", params={
+        "thread_id": "t1", "csrf_token": client.cookies.get(auth.CSRF_COOKIE)})
     assert resp.status_code == 422
+
+
+def test_starting_a_run_needs_a_csrf_token_too(client, hr_account):
+    """A fresh call is not a read. It drafts and persists a deprovisioning
+    plan, writes stage assignments and burns a full multi-agent run before it
+    pauses -- and `SameSite=Lax` attaches the session cookie to a top-level
+    cross-site navigation, which is exactly what an attacker's link is. Case
+    ids are sequential, so nothing has to be guessed.
+    """
+    _login(client, HR_EMAIL, HR_PASSWORD)
+    case_id = _a_real_case_id()
+    resp = client.get(f"/api/orchestrate/{case_id}/stream")
+    assert resp.status_code == 403
 
 
 def test_orchestrate_stream_rejects_a_resume_with_a_bad_csrf_token(client, hr_account):

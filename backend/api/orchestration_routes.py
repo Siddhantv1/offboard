@@ -186,16 +186,27 @@ def orchestrate_case_stream(
     optional `note`) to resume that run and stream the rest of it. GET rather
     than POST because the browser's EventSource can only GET -- which also
     means `SameSite=Lax` alone will not stop a cross-site top-level navigation
-    from carrying the session cookie here, so a resume additionally requires
-    the double-submit `csrf_token`.
+    from carrying the session cookie here, so the double-submit `csrf_token`
+    is required on **every** call to this route.
+
+    It used to be checked only on a resume, which missed the point: a fresh
+    call is not a read. It runs the whole graph -- drafts and persists a
+    deprovisioning plan, writes stage assignments through `apply_decisions`,
+    and burns a full multi-agent run at the gateway -- before it pauses. An
+    attacker's page could navigate a signed-in HR user's top-level window to
+    `/api/orchestrate/case-001/stream` with a link or a meta refresh, and
+    `SameSite=Lax` attaches the cookie to exactly that. Case ids are
+    sequential, so nothing had to be guessed.
     """
     case_id = str(case.meta.get("case_id"))
+
+    # Before anything is started or resumed.
+    auth.verify_csrf(request, csrf_token)
 
     resume: dict[str, Any] | None = None
     if thread_id or decision:
         if not (thread_id and decision):
             raise HTTPException(status_code=422, detail="Resuming needs both thread_id and decision.")
-        auth.verify_csrf(request, csrf_token)
         decision = decision.lower()
         if decision not in ("approve", "reject"):
             raise HTTPException(status_code=422, detail="decision must be 'approve' or 'reject'.")

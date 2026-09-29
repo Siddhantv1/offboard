@@ -191,7 +191,12 @@ export default function Orchestrator() {
 
     describe();
     timerRef.current = setInterval(describe, 1000);
-    connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream`);
+    // The token goes on a fresh run too, not just a resume: starting one
+    // drafts a plan and writes stage assignments, so it is a mutation reached
+    // by GET, and `SameSite=Lax` does not stop a top-level cross-site
+    // navigation carrying the session cookie to it.
+    const q = new URLSearchParams({ csrf_token: csrfToken() });
+    connect(`/api/orchestrate/${encodeURIComponent(caseId)}/stream?${q}`);
   }
 
   /* Pick up a paused run. The interrupt payload already carries everything

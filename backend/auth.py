@@ -40,6 +40,10 @@ SESSION_TTL = timedelta(hours=12)
 # Sliding expiry: a session in active use is extended, so a long working day
 # does not sign someone out mid-review.
 SESSION_REFRESH_AFTER = timedelta(minutes=30)
+# ...but not forever. A browser left open would otherwise hold a session
+# indefinitely, which is the usual cost of a sliding expiry and worth bounding
+# on a system that serves people's bank details.
+SESSION_MAX_AGE = timedelta(days=7)
 
 # Double-submit CSRF cookie. `SameSite=Lax` on the session cookie already
 # blocks cross-site POSTs, but it still attaches to a top-level cross-site GET
@@ -160,8 +164,15 @@ def authenticate(email: str, password: str) -> tuple[Identity, str]:
             verify_password(_DUMMY_HASH, password)  # equalise timing
             raise generic
         if not user.is_active:
+            # The generic message, deliberately. Saying "this account is
+            # disabled" answers, before any password is checked, the question
+            # "does this address have an account here" -- and for a deactivated
+            # one, "has this person left". An attacker with a corporate address
+            # list gets both for free, which is the reconnaissance that
+            # precedes a phishing run. Timing is already equalised; the message
+            # was the leak. An admin can see `is_active` on the user list.
             verify_password(_DUMMY_HASH, password)
-            raise AuthError("This account is disabled. Contact HR.")
+            raise generic
 
         if verify_password(user.password_hash, password):
             # A correct password always succeeds, even mid-lockout. The
@@ -190,8 +201,12 @@ def authenticate(email: str, password: str) -> tuple[Identity, str]:
         # Wrong password: the lockout throttle applies only to further wrong
         # guesses, never to the correct one above.
         if user.locked_until and user.locked_until > _now():
-            mins = max(1, int((user.locked_until - _now()).total_seconds() // 60) + 1)
-            raise AuthError(f"Too many failed attempts. Try again in {mins} minutes.")
+            # Also generic. Nine wrong guesses against a real address answered
+            # with a lockout notice and against an unknown one with "email or
+            # password is incorrect" forever -- a clean oracle over any list of
+            # addresses. The throttle still applies; it just stops announcing
+            # that it has something to throttle.
+            raise generic
 
         failed_user_id = user.id
 
@@ -218,26 +233,44 @@ def _record_failed_attempt(user_id: int) -> None:
             user.failed_attempts = 0
 
 
-def resolve_session(token: str | None) -> Identity | None:
-    """Identity behind a session cookie, or None. Extends a session in use."""
+def resolve_session(token: str | None) -> tuple[Identity | None, bool]:
+    """(identity, whether the session was just extended), or (None, False).
+
+    The boolean matters because extending the row was only half of it. The
+    cookies are issued once at login with a fixed `max_age`, so the browser
+    deleted them 12 hours after sign-in whatever the server had done to the
+    row -- the sliding expiry described at the top of this module simply did
+    not reach the client, and an operator who signed in at 07:00 was signed
+    out at 19:00 mid-review. `current_user` re-issues both cookies when this
+    reports True.
+    """
     if not token:
-        return None
+        return None, False
     with session_scope() as s:
         row = s.get(UserSession, _token_hash(token))
         if row is None:
-            return None
+            return None, False
         now = _now()
         if row.expires_at <= now:
             s.delete(row)  # expired sessions do not linger
-            return None
+            return None, False
+        # An absolute cap on top of the sliding one. Without it a browser left
+        # open indefinitely holds a session indefinitely, which is the usual
+        # cost of sliding expiry and worth bounding on a system that reads
+        # people's bank details.
+        if now - row.created_at.astimezone(timezone.utc) > SESSION_MAX_AGE:
+            s.delete(row)
+            return None, False
         user = s.get(User, row.user_id)
         if user is None or not user.is_active:
             s.delete(row)  # deactivating an account kills its sessions
-            return None
+            return None, False
+        refreshed = False
         if now - row.last_seen_at.astimezone(timezone.utc) > SESSION_REFRESH_AFTER:
             row.last_seen_at = now
             row.expires_at = now + SESSION_TTL
-        return _identity(user)
+            refreshed = True
+        return _identity(user), refreshed
 
 
 def destroy_session(token: str | None) -> None:
@@ -325,9 +358,23 @@ def verify_csrf(request: Request, token: str | None) -> None:
 
 # -- FastAPI dependencies -----------------------------------------------------
 def optional_user(
+    response: Response,
     token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> Identity | None:
-    return resolve_session(token)
+    """Resolve the session, and re-issue the cookies when it was extended.
+
+    The `Response` is injected so the sliding expiry actually reaches the
+    browser. Extending the row alone did nothing: both cookies carry a fixed
+    `max_age` set at login, so they were deleted 12 hours after sign-in
+    regardless, and the mechanism the module docstring describes was dead.
+    """
+    from .config import COOKIE_SECURE
+
+    identity, refreshed = resolve_session(token)
+    if identity is not None and refreshed and token:
+        set_session_cookie(response, token, secure=COOKIE_SECURE)
+        set_csrf_cookie(response, secure=COOKIE_SECURE)
+    return identity
 
 
 def current_user(

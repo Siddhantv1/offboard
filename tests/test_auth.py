@@ -86,12 +86,52 @@ def test_wrong_password_and_unknown_account_are_indistinguishable(account):
 
 
 def test_repeated_wrong_passwords_lock_out_further_wrong_guesses(account):
+    """Asserted on the lockout itself rather than on the message.
+
+    It used to match "Too many failed attempts", and that message was the
+    defect: nine wrong guesses against a real address said that, while an
+    address with no account said "email or password is incorrect" forever --
+    a clean oracle over any list of corporate addresses. Every failure reads
+    the same now, so the state is what the test can look at.
+    """
     for _ in range(auth.MAX_FAILED_ATTEMPTS):
         with pytest.raises(auth.AuthError):
             auth.authenticate(EMAIL, "wrong")
 
-    with pytest.raises(auth.AuthError, match="Too many failed attempts"):
+    assert _user().locked_until is not None, "the throttle should have engaged"
+
+    with pytest.raises(auth.AuthError, match="Email or password is incorrect"):
         auth.authenticate(EMAIL, "still-wrong")
+
+
+def test_no_failure_tells_you_whether_the_account_exists(account):
+    """Unknown, disabled, wrong-password and locked-out are indistinguishable.
+
+    Timing was already equalised with a dummy verify; the messages were the
+    leak, and two of them named the reason.
+    """
+    messages = set()
+
+    with pytest.raises(auth.AuthError) as unknown:
+        auth.authenticate("nobody-here@example.com", "whatever")
+    messages.add(str(unknown.value))
+
+    with pytest.raises(auth.AuthError) as wrong:
+        auth.authenticate(EMAIL, "wrong")
+    messages.add(str(wrong.value))
+
+    for _ in range(auth.MAX_FAILED_ATTEMPTS):
+        with pytest.raises(auth.AuthError) as locked:
+            auth.authenticate(EMAIL, "wrong")
+    messages.add(str(locked.value))
+
+    with session_scope() as s:
+        s.scalar(select(User).where(User.email == EMAIL)).is_active = False
+    with pytest.raises(auth.AuthError) as disabled:
+        auth.authenticate(EMAIL, PASSWORD)
+    messages.add(str(disabled.value))
+
+    assert messages == {"Email or password is incorrect."}, messages
 
 
 def test_the_correct_password_always_succeeds_even_while_locked(account):
@@ -118,17 +158,27 @@ def test_a_successful_login_clears_the_failure_count(account):
     assert _user().failed_attempts == 0
 
 
+def _resolved(token):
+    """Just the identity. `resolve_session` returns (identity, refreshed)
+    since the sliding expiry had to be re-issued to the browser, and only
+    `optional_user` cares about the second half."""
+    return auth.resolve_session(token)[0]
+
+
 def test_a_disabled_account_cannot_sign_in(account):
     with session_scope() as s:
         s.scalar(select(User).where(User.email == EMAIL)).is_active = False
-    with pytest.raises(auth.AuthError, match="disabled"):
+    # The generic message: naming the reason answered "does this address have
+    # an account here", and for a deactivated one "has this person left",
+    # before any password was checked.
+    with pytest.raises(auth.AuthError, match="Email or password is incorrect"):
         auth.authenticate(EMAIL, PASSWORD)
 
 
 # -- sessions -----------------------------------------------------------------
 def test_session_resolves_to_the_same_identity(account):
     identity, token = auth.authenticate(EMAIL, PASSWORD)
-    assert auth.resolve_session(token).email == identity.email
+    assert _resolved(token).email == identity.email
 
 
 def test_only_a_hash_of_the_token_is_stored(account):
@@ -139,15 +189,15 @@ def test_only_a_hash_of_the_token_is_stored(account):
 
 
 def test_an_unknown_or_empty_token_resolves_to_nothing():
-    assert auth.resolve_session(None) is None
-    assert auth.resolve_session("") is None
-    assert auth.resolve_session("made-up-token") is None
+    assert _resolved(None) is None
+    assert _resolved("") is None
+    assert _resolved("made-up-token") is None
 
 
 def test_logout_revokes_immediately(account):
     _, token = auth.authenticate(EMAIL, PASSWORD)
     auth.destroy_session(token)
-    assert auth.resolve_session(token) is None
+    assert _resolved(token) is None
 
 
 def test_an_expired_session_is_refused_and_removed(account):
@@ -156,19 +206,19 @@ def test_an_expired_session_is_refused_and_removed(account):
         row = s.get(UserSession, auth._token_hash(token))
         row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
 
-    assert auth.resolve_session(token) is None
+    assert _resolved(token) is None
     with session_scope() as s:
         assert s.get(UserSession, auth._token_hash(token)) is None
 
 
 def test_deactivating_an_account_kills_its_live_sessions(account):
     _, token = auth.authenticate(EMAIL, PASSWORD)
-    assert auth.resolve_session(token) is not None
+    assert _resolved(token) is not None
 
     with session_scope() as s:
         s.scalar(select(User).where(User.email == EMAIL)).is_active = False
 
-    assert auth.resolve_session(token) is None
+    assert _resolved(token) is None
 
 
 def test_changing_the_password_signs_every_browser_out(account):
@@ -177,8 +227,8 @@ def test_changing_the_password_signs_every_browser_out(account):
 
     auth.change_password(_user().id, PASSWORD, "a-brand-new-password")
 
-    assert auth.resolve_session(first) is None
-    assert auth.resolve_session(second) is None
+    assert _resolved(first) is None
+    assert _resolved(second) is None
     auth.authenticate(EMAIL, "a-brand-new-password")  # the new one works
 
 

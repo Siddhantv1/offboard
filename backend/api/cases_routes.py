@@ -747,10 +747,17 @@ def assign_stage(case: ScopedCase, stage_key: str, user: StaffUser,
 
         owners = STAGE_OWNERS.get(stage_key, frozenset())
         if assignee.role not in owners and assignee.role != "hr":
+            # Deliberately does not name them. It used to read
+            # "<full name> is <role>, which does not own this stage", so any
+            # staff caller could walk `user_id` from 1 upwards against a case
+            # in their own scope and read out the whole directory -- name,
+            # address and role -- one 422 at a time. A manager is given no
+            # user-directory endpoint anywhere else in the app.
             raise HTTPException(
                 status_code=422,
-                detail=f"{assignee.full_name or assignee.email} is "
-                       f"{assignee.role}, which does not own this stage.",
+                detail="That person's role does not own this stage. "
+                       f"{stage_key.upper()} belongs to "
+                       f"{' or '.join(sorted(owners)) or 'nobody'}.",
             )
         label = assignee.full_name or assignee.email
         assignee_identity = Identity(
