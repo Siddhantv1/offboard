@@ -24,11 +24,22 @@ function DraftDeprovisioning({ employeeId, count }) {
   if (!employeeId || !["hr", "it"].includes(user?.role)) return null;
 
   if (state.status === "done") {
+    /* `/it/deprovisioning` is not a route -- this linked to a 404. And
+       `/deprovisioning`, the real one, is HR's: this button is shown to IT as
+       well, so for them there was no correct destination at all. Each role is
+       pointed at the page it can actually open. */
     return (
       <p className="rk-assigned">
-        {"Plan drafted. It is waiting on "}
-        <Link to="/it/deprovisioning" className="linkish">Deprovisioning</Link>
-        {" for HR to authorise — nothing has been revoked yet."}
+        {"Plan drafted — nothing has been revoked yet. "}
+        {user?.role === "hr" ? (
+          <>
+            It is waiting for you to authorise it on{" "}
+            <Link to="/deprovisioning" className="linkish">Deprovisioning</Link>.
+          </>
+        ) : (
+          "It is waiting for HR to authorise it; you work it afterwards on "
+          + "that person's IT clearance page."
+        )}
       </p>
     );
   }

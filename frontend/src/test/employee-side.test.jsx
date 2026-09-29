@@ -29,9 +29,22 @@ const conf = (over) => ({
 });
 
 describe("the employee's side of a clearance", () => {
-  it("says who is being waited on while the stage is open", () => {
+  it("names who has not confirmed, while the stage is open", () => {
     render(<EmployeeSide confirmation={conf()} employee="Nisha Reddy" />);
-    expect(document.body.textContent).toMatch(/waiting on nisha reddy/i);
+    expect(document.body.textContent).toMatch(/no confirmation recorded from nisha reddy/i);
+  });
+
+  it("does not claim a block the server stopped enforcing", () => {
+    /* It used to read "This cannot be completed until they do — HR can clear
+       it without them, and it is recorded as an override." `stages.transition`
+       removed that gate deliberately (it let somebody who had already left
+       freeze their own clearance) and nothing records an override. On the page
+       that IS the compliance record, an auditor would have believed an
+       override path was exercised that was never invoked. */
+    render(<EmployeeSide confirmation={conf()} employee="Nisha Reddy" />);
+    const text = document.body.textContent;
+    expect(text).not.toMatch(/cannot be completed/i);
+    expect(text).not.toMatch(/recorded as an override/i);
   });
 
   it("does not claim to be waiting on a stage that is finished", () => {

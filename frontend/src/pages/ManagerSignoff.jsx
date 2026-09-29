@@ -103,7 +103,17 @@ function StageActions({ caseId, stage, canAct, warn = [], onChanged }) {
 
       {!canAct && <p className="empty">Your role cannot move this stage.</p>}
 
-      {canAct && (
+      {/* `NEXT_STATUS.completed` offers "Reopen", and `HR_ONLY_FROM` means a
+          manager is always refused it -- the one move this page could never
+          make was the only one it showed on a finished stage. The IT clearance
+          page already says this properly rather than offering the button. */}
+      {canAct && stage.status === "completed" && (
+        <p className="stage-confirmed">
+          {`${stage.name} is signed off. Ask HR if it needs reopening.`}
+        </p>
+      )}
+
+      {canAct && stage.status !== "completed" && (
         <>
           <div className="stage-actions">
             {(NEXT_STATUS[stage.status] ?? []).map(([to, label]) => (

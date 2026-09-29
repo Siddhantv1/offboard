@@ -2117,6 +2117,16 @@ select option:checked { background: var(--mint); color: var(--deep); }
 .stage-confirm-lead { margin: 0; font-size: 13.5px; line-height: 1.55; }
 .stage-confirm-docs { margin: 8px 0 10px; font-size: 13px; color: var(--muted); }
 
+/* An irreversible admin action asking first. Inline rather than a dialog, so
+   the row it belongs to stays on screen while you read the question. */
+.user-confirm {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--warn-wash); border: 1px solid var(--warn);
+}
+.user-confirm-q { font-size: 12.5px; max-width: 34ch; line-height: 1.45; }
+.user-confirm .btn { padding: 4px 12px; font-size: 12.5px; }
+
 /* Orchestration runs paused at the approval gate, from any session. */
 .orch-pending { margin-bottom: 18px; }
 .orch-pending-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

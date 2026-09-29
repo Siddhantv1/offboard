@@ -85,6 +85,44 @@ describe("escaping", () => {
   });
 });
 
+describe("user text reaching the tag structure", () => {
+  it("does not let $-sequences in a wrapped bullet expand as replacement patterns", () => {
+    /* `String.replace` with a *string* replacement expands `$&`, "$`" and
+       `$'`. The continuation line is user text, so "Cost: $& more" produced
+       `<li>bullet one Cost: </li>amp; more</li>` -- the item closed early and
+       the text escaped the tag it was meant to be inside. */
+    expect(renderMarkdown("- bullet one\nCost: $& more"))
+      .toBe("<ul>\n<li>bullet one Cost: $&amp; more</li>\n</ul>");
+    expect(renderMarkdown("- a\ncontinuation $` end"))
+      .toBe("<ul>\n<li>a continuation $` end</li>\n</ul>");
+    expect(renderMarkdown("- a\nprice $$100"))
+      .toBe("<ul>\n<li>a price $$100</li>\n</ul>");
+  });
+
+  it("leaves a code-block marker typed by a human alone", () => {
+    // The placeholder was `@@CODE0@@`, which escaping does not touch and a
+    // person can type. With no fences it rendered "undefined" in a code
+    // block; with fences it rendered a different block's contents.
+    expect(renderMarkdown("Please see @@CODE0@@ for details."))
+      .toBe("<p>Please see @@CODE0@@ for details.</p>");
+  });
+
+  it("does not swap a typed marker for a real block's contents", () => {
+    const html = renderMarkdown("Intro @@CODE0@@ text\n\n```\nreal code\n```\n");
+    expect(html).toBe(
+      "<p>Intro @@CODE0@@ text</p>\n<pre><code>real code</code></pre>");
+  });
+
+  it("uses a different marker on every render", () => {
+    // Two renders must not share a guessable token, or the forgery is back
+    // for anyone who reads one output.
+    const a = renderMarkdown("```\nx\n```");
+    const b = renderMarkdown("```\nx\n```");
+    expect(a).toBe(b); // the *output* is stable
+    expect(a).toBe("<pre><code>x</code></pre>");
+  });
+});
+
 describe("fenced code", () => {
   it("renders at all", () => {
     /* It did not. The placeholder was delimited by spaces and restored by a

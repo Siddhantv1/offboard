@@ -259,9 +259,7 @@ export default function Orchestrator() {
             <h3>{`${pending.length} run${pending.length === 1 ? "" : "s"} waiting on you`}</h3>
           </div>
           <p className="hint" style={{ marginTop: -6 }}>
-            Paused at the deprovisioning gate. These survive a restart and are
-            visible to everyone, so a run does not get stranded in the tab that
-            started it.
+            Paused at the deprovisioning gate. Needs your attention.
           </p>
           <ul className="orch-pending-list">
             {pending.map((row) => (

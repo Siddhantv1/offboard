@@ -13,7 +13,7 @@ import PolicyAuditor from "./PolicyAuditor.jsx";
 import PredictiveAttrition from "./PredictiveAttrition.jsx";
 import RehireAssessment from "./RehireAssessment.jsx";
 import RiskAssessment from "./RiskAssessment.jsx";
-import SlaEscalation from "./SlaEscalation.jsx";
+import SlaEscalation from "./SLAEscalation.jsx";
 import SmartRouting from "./SmartRouting.jsx";
 import WorkflowOptimizer from "./WorkflowOptimizer.jsx";
 

@@ -10,15 +10,21 @@ import { escapeHtml } from "./format.js";
 export function renderMarkdown(src) {
   if (src == null) return "";
   const codeBlocks = [];
+
+  /* A per-render nonce, because the marker has to be one the source cannot
+     contain.
+
+     It was a bare `@@CODE0@@`. `escapeHtml` leaves `@` alone by design -- and
+     so does a person typing it. "Please see @@CODE0@@ for details" rendered
+     as `<pre><code>undefined</code></pre>` in a document with no fences, and
+     as some *other* block's contents in one that had them. A nonce makes a
+     forged marker impossible rather than merely unlikely. */
+  const nonce = Math.random().toString(36).slice(2, 10);
+  const marker = new RegExp(`@@CODE(\\d+)_${nonce}@@`, "g");
+
   let text = String(src).replace(/```(?:[\w-]+)?\n?([\s\S]*?)```/g, (_, code) => {
     codeBlocks.push(code.replace(/\n$/, ""));
-    // `@@` rather than the surrounding spaces this used before. The old token
-    // was restored with a regex that required a space on both sides, and the
-    // line was `trimEnd()`ed before the block loop saw it -- so a fenced block
-    // sitting on its own lines, which is every fenced block, never matched and
-    // came out as the literal text "CODE0". `escapeHtml` leaves @ alone, so
-    // the marker survives escaping intact.
-    return `@@CODE${codeBlocks.length - 1}@@`;
+    return `@@CODE${codeBlocks.length - 1}_${nonce}@@`;
   });
   text = escapeHtml(text);
 
@@ -73,7 +79,7 @@ export function renderMarkdown(src) {
       closeAll();
       continue;
     }
-    if (/^@@CODE\d+@@$/.test(line.trim())) {
+    if (new RegExp(`^@@CODE\\d+_${nonce}@@$`).test(line.trim())) {
       // A fence on its own lines is a block, not a paragraph. Letting it fall
       // through would wrap a <pre> in a <p>, which the parser then splits.
       closeAll();
@@ -111,7 +117,15 @@ export function renderMarkdown(src) {
     } else if (list && html[html.length - 1]?.endsWith("</li>")) {
       // A wrapped bullet. It belongs to the item above, not to a paragraph
       // sitting between two bullets where no paragraph exists.
-      html.push(html.pop().replace(/<\/li>$/, ` ${inline(line.trim())}</li>`));
+      // A replacer *function*, not a replacement string. As a string, `$&`,
+      // "$`" and `$'` in the user's text expand as patterns: a wrapped bullet
+      // reading "Cost: $& more" produced `<li>bullet one Cost: </li>amp;
+      // more</li>` -- the item closed early and the text escaped the tag it
+      // was supposed to be inside. Not an injection (the inserted text is
+      // already escaped) but user text reaching the tag structure, which is
+      // the thing the escaping exists to prevent.
+      const tail = ` ${inline(line.trim())}</li>`;
+      html.push(html.pop().replace(/<\/li>$/, () => tail));
     } else if (quote.length) {
       quote.push(line); // lazy continuation: a wrapped line inside the quote
     } else {
@@ -123,7 +137,7 @@ export function renderMarkdown(src) {
 
   return html
     .join("\n")
-    .replace(/@@CODE(\d+)@@/g, (_, i) => `<pre><code>${escapeHtml(codeBlocks[+i])}</code></pre>`);
+    .replace(marker, (_, i) => `<pre><code>${escapeHtml(codeBlocks[+i] ?? "")}</code></pre>`);
 }
 
 /** Convenience for `<div {...markdownHtml(src)} />`. */

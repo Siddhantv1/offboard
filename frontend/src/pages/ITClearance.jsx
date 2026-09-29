@@ -179,7 +179,7 @@ export default function ITClearance() {
         <Badge value={stage.status} />
         <span className="muted">
           {stage.owner ? (stage.mine ? "Yours" : `Held by ${stage.owner}`) : "Unassigned"}
-          {confirmation?.confirmed && ` · ${c.employee} says their side is done`}
+          {confirmation?.confirmed && ` · ${c.employee} completed on their side.`}
         </span>
       </div>
 

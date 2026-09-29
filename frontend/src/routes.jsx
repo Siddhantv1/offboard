@@ -6,7 +6,7 @@
  * /my-case, so someone following a stale link was simply moved somewhere else
  * and left to assume the link had worked.
  */
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "./lib/auth.jsx";
 import AddEmployee from "./pages/AddEmployee.jsx";
@@ -30,9 +30,22 @@ const ALL = ["hr", "it", "manager", "employee"];
 const STAFF = ["hr", "it", "manager"];
 
 function AgentRoute() {
-  // Remounts on id change so per-agent state (form values, chat thread) resets.
+  /* Remounts on id change so per-agent state (form values, chat thread)
+     resets -- and on query change too, which is the half that was missing.
+     `Field` renders an uncontrolled `<select defaultValue>`, and React only
+     applies `defaultValue` on mount: on an update it is a no-op for a
+     single-select, and a text input the user has typed into is dirty and
+     ignores it as well.
+
+     So going from `/agents/kt_reviewer?kt_id=kt-001` (prefilled from a case
+     page) to `/agents/kt_reviewer` in the sidebar kept the same key, never
+     remounted, and left kt-001 selected -- while the "filled in from the page
+     you came from" hint disappeared, because `prefilled` was now false.
+     Pressing Run reviewed the previous person's handover, and the output
+     names them, so nothing looked wrong. */
   const { agentId } = useParams();
-  return <AgentPage key={agentId} agentId={agentId} />;
+  const [params] = useSearchParams();
+  return <AgentPage key={`${agentId}?${params}`} agentId={agentId} />;
 }
 
 /** Several roles share the path "/" with different landing pages, so the table

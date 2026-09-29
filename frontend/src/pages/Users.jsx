@@ -16,6 +16,7 @@ const ROLES = [
  *  there is no recovery, only reissue. */
 function Credential({ credential, onDismiss }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   if (!credential) return null;
   return (
     <div className="credential" role="alert">
@@ -26,20 +27,70 @@ function Credential({ credential, onDismiss }) {
         channel you trust — they will be asked to change it at first sign-in.
       </p>
       <div className="btn-row">
+        {/* Awaited, and only claimed on success. This fired and told you
+            "Copied" regardless -- the optional chain makes a missing
+            `navigator.clipboard` (any non-secure origin that is not
+            localhost) a silent no-op, and a rejected write went nowhere. On a
+            password that is shown once and stored only as a hash, that costs
+            the account another reset. */}
         <Button
           variant="ghost"
-          onClick={() => {
-            navigator.clipboard?.writeText(credential.password);
-            setCopied(true);
+          onClick={async () => {
+            setCopyFailed(false);
+            try {
+              await navigator.clipboard.writeText(credential.password);
+              setCopied(true);
+            } catch {
+              setCopyFailed(true);
+            }
           }}
         >
           {copied ? "Copied" : "Copy password"}
         </Button>
         <Button variant="ghost" onClick={onDismiss}>Done</Button>
       </div>
+      {copyFailed && (
+        <p className="credential-note">
+          Could not reach the clipboard. Select the password above and copy it
+          by hand — it cannot be shown again.
+        </p>
+      )}
     </div>
   );
 }
+
+/** A destructive action that asks first.
+ *
+ * Local to this page because these two are the only irreversible one-click
+ * controls in the app; the case pages already do their own inline
+ * confirmation for stage completion, in the shape this follows.
+ */
+function Confirmable({ label, confirm, question, danger, busy, disabled, onConfirm }) {
+  const [asking, setAsking] = useState(false);
+
+  if (!asking) {
+    return (
+      <button type="button" className={"linkish" + (danger ? " danger" : "")}
+              disabled={disabled} onClick={() => setAsking(true)}>
+        {label}
+      </button>
+    );
+  }
+
+  return (
+    <span className="user-confirm" role="alert">
+      <span className="user-confirm-q">{question}</span>
+      <Button variant={danger ? "danger" : "primary"} busy={busy}
+              onClick={async () => { setAsking(false); await onConfirm(); }}>
+        {confirm}
+      </Button>
+      <Button variant="ghost" disabled={busy} onClick={() => setAsking(false)}>
+        Cancel
+      </Button>
+    </span>
+  );
+}
+
 
 function InviteForm({ onCreated }) {
   const [open, setOpen] = useState(false);
@@ -122,6 +173,7 @@ export default function Users() {
   const [state, setState] = useState({ status: "loading", users: [], error: null });
   const [credential, setCredential] = useState(null);
   const [rowError, setRowError] = useState(null);
+  const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -137,13 +189,19 @@ export default function Users() {
 
   useEffect(load, [load]);
 
-  async function act(fn) {
+  // `busyId` disables every row's controls while one is in flight, so a
+  // second misclick cannot land on a different person while the first is
+  // still going.
+  async function act(rowId, fn) {
     setRowError(null);
+    setBusyId(rowId);
     try {
       await fn();
       load();
     } catch (e) {
       setRowError(e.message);
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -167,7 +225,7 @@ export default function Users() {
           value={u.role}
           aria-label={`Role for ${u.email}`}
           onChange={(e) =>
-            act(() => patchJSON(`/api/admin/users/${u.id}`, { role: e.target.value }))
+            act(u.id, () => patchJSON(`/api/admin/users/${u.id}`, { role: e.target.value }))
           }
         >
           {ROLES.map(([value]) => (
@@ -199,31 +257,41 @@ export default function Users() {
         <div className="row-actions">
           {u.locked_until && (
             <button type="button" className="linkish"
-                    onClick={() => act(() => patchJSON(`/api/admin/users/${u.id}`, { unlock: true }))}>
+                    onClick={() => act(u.id, () => patchJSON(`/api/admin/users/${u.id}`, { unlock: true }))}>
               Unlock
             </button>
           )}
-          <button
-            type="button"
-            className="linkish"
-            onClick={() =>
-              act(async () => {
+          {/* Both irreversible, both were one click in a dense table with no
+              confirmation and no per-row busy state. A misclick on "Reset
+              password" invalidates that person's password immediately and
+              shows the replacement once. The case page makes a far less
+              destructive stage completion a two-step; these had nothing. */}
+          <Confirmable
+            label="Reset password"
+            confirm="Reset it"
+            question={`Reset ${u.full_name || u.email}'s password? Theirs stops working immediately and the replacement is shown once.`}
+            busy={busyId === u.id}
+            disabled={busyId !== null}
+            onConfirm={() =>
+              act(u.id, async () => {
                 const d = await postJSON(`/api/admin/users/${u.id}/reset-password`, {});
                 setCredential(d.credential);
               })
             }
-          >
-            Reset password
-          </button>
-          <button
-            type="button"
-            className="linkish danger"
-            onClick={() =>
-              act(() => patchJSON(`/api/admin/users/${u.id}`, { is_active: !u.is_active }))
+          />
+          <Confirmable
+            label={u.is_active ? "Deactivate" : "Reactivate"}
+            confirm={u.is_active ? "Deactivate" : "Reactivate"}
+            danger={u.is_active}
+            question={u.is_active
+              ? `Deactivate ${u.full_name || u.email}? They are signed out everywhere and cannot sign back in.`
+              : `Reactivate ${u.full_name || u.email}?`}
+            busy={busyId === u.id}
+            disabled={busyId !== null}
+            onConfirm={() =>
+              act(u.id, () => patchJSON(`/api/admin/users/${u.id}`, { is_active: !u.is_active }))
             }
-          >
-            {u.is_active ? "Deactivate" : "Reactivate"}
-          </button>
+          />
         </div>
       ),
     },

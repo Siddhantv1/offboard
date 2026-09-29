@@ -12,9 +12,9 @@ import { DOC_STAGES_FOR, NEXT_STATUS as NEXT, STAGE_KEY_BY_NAME as KEY_BY_NAME }
 
 /** Whether the leaver has done their half of a two-sided stage.
  *
- * Shown because the owning role cannot verify without it -- the server refuses
- * the transition -- and a disabled-looking "complete" button with no stated
- * reason is exactly the kind of dead control this app had too much of. */
+ * Shown because the owning role cannot verify a two-sided stage without it.
+ * It does not gate anything: the server stopped refusing the transition on
+ * this, deliberately, and the copy below no longer claims otherwise. */
 export function EmployeeSide({ confirmation, employee }) {
   if (!confirmation) return null;
   const who = employee || "The employee";
@@ -45,11 +45,19 @@ export function EmployeeSide({ confirmation, employee }) {
     );
   }
 
+  /* States the fact and stops there.
+     It used to add "This cannot be completed until they do — HR can clear it
+     without them, and it is recorded as an override." Neither half is true.
+     `stages.transition` removed that gate, and says why in a comment: it let
+     somebody who had already left freeze their own clearance. Nothing records
+     an override either. So the page promised a control the server had dropped,
+     on the screen whose whole purpose is the compliance record -- an auditor
+     reading it would believe an override path had been exercised that was
+     never invoked. */
   return (
     <p className="stage-waiting">
-      {`Waiting on ${who} to confirm they have `}
-      {confirmation.asks}. This cannot be completed until they do — HR can
-      clear it without them, and it is recorded as an override.
+      {`No confirmation recorded from ${who} yet — they have not said they `}
+      {confirmation.asks}. Verify it against your own records before completing.
     </p>
   );
 }
